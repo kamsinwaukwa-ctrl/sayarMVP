@@ -2,9 +2,9 @@
 alwaysApply: true
 ---
 
-# Next.js Firebase Template - Project Structure
+# React + Vite + Supabase - Project Structure
 
-This project follows a modular architecture pattern for Next.js applications with Firebase integration and Material-UI components.
+This project follows a modular architecture pattern for React applications with Supabase integration and Tailwind CSS styling.
 
 ## Folder Structure
 
@@ -12,67 +12,60 @@ This project follows a modular architecture pattern for Next.js applications wit
 
 #### Core Directories
 
-- **app/** - Next.js App Router
-  - **layout.tsx** - Root layout with providers
-  - **page.tsx** - Home page
-  - **(authenticated)/** - Protected routes (requires auth)
-  - **(public)/** - Public routes (signin, signup, etc.)
-  - **api/** - API routes (if needed)
-
 - **components/** - Reusable UI Components
-  - **common/** - Shared components (LoadingScreen, SplashScreen, EmptyContent)
-  - **forms/** - Form components (LoadingButton, etc.)
-  - **guards/** - Authorization guards
-    - **AuthGuard/** - Protected route wrapper
-    - **GuestGuard/** - Public route wrapper
-  - **layouts/** - Layout components
-  - **ui/** - Basic UI components
+  - **ui/** - Basic UI components (Button, Input, Modal, etc.)
+  - **forms/** - Form components (LoginForm, ProductForm, etc.)
+  - **layout/** - Layout components (Header, Sidebar, Footer)
+  - **auth/** - Authentication components (LoginForm, SignupForm)
+  - **dashboard/** - Dashboard-specific components
+  - **admin/** - Admin-specific components
 
-- **sections/** - Page-specific sections
-  - Each page gets its own folder
-  - Complex components that are page-specific
-
-- **lib/** - Core Libraries & Services
-  - **firebase.ts** - Firebase initialization
-  - **firestore.ts** - Firestore operations & collections
-  - **storage.ts** - Firebase Storage operations
-  - **functions.ts** - Firebase Functions calls
-
-- **auth/** - Authentication System
-  - **AuthProvider.tsx** - Auth context provider
-  - **authContext.ts** - Context definition
-  - **authOperations.ts** - Auth functions (login, signup, etc.)
-  - **useAuth.ts** - Auth hook
-  - **types.ts** - Auth-related types
-
-- **theme/** - MUI Theme Configuration
-  - **ThemeProvider.tsx** - Theme context provider
-  - **palette.ts** - Color definitions
-  - **typography.ts** - Font settings
-  - **components/** - Component overrides
-  - **customColors.ts** - Custom color definitions
+- **pages/** - Page Components
+  - **auth/** - Authentication pages (Login, Signup, ForgotPassword)
+  - **dashboard/** - Merchant dashboard pages
+  - **admin/** - Admin interface pages
+  - **public/** - Public pages (Landing, About, etc.)
 
 - **hooks/** - Custom React Hooks
-  - **useFirestore.ts** - Firestore real-time subscriptions
-  - **useStorage.ts** - File upload/download hooks
-  - **useSnackbar.ts** - Notification hook
-  - **useResponsive.ts** - Responsive breakpoints
+  - **useAuth.ts** - Authentication hook
+  - **useSupabase.ts** - Supabase data fetching hooks
+  - **useApi.ts** - API call hooks with React Query
+  - **useLocalStorage.ts** - Local storage hook
+  - **useResponsive.ts** - Responsive breakpoints hook
 
-- **utils/** - Utility Functions
-  - **format.ts** - Data formatting
-  - **validation.ts** - Form validation
-  - **constants.ts** - App constants
+- **lib/** - External Service Integrations
+  - **supabase.ts** - Supabase client configuration
+  - **api.ts** - API client for backend communication
+  - **auth.ts** - Authentication utilities
+  - **storage.ts** - File upload utilities
 
 - **types/** - TypeScript Definitions
-  - **firestore.ts** - Firestore document types
-  - **api.ts** - API response types
-  - **common.ts** - Shared types
+  - **api.ts** - API request/response types
+  - **auth.ts** - Authentication types
+  - **database.ts** - Database model types
+  - **common.ts** - Shared types and interfaces
+
+- **utils/** - Utility Functions
+  - **format.ts** - Data formatting utilities
+  - **validation.ts** - Form validation schemas
+  - **constants.ts** - App constants and configuration
+  - **helpers.ts** - General helper functions
+
+- **context/** - React Context Providers
+  - **AuthProvider.tsx** - Authentication context
+  - **ThemeProvider.tsx** - Theme context (if needed)
+  - **AppProvider.tsx** - Main app context
+
+- **styles/** - Styling
+  - **globals.css** - Global CSS and Tailwind imports
+  - **components.css** - Component-specific styles
+  - **tailwind.config.js** - Tailwind configuration
 
 ### `public/` - Static Assets
 
-- **images/** - Static images
+- **images/** - Static images and icons
 - **fonts/** - Custom fonts
-- **icons/** - Icon files
+- **favicon.ico** - Site favicon
 
 ## Development Rules
 
@@ -82,79 +75,148 @@ This project follows a modular architecture pattern for Next.js applications wit
 - Use composition over inheritance
 - Separate presentational and container components
 - Always export from index files for clean imports
+- Group components by functionality (ui, forms, layout, etc.)
 
 ### 2. State Management
 
-- Use React Context for global state (auth, theme, settings)
-- Avoid Redux unless absolutely necessary
+- Use React Query for server state management
+- Use React Context for global client state (auth, theme)
 - Use local state for component-specific data
-- Leverage Firebase real-time listeners for live data
+- Leverage Supabase real-time subscriptions for live data
 
-### 3. Firebase Integration
+### 3. Supabase Integration
 
-- All Firestore operations through lib/firestore.ts
-- Define collection references as constants
-- Use TypeScript interfaces for document types
-- Implement proper error handling for all Firebase operations
+- All database operations through lib/supabase.ts
+- Use React Query hooks for data fetching
+- Define TypeScript interfaces for all database types
+- Implement proper error handling for all Supabase operations
 
 ### 4. Routing & Navigation
 
-- Use Next.js App Router conventions
-- Group routes by authentication status
-- Implement proper loading states
-- Use Link component with href attribute
-- For MUI Link, use router.push
+- Use React Router for client-side routing
+- Implement protected routes with authentication guards
+- Group routes by user role (merchant, admin, public)
+- Use proper loading states and error boundaries
 
-### 5. Theme & Styling
+### 5. Styling & Design
 
-- Use MUI theme variables for all styling
-- Define custom colors in theme configuration
-- Use sx prop for component-specific styles
-- Maintain consistent spacing with theme.spacing()
+- Use Tailwind CSS utility classes for styling
+- Create reusable component variants
+- Follow mobile-first responsive design
+- Use consistent spacing and color schemes
+- Implement dark mode support
 
 ### 6. Type Safety
 
 - Define all data types in types/ directory
 - Use strict TypeScript configuration
 - Avoid 'any' type - use 'unknown' if necessary
-- Create proper interfaces for all Firebase documents
+- Create proper interfaces for all API responses
+- Use generic types for reusable components
 
 ## Common Patterns
 
 ### Protected Route
 
 ```tsx
-// app/(authenticated)/layout.tsx
-export default function AuthenticatedLayout({ children }) {
-  return <AuthGuard>{children}</AuthGuard>;
+// components/auth/ProtectedRoute.tsx
+export function ProtectedRoute({ children, requiredRole }) {
+  const { user, loading } = useAuth();
+  
+  if (loading) return <LoadingSpinner />;
+  if (!user) return <Navigate to="/login" />;
+  if (requiredRole && user.role !== requiredRole) {
+    return <Navigate to="/unauthorized" />;
+  }
+  
+  return children;
 }
 ```
 
-### Firestore Collection Hook
+### React Query Hook for API Data
 
 ```tsx
-// hooks/useCollection.ts
-export function useCollection(collectionName: string) {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
+// hooks/useApi.ts
+export function useProducts(merchantId: string) {
+  return useQuery({
+    queryKey: ['products', merchantId],
+    queryFn: () => api.getProducts(merchantId),
+    enabled: !!merchantId,
+  });
+}
 
-  useEffect(() => {
-    const unsubscribe = onSnapshot(
-      collection(db, collectionName),
-      (snapshot) => {
-        setData(
-          snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }))
-        );
-        setLoading(false);
+export function useCreateProduct() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: api.createProduct,
+    onSuccess: () => {
+      queryClient.invalidateQueries(['products']);
+    },
+  });
+}
+```
+
+### Supabase Data Hook
+
+```tsx
+// hooks/useSupabase.ts
+export function useSupabaseData<T>(
+  table: string,
+  select: string = '*',
+  filters?: Record<string, any>
+) {
+  return useQuery({
+    queryKey: [table, filters],
+    queryFn: async () => {
+      let query = supabase.from(table).select(select);
+      
+      if (filters) {
+        Object.entries(filters).forEach(([key, value]) => {
+          query = query.eq(key, value);
+        });
       }
-    );
-    return unsubscribe;
-  }, [collectionName]);
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as T[];
+    },
+  });
+}
+```
 
-  return { data, loading };
+### Form with React Hook Form
+
+```tsx
+// components/forms/ProductForm.tsx
+export function ProductForm({ onSubmit, initialData }) {
+  const { register, handleSubmit, formState: { errors } } = useForm({
+    defaultValues: initialData,
+  });
+  
+  const createProduct = useCreateProduct();
+  
+  const handleFormSubmit = (data) => {
+    createProduct.mutate(data, {
+      onSuccess: () => {
+        toast.success('Product created successfully');
+      },
+    });
+  };
+  
+  return (
+    <form onSubmit={handleSubmit(handleFormSubmit)}>
+      <input
+        {...register('name', { required: 'Name is required' })}
+        className="w-full p-2 border rounded"
+      />
+      {errors.name && <span className="text-red-500">{errors.name.message}</span>}
+      
+      <button type="submit" disabled={createProduct.isPending}>
+        {createProduct.isPending ? 'Creating...' : 'Create Product'}
+      </button>
+    </form>
+  );
 }
 ```
 
@@ -165,11 +227,13 @@ export function useCollection(collectionName: string) {
 - Utils: camelCase (e.g., `formatDate.ts`)
 - Types: PascalCase for interfaces/types (e.g., `UserDoc`)
 - Constants: UPPER_SNAKE_CASE (e.g., `MAX_FILE_SIZE`)
+- Pages: PascalCase (e.g., `Dashboard.tsx`)
+- API functions: camelCase (e.g., `getProducts.ts`)
 
 ## Import Order
 
-1. React/Next.js imports
-2. Third-party libraries (MUI, Firebase, etc.)
+1. React imports
+2. Third-party libraries (React Query, Supabase, etc.)
 3. Absolute imports (@/ paths)
 4. Relative imports
 5. Type imports
@@ -178,9 +242,23 @@ Example:
 
 ```tsx
 import { useState, useEffect } from "react";
-import { Box, Button } from "@mui/material";
-import { collection, onSnapshot } from "firebase/firestore";
-import { useAuth } from "@/auth/useAuth";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { createClient } from "@supabase/supabase-js";
+import { useAuth } from "@/hooks/useAuth";
 import { LoadingScreen } from "../components/LoadingScreen";
-import type { UserDoc } from "@/types/firestore";
+import type { UserDoc } from "@/types/database";
 ```
+
+## Environment Variables
+
+- `VITE_SUPABASE_URL` - Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` - Supabase anonymous key
+- `VITE_API_BASE_URL` - Backend API base URL
+- `VITE_APP_ENV` - Environment (development, production)
+
+## Build Configuration
+
+- Vite configuration in `vite.config.ts`
+- TypeScript configuration in `tsconfig.json`
+- Tailwind configuration in `tailwind.config.js`
+- ESLint configuration in `.eslintrc.js`

@@ -55,299 +55,332 @@ END ADR_AGENT_PROTOCOL
 
 | ID  | Title                                        | Date       | Status   |
 | --- | -------------------------------------------- | ---------- | -------- |
-| 009 | Testing Strategy - Firebase Emulator Support | 2024-08-23 | Accepted |
-| 008 | TypeScript Configuration                     | 2024-08-23 | Accepted |
-| 007 | Project Structure - Essential Files Only     | 2024-08-23 | Accepted |
-| 006 | Hook Patterns - Status Enum Approach         | 2024-08-23 | Accepted |
-| 005 | Firebase Initialization Strategy             | 2024-08-23 | Accepted |
-| 004 | Form Handling - React Hook Form + Yup        | 2024-08-23 | Accepted |
-| 003 | Firebase Security - Remove App Check         | 2024-08-23 | Accepted |
-| 002 | State Management - React Context over Jotai  | 2024-08-23 | Accepted |
+| 0008 | [WhatsApp Commerce Frontend Architecture](#adr-0008) | 2025-01-27 | Accepted |
+| 0007 | [State Management with React Query](#adr-0007) | 2025-01-27 | Accepted |
+| 0006 | [Authentication with Supabase Auth](#adr-0006) | 2025-01-27 | Accepted |
+| 0005 | [Styling with Tailwind CSS](#adr-0005)       | 2025-01-27 | Accepted |
+| 0004 | [Build Tool with Vite](#adr-0004)            | 2025-01-27 | Accepted |
+| 0003 | [TypeScript Configuration](#adr-0003)        | 2025-01-27 | Accepted |
+| 0002 | [Project Structure for React SPA](#adr-0002) | 2025-01-27 | Accepted |
+| 0001 | [Testing Strategy with Jest and RTL](#adr-0001) | 2025-01-27 | Accepted |
 
 <!-- END:ADR_INDEX -->
 
-## ADR-002: State Management - React Context over Jotai
+## ADR-0001 — Testing Strategy with Jest and RTL
 
-**Status:** Accepted  
-**Date:** 2024-08-23
-
-### Context
-
-The original codebase used Jotai for state management, but we needed to simplify the template for broader adoption.
-
-### Decision
-
-Use React Context API instead of Jotai atoms for authentication state management.
-
-### Rationale
-
-- Reduces external dependencies
-- Built into React - no additional learning curve
-- Sufficient for authentication state needs
-- Easier to understand for developers new to the codebase
-- Maintains compatibility with existing patterns
-
-### Consequences
-
-- Less performant than Jotai for complex state scenarios
-- More boilerplate code required
-- Limited to simple state management patterns
-
----
-
-## ADR-003: Firebase Security - Remove App Check
-
-**Status:** Accepted  
-**Date:** 2024-08-23
+<a id="adr-0001"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
 
 ### Context
 
-App Check with reCAPTCHA was included in the original setup but adds complexity to the template.
+The Sayar frontend requires a comprehensive testing strategy that validates React components, user interactions, and API integrations. Tests need to work with the Vite build system and provide good developer experience.
+
+### Alternatives
+
+- **Cypress for E2E only**: Comprehensive but slow for unit testing
+- **Jest with jsdom**: Fast but limited browser testing
+- **Jest + React Testing Library**: Fast unit tests with realistic user interactions
 
 ### Decision
 
-Remove Firebase App Check and reCAPTCHA integration from the template.
+Implement Jest + React Testing Library testing strategy:
 
-### Rationale
-
-- Simplifies initial setup and development
-- Reduces dependencies
-- App Check can be added later when needed for production
-- Template focuses on core functionality
-- Easier testing during development
+- Use Jest as the test runner with Vite integration
+- React Testing Library for component testing with user-centric approach
+- Mock API calls and external dependencies
+- Test user interactions and accessibility
+- Coverage reporting for code quality
 
 ### Consequences
 
-- Less security protection out of the box
-- Users need to implement App Check separately for production
-- Potential for abuse during development phase
+- **Pros**: Fast test execution, realistic user testing, excellent developer experience, good coverage reporting
+- **Cons / risks**: Learning curve for testing patterns, requires understanding of mocking strategies
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+All components have unit tests. User interactions are tested with RTL. API calls are properly mocked. Test coverage meets minimum thresholds.
 
 ---
 
-## ADR-004: Form Handling - React Hook Form + Yup
+## ADR-0002 — Project Structure for React SPA
 
-**Status:** Accepted  
-**Date:** 2024-08-23
+<a id="adr-0002"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
 
 ### Context
 
-Forms are essential for authentication and data input in web applications.
+The Sayar frontend needs a clear, maintainable structure that supports merchant dashboards, admin interfaces, and scales with the application growth.
+
+### Alternatives
+
+- **Feature-based structure**: Group by business features but harder to find shared components
+- **Layer-based structure**: Group by technical concerns but harder to understand business logic
+- **Hybrid structure**: Clear separation with both technical and business organization
 
 ### Decision
 
-Use React Hook Form with Yup for validation.
+Implement hybrid project structure:
 
-### Rationale
-
-- Performance benefits from uncontrolled components
-- Built-in validation support
-- TypeScript integration
-- Minimal re-renders
-- Yup provides comprehensive validation schemas
-- Industry standard approach
+- `/src/components/` - Reusable UI components organized by type
+- `/src/pages/` - Page components for different routes
+- `/src/hooks/` - Custom React hooks for business logic
+- `/src/lib/` - External service integrations (Supabase, API clients)
+- `/src/types/` - TypeScript type definitions
+- `/src/utils/` - Utility functions and helpers
 
 ### Consequences
 
-- Additional dependencies to manage
-- Learning curve for form-specific patterns
-- More setup required for complex forms
+- **Pros**: Clear organization, easy to find components, scalable structure, good separation of concerns
+- **Cons / risks**: Some components might fit multiple categories, requires discipline to maintain structure
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+Components are properly organized in their respective directories. Imports follow the established structure. New files are placed in appropriate locations.
 
 ---
 
-## ADR-005: Firebase Initialization Strategy
+## ADR-0003 — TypeScript Configuration
 
-**Status:** Accepted  
-**Date:** 2024-08-23
+<a id="adr-0003"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
 
 ### Context
 
-Firebase initialization needed to handle server-side rendering and missing credentials gracefully.
+The Sayar frontend requires strong typing for API responses, component props, and business logic to ensure maintainability and catch errors early.
+
+### Alternatives
+
+- **JavaScript only**: Simple but no type safety
+- **Loose TypeScript**: Some typing but allows many errors
+- **Strict TypeScript**: Maximum type safety with comprehensive error checking
 
 ### Decision
 
-Implement conditional Firebase initialization with fallback empty objects.
+Implement strict TypeScript configuration:
 
-### Rationale
-
-- Prevents SSR errors during build time
-- Graceful handling of missing credentials
-- Allows template to build successfully without Firebase setup
-- Clear error messages when credentials are missing
-
-### Implementation
-
-```typescript
-let firebaseApp: FirebaseApp | undefined;
-if (FIREBASE_CONFIG.apiKey) {
-  firebaseApp = initializeApp(FIREBASE_CONFIG);
-}
-export const auth = firebaseApp ? getAuth(firebaseApp) : ({} as Auth);
-```
+- Enable strict mode with all strict flags
+- Use path mapping for clean imports (@/ paths)
+- Define comprehensive interfaces for API responses
+- Use generic types for reusable components
+- Enable noImplicitAny and strictNullChecks
 
 ### Consequences
 
-- Additional conditional checks required
-- Potential runtime errors if Firebase methods are called without proper initialization
-- More complex initialization logic
+- **Pros**: Maximum type safety, better IDE support, catches errors at compile time, self-documenting code
+- **Cons / risks**: Steeper learning curve, more verbose code, requires understanding of advanced TypeScript features
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+All files use proper TypeScript types. No 'any' types are used. API responses have proper interfaces. Components have typed props.
 
 ---
 
-## ADR-006: Hook Patterns - Status Enum Approach
+## ADR-0004 — Build Tool with Vite
 
-**Status:** Accepted  
-**Date:** 2024-08-23
+<a id="adr-0004"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
 
 ### Context
 
-Needed consistent patterns for data fetching hooks across the application.
+The Sayar frontend needs fast development builds and optimized production builds. The build tool should work well with React, TypeScript, and modern development practices.
+
+### Alternatives
+
+- **Create React App**: Simple but slow and limited customization
+- **Webpack with custom config**: Powerful but complex setup
+- **Vite**: Fast, modern, and excellent developer experience
 
 ### Decision
 
-Use status enum (`"loading" | "error" | "success"`) pattern instead of separate boolean states.
+Implement Vite as the build tool:
 
-### Rationale
-
-- Matches existing codebase patterns
-- Prevents impossible states (loading + error)
-- More maintainable than multiple boolean flags
-- Clear state transitions
-- Better TypeScript inference
-
-### Implementation
-
-```typescript
-const [status, setStatus] = useState<"loading" | "error" | "success">(
-  "loading"
-);
-```
+- Use Vite with React plugin for fast HMR
+- TypeScript support out of the box
+- Optimized production builds with code splitting
+- Environment variable handling
+- Plugin ecosystem for additional features
 
 ### Consequences
 
-- Consistent with existing codebase
-- Easier state management
-- Clear separation of loading states
+- **Pros**: Extremely fast development, modern tooling, great TypeScript support, excellent developer experience
+- **Cons / risks**: Newer tool with smaller ecosystem, some plugins might not be available
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+Development server starts quickly. Hot module replacement works correctly. Production builds are optimized. TypeScript compilation works without errors.
 
 ---
 
-## ADR-007: Project Structure - Essential Files Only
+## ADR-0005 — Styling with Tailwind CSS
 
-**Status:** Accepted  
-**Date:** 2024-08-23
+<a id="adr-0005"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
 
 ### Context
 
-Template needed to be minimal while providing complete Firebase integration.
+The Sayar frontend needs consistent, maintainable styling that supports responsive design and can be easily customized for different merchants.
+
+### Alternatives
+
+- **CSS Modules**: Scoped styles but requires separate CSS files
+- **Styled Components**: CSS-in-JS but runtime overhead
+- **Tailwind CSS**: Utility-first with excellent developer experience
 
 ### Decision
 
-Include only essential files for Firebase integration and authentication.
+Implement Tailwind CSS for styling:
 
-### Included Components
-
-- Firebase services (auth, firestore, storage, functions)
-- Authentication system with React Context
-- Basic pages (home, signin, signup, dashboard)
-- Essential hooks for data fetching
-- Material-UI theme configuration
-
-### Excluded Components
-
-- Complex state management solutions
-- Advanced routing patterns
-- Non-essential UI components
-- Advanced Firebase features (Analytics, Remote Config, etc.)
-
-### Rationale
-
-- Faster onboarding for new projects
-- Easier to understand and modify
-- Reduces maintenance burden
-- Clear separation of concerns
+- Use utility-first approach for rapid development
+- Custom design system with Tailwind configuration
+- Responsive design with mobile-first approach
+- Dark mode support
+- Component-based styling patterns
 
 ### Consequences
 
-- May require additional setup for complex applications
-- Users need to add advanced features themselves
-- More opinionated structure
+- **Pros**: Rapid development, consistent design, responsive by default, excellent developer experience
+- **Cons / risks**: Learning curve for utility classes, potential for inconsistent design without discipline
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+Components use Tailwind classes consistently. Responsive design works across devices. Dark mode is properly implemented. Design system is followed.
 
 ---
 
-## ADR-008: TypeScript Configuration
+## ADR-0006 — Authentication with Supabase Auth
 
-**Status:** Accepted  
-**Date:** 2024-08-23
+<a id="adr-0006"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
 
 ### Context
 
-Template needed strong typing for Firebase operations and React components.
+The Sayar frontend needs secure authentication for merchants and staff. The system must integrate with the Supabase backend and provide a smooth user experience.
+
+### Alternatives
+
+- **Custom JWT implementation**: Full control but complex security considerations
+- **OAuth with external providers**: Secure but adds complexity
+- **Supabase Auth**: Integrated solution with excellent developer experience
 
 ### Decision
 
-Use strict TypeScript configuration with comprehensive type definitions.
+Implement Supabase Auth for authentication:
 
-### Features
-
-- Strict mode enabled
-- Custom type definitions for Firebase documents
-- Proper interface definitions for hooks
-- Type-safe Firebase operations
-
-### Rationale
-
-- Better developer experience
-- Compile-time error catching
-- Self-documenting code
-- Industry best practices
+- Use Supabase Auth client for user management
+- JWT tokens for API authentication
+- React Context for auth state management
+- Protected routes with authentication guards
+- Automatic token refresh handling
 
 ### Consequences
 
-- Steeper learning curve for JavaScript developers
-- More verbose code in some cases
-- Additional type maintenance required
+- **Pros**: Integrated with backend, secure by default, excellent developer experience, built-in user management
+- **Cons / risks**: Vendor lock-in, limited customization compared to custom solutions
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+Authentication flow works correctly. Protected routes require valid authentication. Token refresh is handled automatically. User state is properly managed.
 
 ---
 
-## ADR-009: Testing Strategy - Firebase Emulator Support
+## ADR-0007 — State Management with React Query
 
-**Status:** Accepted  
-**Date:** 2024-08-23
+<a id="adr-0007"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
 
 ### Context
 
-Development and testing needed to work without affecting production Firebase resources.
+The Sayar frontend needs to manage server state efficiently, handle caching, and provide a smooth user experience with loading states and error handling.
+
+### Alternatives
+
+- **useState + useEffect**: Simple but requires manual cache management
+- **Redux**: Powerful but complex for server state
+- **React Query**: Purpose-built for server state with excellent caching
 
 ### Decision
 
-Include Firebase emulator configuration for local development.
+Implement React Query for server state management:
 
-### Implementation
-
-- Emulator configuration in firebase.json
-- Environment-based Firebase initialization
-- Test mode Firestore rules
-
-### Rationale
-
-- Safe local development
-- Faster iteration cycles
-- Cost-effective testing
-- Offline development capability
+- Use React Query for all API calls and server state
+- Automatic caching and background refetching
+- Optimistic updates for better UX
+- Error handling and retry logic
+- Loading states and data synchronization
 
 ### Consequences
 
-- Additional setup required
-- Emulator-specific behaviors may differ from production
-- Need to manage emulator lifecycle
+- **Pros**: Excellent caching, automatic background updates, great developer experience, built-in loading states
+- **Cons / risks**: Learning curve for query patterns, additional bundle size
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+API calls use React Query hooks. Caching works correctly. Background refetching is enabled. Error states are properly handled.
 
 ---
 
-## Future ADRs
+## ADR-0008 — WhatsApp Commerce Frontend Architecture
 
-The following decisions may be documented in future ADRs:
+<a id="adr-0008"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
 
-- Authentication provider selection
-- Deployment strategy
-- Error handling patterns
-- Performance optimization approaches
-- Security rule implementations
-- Monitoring and analytics integration
+### Context
+
+The Sayar frontend is part of a WhatsApp commerce platform that enables merchants to manage their stores, products, and orders through web dashboards.
+
+### Alternatives
+
+- **Separate admin and merchant interfaces**: Clear separation but more development effort
+- **Single interface with role-based views**: Unified but potentially complex
+- **Modular interface with role-based access**: Flexible and maintainable
+
+### Decision
+
+Implement modular interface with role-based access:
+
+- Single React application with role-based routing
+- Merchant dashboard for store management
+- Admin interface for platform management
+- Shared components for common functionality
+- Responsive design for mobile and desktop
+
+### Consequences
+
+- **Pros**: Unified codebase, shared components, easier maintenance, consistent user experience
+- **Cons / risks**: More complex routing logic, need to handle different user types
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+Role-based access works correctly. Different user types see appropriate interfaces. Shared components are properly reused. Responsive design works across devices.

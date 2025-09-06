@@ -1,4 +1,95 @@
-// Re-export all types for easy importing
-export * from './api';
-export * from './common';
-export * from './firestore';
+// Database types for Sayar WhatsApp Commerce Platform
+
+export interface User {
+  id: string
+  email: string
+  merchant_id?: string
+  role: 'owner' | 'staff'
+  created_at: string
+  updated_at: string
+}
+
+export interface Merchant {
+  id: string
+  name: string
+  whatsapp_phone: string
+  logo_url?: string
+  description?: string
+  currency: string
+  waba_id?: string
+  phone_number_id?: string
+  meta_app_id?: string
+  provider_default?: 'paystack' | 'korapay'
+  payments_verified_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Product {
+  id: string
+  merchant_id: string
+  title: string
+  description?: string
+  price_kobo: number
+  stock: number
+  reserved_qty: number
+  available_qty: number
+  image_url?: string
+  sku?: string
+  status: 'active' | 'inactive'
+  catalog_id?: string
+  retailer_id: string
+  category_path?: string
+  tags?: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface Customer {
+  id: string
+  merchant_id: string
+  phone_e164: string
+  name?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Order {
+  id: string
+  merchant_id: string
+  customer_id: string
+  subtotal_kobo: number
+  shipping_kobo: number
+  discount_kobo: number
+  total_kobo: number
+  status: 'pending' | 'paid' | 'failed' | 'cancelled'
+  payment_provider?: string
+  provider_reference?: string
+  order_code: string
+  paid_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface OrderItem {
+  id: string
+  order_id: string
+  product_id: string
+  qty: number
+  unit_price_kobo: number
+  total_kobo: number
+  created_at: string
+  updated_at: string
+}
+
+export interface DeliveryRate {
+  id: string
+  merchant_id: string
+  name: string
+  areas_text: string
+  price_kobo: number
+  description?: string
+  active: boolean
+  created_at: string
+  updated_at: string
+}

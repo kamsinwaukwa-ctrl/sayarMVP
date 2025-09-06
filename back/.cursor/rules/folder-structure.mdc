@@ -3,9 +3,9 @@ globs: back/**
 alwaysApply: false
 ---
 
-# Python Firebase Functions - Broker Architecture
+# FastAPI + Supabase - Service Architecture
 
-This project follows the broker architecture pattern for Firebase Functions.
+This project follows a service-oriented architecture pattern with FastAPI and Supabase.
 
 ## Folder Structure
 
@@ -13,50 +13,66 @@ This project follows the broker architecture pattern for Firebase Functions.
 
 #### Core Components
 
-- **brokers/** - Message/event handling layer
+- **api/** - FastAPI route handlers
 
-  - **callable/** - Client-callable functions (Firebase callable functions)
-  - **https/** - HTTP endpoints (REST APIs)
-  - **triggered/** - Event-triggered functions (Firestore/Storage triggers)
+  - **auth.py** - Authentication endpoints
+  - **merchants.py** - Merchant management endpoints
+  - **products.py** - Product management endpoints
+  - **orders.py** - Order management endpoints
+  - **webhooks.py** - Webhook endpoints (WhatsApp, Paystack, Korapay)
 
-- **documents/** - DocumentBase classes
+- **models/** - Database and API models
 
-  - Each document class represents a Firestore collection
-  - All Firestore operations MUST go through these classes
-  - Never access Firestore directly
-
-- **models/** - Type definitions
-
-  - **firestore_types.py** - Pydantic models for Firestore documents
-  - **function_types.py** - Request/response types for functions
-  - **util_types.py** - Utility types and enums
+  - **merchant.py** - Merchant SQLAlchemy model
+  - **product.py** - Product SQLAlchemy model
+  - **order.py** - Order SQLAlchemy model
+  - **user.py** - User SQLAlchemy model
+  - **api.py** - Pydantic models for API requests/responses
+  - **common.py** - Shared types and enums
 
 - **services/** - Business logic
 
-  - Orchestrate operations across multiple documents
-  - Complex workflows and business rules
+  - **auth_service.py** - Authentication business logic
+  - **merchant_service.py** - Merchant operations
+  - **product_service.py** - Product management
+  - **order_service.py** - Order processing
+  - **payment_service.py** - Payment processing
 
-- **factories/** - Object creation
+- **integrations/** - External API integrations
 
-  - Create documents from various sources (CSV, JSON, templates)
-  - Batch operations
+  - **whatsapp.py** - WhatsApp Cloud API integration
+  - **paystack.py** - Paystack payment integration
+  - **korapay.py** - Korapay payment integration
+  - **meta_catalog.py** - Meta Catalog API integration
 
-- **shared/** - Shared components
+- **database/** - Database configuration
 
-  - **Db.py** - Database singleton with ProjectDb class
-  - **DocumentBase.py** - Base document class
+  - **connection.py** - SQLAlchemy database connection
+  - **migrations/** - Database migration files
 
-- **util/** - Utility functions
+- **workers/** - Background job processing
 
-  - Authentication helpers
-  - CORS handling
-  - Logging
+  - **outbox_worker.py** - APScheduler worker for outbox events
+  - **reservation_worker.py** - Inventory reservation cleanup
+
+- **utils/** - Utility functions
+
+  - **auth.py** - JWT authentication helpers
+  - **cors.py** - CORS handling
+  - **logger.py** - Structured logging
+  - **validators.py** - Data validation utilities
 
 - **exceptions/** - Custom exceptions
-  - Project-specific error classes
+  - **CustomError.py** - Project-specific error classes
 
 ### `tests/` - Test Suite
 
-- **integration/** - End-to-end tests
+- **integration/** - End-to-end API tests
 - **unit/** - Component tests
-- **util/** - Test utilities
+- **util/** - Test utilities and fixtures
+
+### `migrations/` - Database Migrations
+
+- **001_initial_schema.sql** - Initial database schema
+- **002_add_indexes.sql** - Database indexes
+- **003_add_rls_policies.sql** - Row Level Security policies

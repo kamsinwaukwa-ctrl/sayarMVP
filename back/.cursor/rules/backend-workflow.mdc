@@ -7,15 +7,15 @@ alwaysApply: false
 
 ## Architecture
 
-This project uses the event driven broker architecture pattern with Firebase Functions. All business logic is organized into brokers that handle different types of requests and events. The data is saved in firestore and updated on the front end automatically through firestore hooks.
+This project uses an event-driven architecture with FastAPI and Supabase. All business logic is organized into services that handle different types of requests and events. The data is saved in Postgres (Supabase) and updated on the frontend through React Query invalidation and Supabase Realtime subscriptions.
 
 ## Testing
 
-You must always start from tests. We primarily use integration tests that test the user flow from start to finish. For example, for testing item management flow, you would test: creating item -> updating item -> archiving item -> deleting item -> etc. Inside each test case you must check the results in firestore. Test is considered passed, when all document properties are as expected.
+You must always start from tests. We primarily use integration tests that test the user flow from start to finish. For example, for testing order management flow, you would test: creating order -> reserving inventory -> processing payment -> updating stock -> etc. Inside each test case you must check the results in the Postgres database. Test is considered passed when all database records are as expected.
 
-**Important**: We check real documents in firestore after running each firebase function. The same with external services. Never create useless unit tests that just test properties of the class. Instead, test the actual functionality of the class.
+**Important**: We check real database records after running each FastAPI endpoint. The same with external services. Never create useless unit tests that just test properties of the class. Instead, test the actual functionality of the class.
 
-Emulator is started automatically when executing `back/run_tests.py` file. Only run tests by running this file, otherwise, they will not work.
+Use `pytest` to run tests. Integration tests require a test database connection to Supabase.
 
 # Development Principles
 
@@ -32,16 +32,17 @@ All code must be clearly readable and maintainable. It must read like a story. E
 
 Below are the rules that you must follow when developing backend functionality:
 
-- All firestore documents must be modified **strictly** within `DocumentBase` classes located in `src/documents/DocumentBase.py`. You must **never** modify documents outside of these classes.
-- All third party APIs/clients must be wrapped in API wrapper classes located in `src/apis/`.
-- Never make calls to firestore directly. Always use `Db` class located in `src/apis/Db.py`.
-- All firestore document types should always be updated in `src/models/firestore_types.py`.
-- If you are creating multiple documents from an event (like creating items from CSV file) - create a Factory class with a method `.from_csv(csv_path)` - this method should return an array of Document classes.
-- Rules for new firestore and storage types must **always** be up to date in `firestore.rules` or `storage.rules`. Define them as soon as possible.
-- All third party APIs must be wrapped in APIWrapperBase class located in `src/apis/APIWrapperBase.py`.
-- All firestore function request and response types must be in `src/models/function_types.py`.
-- Functions should be named as `{action}_{resource}_callable` or `on_{resource}_{event}`.
-- All complex functionality that involves multiple documents, other APIBase classes, or complex logic should be wrapped in a Service class, located in `src/services/`.
+- All database operations must be performed through SQLAlchemy models and service classes. Never make direct SQL queries.
+- All third party APIs/clients must be wrapped in integration classes located in `src/integrations/`.
+- Never make calls to Supabase directly. Always use service classes and SQLAlchemy models.
+- All database model types should always be updated in `src/models/` with proper Pydantic validation.
+- If you are creating multiple records from an event (like creating products from CSV file) - create a Factory class with a method `.from_csv(csv_path)` - this method should return an array of model instances.
+- Row Level Security (RLS) policies must **always** be up to date in migration files. Define them as soon as possible.
+- All third party APIs must be wrapped in integration classes located in `src/integrations/`.
+- All FastAPI request and response types must be in `src/models/` with Pydantic validation.
+- API endpoints should follow RESTful conventions: `POST /api/v1/{resource}`, `GET /api/v1/{resource}/{id}`, etc.
+- All complex functionality that involves multiple models, other integrations, or complex logic should be wrapped in a Service class, located in `src/services/`.
+- Use the outbox pattern for reliable job processing. Enqueue jobs to `outbox_events` table for async processing.
 
 ## Workflow
 
@@ -52,47 +53,65 @@ When building new features, you must always start from creating new test files o
    - If you cannot find any relevant test files, ask clarification from the user.
    - If it's a new feature, create a new test file.
 2. Incorporate new functionality into the test files. Make sure to check types from the `models` folder or add new types as necessary.
-3. Build the new feature following our broker architecture and development principles.
+3. Build the new feature following our service architecture and development principles.
 4. Run the affected tests and check the results in terminal.
 5. Keep iterating until all tests are passing. Do not stop until all tests are passing.
-6. Export any new brokers from the `main.py` file for deployment.
-7. Document any key architecture decisions (if any)in the `back/.cursor/rules/ADR.mdc` file.
-8. Ensure firestore rules and storage rules are updated to reflect the new functionality in the `firestore.rules` and `storage.rules` files.
+6. Add any new API routes to the appropriate router in `src/api/`.
+7. Document any key architecture decisions (if any) in the `back/.cursor/rules/ADR.mdc` file.
+8. Ensure database migrations and RLS policies are updated to reflect the new functionality.
 
 ## Common Patterns
 
-### Creating a Callable Function
+### Creating a FastAPI Endpoint
 
 ```python
-@https_fn.on_call(
-    cors=options.CorsOptions(cors_origins=["*"]),
-    ingress=options.IngressSetting.ALLOW_ALL,
-)
-def function_name(req: https_fn.CallableRequest):
-    uid = db_auth_wrapper(req)
+@router.post("/api/v1/orders", response_model=OrderResponse)
+async def create_order(
+    request: CreateOrderRequest,
+    merchant: Merchant = Depends(get_current_merchant)
+):
     # Implementation
+    return OrderResponse(id=order.id, data=order.dict())
 ```
 
-### Creating a Document Class
+### Creating a SQLAlchemy Model
 
 ```python
-class MyDocument(ProjectDocumentBase[MyDocType]):
-    pydantic_model = MyDocType
-
-    def __init__(self, id: str, doc: Optional[dict] = None):
-        self.collection_ref = self.db.collections["my_collection"]
-        super().__init__(id, doc)
+class Order(Base):
+    __tablename__ = "orders"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    merchant_id = Column(UUID(as_uuid=True), nullable=False)
+    customer_id = Column(UUID(as_uuid=True), nullable=True)
+    total_kobo = Column(BigInteger, nullable=False)
+    status = Column(String(50), default="pending")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 ```
 
 ### Creating a Service
 
 ```python
-class MyService:
-    def __init__(self, doc: MyDocument):
-        self.document = doc
+class OrderService:
+    def __init__(self, db: Session):
+        self.db = db
 
-    def complex_operation(self):
-        # Orchestrate multiple documents
+    def create_order(self, merchant_id: UUID, order_data: CreateOrderRequest) -> Order:
+        # Orchestrate multiple models and integrations
+        pass
+```
+
+### Creating an Integration
+
+```python
+class WhatsAppIntegration:
+    def __init__(self, access_token: str):
+        self.access_token = access_token
+        self.base_url = "https://graph.facebook.com/v18.0"
+
+    async def send_message(self, phone_number_id: str, to: str, message: dict):
+        # WhatsApp API implementation
+        pass
 ```
 
 ## Guardrails

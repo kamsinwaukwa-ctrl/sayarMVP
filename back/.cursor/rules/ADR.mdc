@@ -54,19 +54,20 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                     | Date       | Status   | Supersedes | Superseded by |
 | ---- | --------------------------------------------------------- | ---------- | -------- | ---------- | ------------- |
-| 0007 | [Test Fixture Cleanup Strategy](#adr-0007)                | 2025-01-27 | Accepted | —          | —             |
-| 0006 | [Automated Test Runner Implementation](#adr-0006)         | 2025-01-27 | Accepted | —          | —             |
-| 0005 | [Database Class Consolidation](#adr-0005)                 | 2025-01-27 | Accepted | —          | —             |
-| 0004 | [Real Firebase Emulators Over Mocked Services](#adr-0004) | 2025-01-27 | Accepted | —          | —             |
-| 0003 | [Test Utilities Organization in util/ Folder](#adr-0003)  | 2025-01-27 | Accepted | —          | —             |
-| 0002 | [Firebase Emulator Integration Pattern](#adr-0002)        | 2025-01-27 | Accepted | —          | —             |
-| 0001 | [Template Testing Strategy](#adr-0001)                    | 2025-01-27 | Accepted | —          | —             |
+| 0008 | [FastAPI + Supabase Architecture for WhatsApp Commerce](#adr-0008) | 2025-01-27 | Accepted | —          | —             |
+| 0007 | [Postgres Outbox Pattern for Reliable Job Processing](#adr-0007) | 2025-01-27 | Accepted | —          | —             |
+| 0006 | [WhatsApp Integration Architecture](#adr-0006)             | 2025-01-27 | Accepted | —          | —             |
+| 0005 | [Payment Gateway Integration Strategy](#adr-0005)          | 2025-01-27 | Accepted | —          | —             |
+| 0004 | [Inventory Management with Atomic Reservations](#adr-0004) | 2025-01-27 | Accepted | —          | —             |
+| 0003 | [Service-Oriented Architecture Pattern](#adr-0003)         | 2025-01-27 | Accepted | —          | —             |
+| 0002 | [Database Design with Row Level Security](#adr-0002)       | 2025-01-27 | Accepted | —          | —             |
+| 0001 | [Testing Strategy with pytest and Test Database](#adr-0001) | 2025-01-27 | Accepted | —          | —             |
 
 <!-- END:ADR_INDEX -->
 
 ---
 
-## ADR-0001 — Template Testing Strategy
+## ADR-0001 — Testing Strategy with pytest and Test Database
 
 <a id="adr-0001"></a>
 **Date**: 2025-01-27  
@@ -75,37 +76,38 @@ END ADR_AGENT_PROTOCOL
 
 ### Context
 
-The Python Firebase template needed a robust testing strategy that supports both rapid development and comprehensive integration testing. Tests needed to work with and without Firebase emulators running.
+The Sayar WhatsApp checkout platform requires a robust testing strategy that validates both API endpoints and database operations. Tests need to work with real database connections to ensure data integrity and proper SQLAlchemy model behavior.
 
 ### Alternatives
 
-- **All tests require emulators**: Simple but slow for basic function logic testing
-- **Mock all Firebase services**: Fast but doesn't test real Firebase behavior
-- **Mixed approach with clear categorization**: Support both scenarios with proper documentation
+- **Mock all database operations**: Fast but doesn't test real database behavior or constraints
+- **Use production database**: Real but dangerous and affects live data
+- **Test database with pytest**: Real database behavior in isolated test environment
 
 ### Decision
 
-Implement a mixed testing strategy where tests are categorized by emulator requirements:
+Implement pytest-based testing strategy with dedicated test database:
 
-- Tests that only validate function logic can run without emulators
-- Integration tests that require database operations use real Firebase emulators
-- Clear documentation distinguishes between test types
-- Environment variable `SKIP_EMULATORS=true` allows bypassing emulator startup
+- Use pytest for all testing with proper fixtures and parametrization
+- Test database connection to Supabase for integration tests
+- Unit tests for service logic without database dependencies
+- Integration tests that validate complete API workflows
+- Database transactions are rolled back after each test
 
 ### Consequences
 
-- **Pros**: Fast feedback for logic tests, comprehensive integration testing, flexible CI/CD options
-- **Cons / risks**: Developers need to understand test categories, some complexity in setup
+- **Pros**: Tests real database behavior, catches SQLAlchemy issues, validates complete workflows, isolated test environment
+- **Cons / risks**: Requires test database setup, slower than mocks, more complex CI/CD configuration
 - **Supersedes**: —
 - **Superseded by**: —
 
 ### Compliance / Verification
 
-Tests documented in `tests/README.md` with clear examples. CI can run both modes: quick logic tests and full integration tests.
+All tests use pytest fixtures. Integration tests connect to test database. Database operations are properly isolated and rolled back. Test coverage includes both unit and integration scenarios.
 
 ---
 
-## ADR-0002 — Firebase Emulator Integration Pattern
+## ADR-0002 — Database Design with Row Level Security
 
 <a id="adr-0002"></a>
 **Date**: 2025-01-27  
@@ -114,38 +116,38 @@ Tests documented in `tests/README.md` with clear examples. CI can run both modes
 
 ### Context
 
-The template needed reliable Firebase emulator management for integration testing. The existing github-app project had a proven pattern for emulator lifecycle management that should be adapted.
+The Sayar platform handles sensitive merchant and customer data that requires strict tenant isolation. Multiple merchants must be able to use the same database without accessing each other's data, and the system needs to scale securely.
 
 ### Alternatives
 
-- **Manual emulator management**: Developers start/stop emulators manually
-- **Test-level emulator fixtures**: Each test manages its own emulator instance
-- **Session-level emulator management**: Emulators start once per test session (github-app pattern)
+- **Application-level filtering**: Filter data in application code, prone to security vulnerabilities
+- **Separate databases per merchant**: Secure but expensive and complex to manage
+- **Row Level Security (RLS) with Supabase**: Database-level security with tenant isolation
 
 ### Decision
 
-Adopt the github-app emulator pattern with session-level management:
+Implement Row Level Security (RLS) policies in Supabase Postgres:
 
-- `tests/util/firebase_emulator.py` handles emulator lifecycle
-- Automatic port cleanup and process management
-- Configurable emulator services (functions, firestore, storage)
-- Robust timeout and error handling
-- Optional automatic startup with `setup_emulators` fixture
+- Enable RLS on all tenant tables (merchants, products, orders, customers)
+- Create policies that filter by `merchant_id` for tenant isolation
+- Use JWT claims to determine merchant context in policies
+- All database operations automatically respect RLS policies
+- Policies are defined in migration files and version controlled
 
 ### Consequences
 
-- **Pros**: Proven pattern, reliable cleanup, supports multiple emulator services, good error handling
-- **Cons / risks**: More complex than manual setup, requires Firebase CLI installation
+- **Pros**: Database-level security, automatic tenant isolation, prevents data leaks, scales efficiently
+- **Cons / risks**: Requires understanding of RLS policies, more complex policy management
 - **Supersedes**: —
 - **Superseded by**: —
 
 ### Compliance / Verification
 
-Tests use `firebase_emulator` fixture. Emulator utilities must handle port conflicts and process cleanup. Pattern consistency with github-app project.
+All tenant tables have RLS enabled. Policies are tested to ensure proper isolation. JWT authentication provides merchant context for policy evaluation.
 
 ---
 
-## ADR-0003 — Test Utilities Organization in util/ Folder
+## ADR-0003 — Service-Oriented Architecture Pattern
 
 <a id="adr-0003"></a>
 **Date**: 2025-01-27  
@@ -154,37 +156,38 @@ Tests use `firebase_emulator` fixture. Emulator utilities must handle port confl
 
 ### Context
 
-Test fixtures and utilities were mixed in `conftest.py`, making them harder to reuse and maintain. The `ItemFlowSetup` class and Firebase emulator utilities needed better organization for template users.
+The Sayar platform requires complex business logic that involves multiple database operations, external API integrations, and coordinated workflows. The system needs to be maintainable, testable, and follow clear separation of concerns.
 
 ### Alternatives
 
-- **Keep everything in conftest.py**: Simple but becomes unwieldy
-- **Split by functionality**: Separate files for different utilities
-- **Move to tests/util/**: Follow common Python testing patterns
+- **All logic in API endpoints**: Simple but leads to fat controllers and poor testability
+- **Domain-driven design with aggregates**: Complex but overkill for MVP
+- **Service-oriented architecture**: Clear separation between API, business logic, and data access
 
 ### Decision
 
-Move shared test utilities to `tests/util/` folder:
+Implement service-oriented architecture with clear layers:
 
-- `tests/util/firebase_emulator.py`: Emulator management and fixtures
-- `tests/util/item_flow_setup.py`: Database setup fixtures for integration tests
-- Import utilities in `conftest.py` for backwards compatibility
-- Clear separation of concerns
+- **API Layer**: FastAPI endpoints handle HTTP concerns (validation, authentication, responses)
+- **Service Layer**: Business logic and orchestration (OrderService, PaymentService, etc.)
+- **Integration Layer**: External API clients (WhatsApp, Paystack, Korapay, Meta Catalog)
+- **Data Layer**: SQLAlchemy models and database operations
+- Services are injected into API endpoints via dependency injection
 
 ### Consequences
 
-- **Pros**: Better organization, easier to find and maintain utilities, follows Python conventions
-- **Cons / risks**: Minor refactoring needed for imports, slightly more complex structure
+- **Pros**: Clear separation of concerns, highly testable, reusable business logic, easy to maintain
+- **Cons / risks**: More files and classes, requires understanding of dependency injection
 - **Supersedes**: —
 - **Superseded by**: —
 
 ### Compliance / Verification
 
-All test utilities under `tests/util/` with proper imports. New utilities should follow this pattern.
+API endpoints are thin and delegate to services. Business logic is in service classes. External integrations are in separate integration classes. Services are properly unit tested.
 
 ---
 
-## ADR-0004 — Real Firebase Emulators Over Mocked Services
+## ADR-0004 — Inventory Management with Atomic Reservations
 
 <a id="adr-0004"></a>
 **Date**: 2025-01-27  
@@ -193,37 +196,38 @@ All test utilities under `tests/util/` with proper imports. New utilities should
 
 ### Context
 
-Integration tests needed to validate Firebase Functions behavior including database operations, triggers, and Firebase service interactions. The choice was between mocking Firebase services or using real emulators.
+The Sayar platform needs to prevent overselling when multiple customers try to purchase the same product simultaneously. Inventory must be reserved during checkout and released if payment fails or times out.
 
 ### Alternatives
 
-- **Mock Firebase services**: Fast but doesn't test real Firebase behavior or edge cases
-- **Use production Firebase**: Real but expensive, slow, and affects live data
-- **Use Firebase emulators**: Real Firebase behavior in isolated environment
+- **Optimistic locking**: Check stock at payment time, risk overselling
+- **Pessimistic locking**: Lock entire product during checkout, poor concurrency
+- **Atomic reservations with TTL**: Reserve stock atomically with expiration time
 
 ### Decision
 
-Use real Firebase emulators for all integration testing:
+Implement atomic inventory reservations with time-to-live (TTL):
 
-- Tests connect to actual Firestore emulator (localhost:8080)
-- Real Firebase Functions emulator (localhost:5001) for function execution
-- Real document operations in emulator database
-- Only mock Firestore trigger events (event object creation, not database operations)
+- Reserve stock atomically in database transaction during order creation
+- Create `inventory_reservations` table with 15-minute TTL
+- Use `reserved_qty` field on products table for real-time availability
+- Background worker releases expired reservations
+- Stock is decremented only on successful payment
 
 ### Consequences
 
-- **Pros**: Tests real Firebase behavior, catches Firebase-specific issues, validates complete workflows
-- **Cons / risks**: Requires Firebase CLI, slower than mocks, more complex setup
+- **Pros**: Prevents overselling, handles concurrency safely, automatic cleanup of expired reservations
+- **Cons / risks**: More complex database schema, requires background worker, potential for temporary stock unavailability
 - **Supersedes**: —
 - **Superseded by**: —
 
 ### Compliance / Verification
 
-Integration tests must use emulator connections. No mocking of Firebase database operations. Trigger events can be mocked for testing purposes.
+Reservations are created atomically. Expired reservations are cleaned up by background worker. Stock is only decremented on payment success. Concurrency tests verify no overselling occurs.
 
 ---
 
-## ADR-0005 — Database Class Consolidation
+## ADR-0005 — Payment Gateway Integration Strategy
 
 <a id="adr-0005"></a>
 **Date**: 2025-01-27  
@@ -232,37 +236,38 @@ Integration tests must use emulator connections. No mocking of Firebase database
 
 ### Context
 
-The template had two database classes: `Db` (base class) and `ProjectDb` (project-specific subclass). This created unnecessary inheritance complexity and indirection for a template that serves as a starting point for new projects.
+The Sayar platform needs to support multiple payment gateways (Paystack and Korapay) for Nigerian merchants. The system must handle payment processing, webhook verification, and provide a unified interface for different payment providers.
 
 ### Alternatives
 
-- **Keep ProjectDb inheritance**: Maintains separation but adds complexity for template users
-- **Multiple database singletons**: Each with different collections but more confusing
-- **Consolidate into single Db class**: Simplify by merging ProjectDb functionality into base Db class
+- **Single payment gateway**: Simple but limits merchant options and creates vendor lock-in
+- **Payment gateway abstraction**: Complex but provides flexibility and reduces vendor dependency
+- **Multiple gateways with unified interface**: Balance between flexibility and complexity
 
 ### Decision
 
-Consolidate ProjectDb functionality directly into the base Db class:
+Implement multiple payment gateway support with unified interface:
 
-- Merge project-specific collections (items, categories, itemActivities) into base `_init_collections()` method
-- Replace all `ProjectDb.get_instance()` calls with `Db.get_instance()`
-- Remove ProjectDb class entirely
-- Update all imports and type hints across the codebase
+- Create `PaymentIntegration` base class with common interface
+- Implement `PaystackIntegration` and `KorapayIntegration` classes
+- Use factory pattern to instantiate correct integration based on merchant preference
+- All integrations support payment link generation and webhook verification
+- Payment data is normalized into common `Payment` model
 
 ### Consequences
 
-- **Pros**: Simpler codebase for template users, fewer concepts to understand, easier to extend
-- **Cons / risks**: Less separation of concerns, template users may need to modify collections directly
+- **Pros**: Merchant choice, reduced vendor lock-in, easier to add new gateways, unified payment handling
+- **Cons / risks**: More complex code, need to maintain multiple integrations, different API behaviors
 - **Supersedes**: —
 - **Superseded by**: —
 
 ### Compliance / Verification
 
-All references to ProjectDb removed from codebase. Single Db class used throughout with project collections included by default.
+All payment gateways implement common interface. Payment data is normalized. Webhook verification works for all supported gateways. Factory pattern correctly instantiates integrations.
 
 ---
 
-## ADR-0006 — Automated Test Runner Implementation
+## ADR-0006 — WhatsApp Integration Architecture
 
 <a id="adr-0006"></a>
 **Date**: 2025-01-27  
@@ -271,38 +276,38 @@ All references to ProjectDb removed from codebase. Single Db class used througho
 
 ### Context
 
-Developers needed an easy way to run tests with proper Firebase emulator management. Manual emulator startup/shutdown was error-prone and the existing pytest commands required knowledge of emulator setup.
+The Sayar platform is built around WhatsApp as the primary customer interface. The system needs to handle WhatsApp Cloud API integration, message sending, webhook processing, and WhatsApp Flows for interactive experiences.
 
 ### Alternatives
 
-- **Manual emulator management**: Simple but error-prone, requires developer to remember setup steps
-- **Docker-based testing**: Isolated but complex setup, requires Docker knowledge
-- **Automated test runner script**: Single command handles emulator lifecycle and test execution
+- **WhatsApp Business API directly**: Complex setup and maintenance, requires Meta verification
+- **Third-party WhatsApp service**: Simple but adds dependency and cost
+- **WhatsApp Cloud API with custom integration**: Full control and cost-effective
 
 ### Decision
 
-Implement `run_tests.py` script with automated emulator management:
+Implement direct WhatsApp Cloud API integration:
 
-- Automatic Firebase emulator startup/shutdown with proper cleanup
-- Command-line options for test types (unit, integration, all)
-- Support for existing emulators via `--no-emulator` flag
-- Optional emulator log viewing with `--show-logs`
-- Graceful error handling and forced cleanup on failures
+- Use WhatsApp Cloud API for sending messages and handling webhooks
+- Implement WhatsApp Flows for interactive experiences (address collection, discount codes)
+- Create `WhatsAppIntegration` class for all WhatsApp operations
+- Handle webhook signature verification for security
+- Support both product messages and interactive messages
 
 ### Consequences
 
-- **Pros**: Better developer experience, reliable emulator cleanup, flexible test execution options
-- **Cons / risks**: Additional script to maintain, requires Firebase CLI installation
+- **Pros**: Full control over WhatsApp features, cost-effective, direct API access, supports all WhatsApp capabilities
+- **Cons / risks**: Complex setup, requires Meta app verification, need to handle API rate limits
 - **Supersedes**: —
 - **Superseded by**: —
 
 ### Compliance / Verification
 
-Test runner documented in README with examples. Script handles all emulator lifecycle automatically. Command-line help available via `--help`.
+WhatsApp integration handles all message types. Webhook verification is implemented. Flows work correctly for interactive experiences. Rate limiting is properly handled.
 
 ---
 
-## ADR-0007 — Test Fixture Cleanup Strategy
+## ADR-0007 — Postgres Outbox Pattern for Reliable Job Processing
 
 <a id="adr-0007"></a>
 **Date**: 2025-01-27  
@@ -311,30 +316,72 @@ Test runner documented in README with examples. Script handles all emulator life
 
 ### Context
 
-The `conftest.py` file contained unused test fixtures (`test_category`, `test_item`, `mock_callable_request`) that were not referenced anywhere in the test suite. These created confusion and maintenance overhead.
+The Sayar platform requires reliable processing of background jobs like inventory updates, catalog synchronization, and payment follow-ups. These jobs must be processed exactly once and survive system failures.
 
 ### Alternatives
 
-- **Keep all fixtures**: Simple but maintains dead code and confusion
-- **Move to test utilities**: Relocate unused fixtures to utils for potential future use
-- **Remove unused fixtures**: Clean up conftest.py to only contain actively used fixtures
+- **In-memory job queues**: Fast but jobs are lost on system restart
+- **External message brokers**: Reliable but adds infrastructure complexity
+- **Postgres outbox pattern**: Reliable job processing using existing database
 
 ### Decision
 
-Remove unused test fixtures from conftest.py:
+Implement Postgres outbox pattern for reliable job processing:
 
-- Remove `test_category`, `test_item`, and `mock_callable_request` fixtures
-- Keep only `firebase_app`, `db`, and `test_user_id` fixtures that are actively used
-- Move complex test setup logic to dedicated utility modules when needed
-- Clean up any broken import references
+- Create `outbox_events` table to store job payloads
+- Use APScheduler worker to process outbox events
+- Jobs are created atomically with business transactions
+- Failed jobs are retried with exponential backoff
+- Dead letter queue (DLQ) for permanently failed jobs
 
 ### Consequences
 
-- **Pros**: Cleaner conftest.py, reduces confusion for new developers, easier maintenance
-- **Cons / risks**: Fixtures need to be recreated if later needed, requires verification that nothing uses them
+- **Pros**: Reliable job processing, no additional infrastructure, atomic with business operations, built-in retry logic
+- **Cons / risks**: Database load from job processing, requires careful worker management
 - **Supersedes**: —
 - **Superseded by**: —
 
 ### Compliance / Verification
 
-No references to removed fixtures exist in codebase. Tests continue to pass without the removed fixtures. New test fixtures should only be added when actively used.
+Jobs are created atomically with business operations. Worker processes outbox events reliably. Failed jobs are retried and eventually moved to DLQ. System can recover from worker failures.
+
+---
+
+## ADR-0008 — FastAPI + Supabase Architecture for WhatsApp Commerce
+
+<a id="adr-0008"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
+
+### Context
+
+The Sayar WhatsApp checkout platform requires a modern, scalable architecture that can handle real-time messaging, payment processing, and inventory management. The system needs to be cost-effective, maintainable, and support rapid development.
+
+### Alternatives
+
+- **Firebase Functions + Firestore**: Simple but limited scalability and vendor lock-in
+- **Microservices with Kubernetes**: Scalable but complex for MVP
+- **FastAPI + Supabase + Railway**: Modern, scalable, cost-effective monolith
+
+### Decision
+
+Implement FastAPI + Supabase + Railway architecture:
+
+- **Backend**: FastAPI (Python) with SQLAlchemy ORM for type safety and performance
+- **Database**: Supabase (Postgres) with Row Level Security for multi-tenancy
+- **Authentication**: JWT-based authentication with Supabase Auth
+- **Deployment**: Railway for simple, cost-effective hosting
+- **Integrations**: Direct API integrations (WhatsApp, Paystack, Korapay, Meta Catalog)
+- **Job Processing**: Postgres outbox pattern with APScheduler
+
+### Consequences
+
+- **Pros**: Modern tech stack, excellent developer experience, cost-effective, scalable, type-safe, real-time capabilities
+- **Cons / risks**: Learning curve for new technologies, requires understanding of Postgres and RLS
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+All components use the specified tech stack. Database operations use SQLAlchemy. Authentication uses JWT. Deployments use Railway. All integrations follow the service-oriented architecture pattern.

@@ -6,39 +6,41 @@ alwaysApply: true
 
 ## Architecture
 
-This project uses Next.js with Firebase integration and Material-UI components. The architecture follows a component-based pattern with clear separation of concerns between presentation, business logic, and data management.
+This project uses React with Vite, Supabase integration, and Tailwind CSS styling. The architecture follows a component-based pattern with clear separation of concerns between presentation, business logic, and data management using React Query for server state.
 
 ## Primary Rules
 
 Below are the rules that you must follow when developing frontend functionality:
 
-### Template and Components
+### Components and UI
 
-- Use Material-UI components as the foundation
-- Explore MUI documentation for ready-to-use components before creating custom ones
-- Mix components from different MUI versions if necessary (with caution)
-- Keep unused template components during early development stages
-- Make components reusable but maintainable and understandable
+- Use Tailwind CSS utility classes for styling
+- Create reusable component variants with consistent design patterns
+- Build custom components when Tailwind utilities aren't sufficient
+- Use headless UI libraries (like Headless UI) for complex interactive components
+- Keep components small, focused, and maintainable
+- Follow the component organization structure (ui/, forms/, layout/, etc.)
 
-### Theme and Context
+### Styling and Design
 
-- Customize application through theme context (`ThemeProvider`)
-- Use separate contexts for different themes if needed (app theme, widget theme)
-- Place theme contexts at the appropriate level (top-level for app, specific for widgets)
-- Disable CssBaseline for widget themes to avoid style conflicts
-- Always use theme variables for styling (colors, spacing, typography)
-- Add custom colors in theme configuration (e.g., `theme.palette.customColors.primaryDark`)
+- Use Tailwind CSS for all styling with utility-first approach
+- Create custom design tokens in `tailwind.config.js` for brand consistency
+- Follow mobile-first responsive design principles
+- Use consistent spacing, colors, and typography scales
+- Implement dark mode support using Tailwind's dark mode utilities
+- Create reusable component variants for different states and sizes
 
 ### User Experience (UX)
 
 - **Always** adopt the perspective of a critical user
-- Use `LoadingScreen` or skeletons for loading states
-- Display `EmptyContent` component for empty tables/lists
-- Use `LoadingButton` for form actions (`loading={isSubmitting}`)
-- Show informative error messages using snackbar notifications
+- Use loading spinners or skeleton components for loading states
+- Display empty state components for empty tables/lists
+- Use loading states for form actions and async operations
+- Show informative error messages using toast notifications
 - Ensure the app is self-explanatory - users should never wonder "what's happening?"
 - Test on various mobile devices and large screens
 - Use `100dvh` instead of `100vh` for mobile compatibility
+- Implement proper focus management for accessibility
 
 ### Code Quality
 
@@ -50,24 +52,54 @@ Below are the rules that you must follow when developing frontend functionality:
 
 ### State Management
 
-- Use React Context for global state (avoid Redux unless necessary)
-- Leverage Firebase real-time listeners for live data
+- Use React Query for server state management and API calls
+- Use React Context for global client state (auth, theme, settings)
 - Use local state for component-specific data
-- Implement optimistic UI updates where appropriate
+- Leverage Supabase real-time subscriptions for live data
+- Implement optimistic UI updates with React Query mutations
+- Use React Query's built-in caching and background refetching
+
+### Custom Hooks Over useEffect
+
+- **Avoid useEffect as a default pattern** - it's often a code smell
+- **Prefer custom hooks** for side effects and data fetching
+- **Use useEffect only as an "escape hatch"** for complex scenarios
+- **Extract logic into custom hooks** for reusability and testability
+- **Custom hooks provide better separation of concerns** and cleaner components
+
+#### When to Use useEffect (Escape Hatch Only)
+
+- **DOM manipulation** that can't be handled declaratively
+- **Setting up subscriptions** to external systems (WebSocket, timers)
+- **Cleanup of resources** that need manual disposal
+- **Synchronizing with external libraries** that don't support React patterns
+- **Complex side effects** that can't be expressed as custom hooks
+
+#### When to Avoid useEffect
+
+- **Data fetching** - use React Query instead
+- **State synchronization** - derive state from props or use useMemo
+- **Event handlers** - use event props or custom hooks
+- **Simple state updates** - use useState or useReducer
+- **Computed values** - use useMemo or derived state
 
 ### Performance Optimization
 
 - Use `useCallback` and `useMemo` efficiently
 - Pay attention to dependency arrays in hooks
 - Lazy load components when appropriate
-- Implement proper code splitting
+- Implement proper code splitting with React.lazy()
+- Use React Query's built-in performance optimizations
+- Optimize bundle size with Vite's tree shaking
 
 ### Authorization
 
-- Use auth context with `onAuthStateChanged`
-- Use `AuthGuard` for protected content
+- Use Supabase Auth for authentication
+- Use React Context for auth state management
+- Implement protected routes with role-based access
 - Always show loading indicators during auth processes
-- Handle auth errors gracefully
+- Handle auth errors gracefully with proper error boundaries
+- Use JWT tokens for API authentication
 
 ## Workflow
 
@@ -94,75 +126,139 @@ Before starting, create a comprehensive to-do list following this exact process:
 ```tsx
 // Start with the component structure
 // components/features/NewFeature.tsx
-import { useState, useEffect } from "react";
-import { Box, Paper, Typography, Skeleton } from "@mui/material";
-import { useAuth } from "@/auth/useAuth";
-import { useSnackbar } from "notistack";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "react-hot-toast";
 
 export function NewFeature() {
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState(null);
   const { user } = useAuth();
-  const { enqueueSnackbar } = useSnackbar();
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['feature-data'],
+    queryFn: () => api.getFeatureData(),
+  });
 
   // Always handle loading states
-  if (loading) {
-    return <Skeleton variant="rectangular" height={200} />;
+  if (isLoading) {
+    return (
+      <div className="animate-pulse">
+        <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+        <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+      </div>
+    );
+  }
+
+  // Always handle error states
+  if (error) {
+    return (
+      <div className="text-red-500 text-center p-4">
+        Error loading data: {error.message}
+      </div>
+    );
   }
 
   // Always handle empty states
   if (!data) {
-    return <EmptyContent title="No data available" />;
+    return (
+      <div className="text-center p-8 text-gray-500">
+        <p>No data available</p>
+      </div>
+    );
   }
 
-  return <Paper sx={{ p: 3 }}>{/* Component content */}</Paper>;
+  return (
+    <div className="p-6 bg-white rounded-lg shadow">
+      {/* Component content */}
+    </div>
+  );
 }
 ```
 
-### 3. Firebase Integration
+### 3. Supabase Integration
 
 ```tsx
-// lib/firestore.ts - Define operations
+// lib/supabase.ts - Define operations
 export const dataOperations = {
   async create(data: DataType) {
     try {
-      const docRef = await addDoc(collections.data, data);
-      return docRef.id;
+      const { data: result, error } = await supabase
+        .from('data')
+        .insert(data)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return result;
     } catch (error) {
-      console.error("Error creating document:", error);
+      console.error("Error creating record:", error);
       throw error;
     }
   },
 
   async getById(id: string) {
-    const docRef = doc(collections.data, id);
-    const docSnap = await getDoc(docRef);
-    return docSnap.exists() ? docSnap.data() : null;
+    const { data, error } = await supabase
+      .from('data')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (error) throw error;
+    return data;
   },
 };
 
-// hooks/useData.ts - Create real-time hook
+// hooks/useData.ts - Create React Query hook
 export function useData(dataId: string) {
+  return useQuery({
+    queryKey: ['data', dataId],
+    queryFn: () => dataOperations.getById(dataId),
+    enabled: !!dataId,
+  });
+}
+
+// hooks/useDataRealtime.ts - Real-time subscription with custom hook
+export function useDataRealtime(dataId: string) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // useEffect is appropriate here as an "escape hatch" for complex real-time subscriptions
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      doc(db, "data", dataId),
-      (doc) => {
-        setData(doc.exists() ? doc.data() : null);
-        setLoading(false);
-      },
-      (error) => {
-        console.error("Error fetching data:", error);
-        setLoading(false);
-      }
-    );
+    if (!dataId) return;
 
-    return unsubscribe;
+    const subscription = supabase
+      .channel('data-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'data',
+          filter: `id=eq.${dataId}`
+        }, 
+        (payload) => {
+          setData(payload.new);
+        }
+      )
+      .subscribe();
+
+    // Initial fetch
+    dataOperations.getById(dataId).then(setData).finally(() => setLoading(false));
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [dataId]);
 
   return { data, loading };
+}
+
+// Better approach: Custom hook that encapsulates the real-time logic
+export function useRealtimeData<T>(table: string, filter?: string) {
+  return useQuery({
+    queryKey: ['realtime', table, filter],
+    queryFn: () => dataOperations.getById(filter || ''),
+    enabled: !!filter,
+    refetchInterval: 5000, // Polling as fallback
+  });
 }
 ```
 
@@ -170,122 +266,237 @@ export function useData(dataId: string) {
 
 ```tsx
 // Always use controlled components with proper validation
-import { useForm, Controller } from "react-hook-form";
-import { yupResolver } from "@hookform/resolvers/yup";
-import * as yup from "yup";
+import { useForm } from "react-hook-form";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "react-hot-toast";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 
-const schema = yup.object({
-  name: yup.string().required("Name is required"),
-  email: yup.string().email("Invalid email").required("Email is required"),
+const schema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Invalid email").min(1, "Email is required"),
 });
 
 export function DataForm() {
+  const queryClient = useQueryClient();
   const {
-    control,
+    register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm({
-    resolver: yupResolver(schema),
+    resolver: zodResolver(schema),
   });
-  const { enqueueSnackbar } = useSnackbar();
 
-  const onSubmit = async (data) => {
-    try {
-      await dataOperations.create(data);
-      enqueueSnackbar("Data saved successfully", { variant: "success" });
-    } catch (error) {
-      enqueueSnackbar(error.message, { variant: "error" });
-    }
+  const createData = useMutation({
+    mutationFn: dataOperations.create,
+    onSuccess: () => {
+      toast.success("Data saved successfully");
+      queryClient.invalidateQueries(['data']);
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const onSubmit = (data) => {
+    createData.mutate(data);
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <Controller
-        name="name"
-        control={control}
-        render={({ field }) => (
-          <TextField
-            {...field}
-            label="Name"
-            error={!!errors.name}
-            helperText={errors.name?.message}
-            fullWidth
-            margin="normal"
-          />
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <div>
+        <input
+          {...register("name")}
+          placeholder="Name"
+          className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+        {errors.name && (
+          <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>
         )}
-      />
+      </div>
 
-      <LoadingButton
+      <div>
+        <input
+          {...register("email")}
+          type="email"
+          placeholder="Email"
+          className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+        {errors.email && (
+          <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>
+        )}
+      </div>
+
+      <button
         type="submit"
-        variant="contained"
-        loading={isSubmitting}
-        fullWidth
+        disabled={isSubmitting || createData.isPending}
+        className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Submit
-      </LoadingButton>
+        {isSubmitting || createData.isPending ? "Saving..." : "Submit"}
+      </button>
     </form>
   );
 }
 ```
 
-### 5. Testing
+### 5. Custom Hooks Patterns
 
-- Check if front end compiles and runs.
--
+```tsx
+// ❌ AVOID: useEffect for data fetching
+function ProductList() {
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchProducts().then(setProducts).finally(() => setLoading(false));
+  }, []);
+
+  return <div>{/* render products */}</div>;
+}
+
+// ✅ PREFER: Custom hook for data fetching
+function useProducts(merchantId: string) {
+  return useQuery({
+    queryKey: ['products', merchantId],
+    queryFn: () => api.getProducts(merchantId),
+    enabled: !!merchantId,
+  });
+}
+
+function ProductList() {
+  const { data: products, isLoading } = useProducts(merchantId);
+  
+  if (isLoading) return <LoadingSpinner />;
+  return <div>{/* render products */}</div>;
+}
+
+// ✅ GOOD: Custom hook for complex state logic
+function useLocalStorage<T>(key: string, initialValue: T) {
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      return initialValue;
+    }
+  });
+
+  const setValue = (value: T | ((val: T) => T)) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  return [storedValue, setValue] as const;
+}
+
+// ✅ GOOD: Custom hook for API mutations
+function useCreateProduct() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: api.createProduct,
+    onSuccess: () => {
+      queryClient.invalidateQueries(['products']);
+      toast.success('Product created successfully');
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+}
+
+// ✅ ACCEPTABLE: useEffect as "escape hatch" for complex side effects
+function useDocumentTitle(title: string) {
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = title;
+    
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [title]);
+}
+```
+
+### 6. Testing
+
+- Check if frontend compiles and runs with Vite
+- Write unit tests with Jest and React Testing Library
+- Test user interactions and component behavior
+- Mock API calls and external dependencies
+- Test error states and loading states
+- Verify responsive design on different screen sizes
+- Test custom hooks in isolation
 
 ## Common Patterns
 
 ### Notification Pattern
 
 ```tsx
-const { enqueueSnackbar } = useSnackbar();
+import { toast } from "react-hot-toast";
 
 // Success
-enqueueSnackbar("Operation successful", { variant: "success" });
+toast.success("Operation successful");
 
 // Error
-enqueueSnackbar("Something went wrong", { variant: "error" });
+toast.error("Something went wrong");
 
 // Info
-enqueueSnackbar("Please note...", { variant: "info" });
+toast("Please note...");
+
+// Custom
+toast.custom((t) => (
+  <div className="bg-blue-500 text-white px-4 py-2 rounded">
+    Custom notification
+  </div>
+));
 ```
 
 ### Protected Route Pattern
 
 ```tsx
-// Use AuthGuard wrapper
-<AuthGuard>
+// Use ProtectedRoute wrapper
+<ProtectedRoute requiredRole="merchant">
   <ProtectedContent />
-</AuthGuard>;
+</ProtectedRoute>;
 
 // Or conditional rendering
-const { isAuthenticated } = useAuth();
-if (!isAuthenticated) {
-  return <Navigate to="/signin" />;
-}
+const { user, loading } = useAuth();
+if (loading) return <LoadingSpinner />;
+if (!user) return <Navigate to="/login" />;
+if (user.role !== 'merchant') return <Navigate to="/unauthorized" />;
 ```
 
 ## Navigation Rules
 
-### Next.js Link
+### React Router Link
 
 ```tsx
-// Correct - use href
-<Link href="/dashboard">
-  <Button>Go to Dashboard</Button>
+// Correct - use to prop
+import { Link } from "react-router-dom";
+
+<Link to="/dashboard">
+  <button className="bg-blue-500 text-white px-4 py-2 rounded">
+    Go to Dashboard
+  </button>
 </Link>
 ```
 
-### MUI Link with Navigation
+### Programmatic Navigation
 
 ```tsx
-// Correct - use router.push
-import { useRouter } from "next/navigation";
+// Correct - use useNavigate hook
+import { useNavigate } from "react-router-dom";
 
-const router = useRouter();
-<MuiLink component="button" onClick={() => router.push("/dashboard")}>
+const navigate = useNavigate();
+<button onClick={() => navigate("/dashboard")}>
   Dashboard
-</MuiLink>;
+</button>
 ```
 
 ## Debugging Checklist
@@ -293,10 +504,18 @@ const router = useRouter();
 When something doesn't work:
 
 1. Check browser console for errors
-2. Verify Firebase configuration
-3. Check network tab for API calls
-4. Verify authentication state
+2. Verify Supabase configuration and environment variables
+3. Check network tab for API calls and responses
+4. Verify authentication state and JWT tokens
 5. Check component props and state
 6. Verify data types match interfaces
-7. Check for race conditions
-8. Verify cleanup functions in useEffect
+7. Check for race conditions in React Query
+8. Verify cleanup functions in useEffect (if using as escape hatch)
+9. Check React Query devtools for cache state
+10. Verify Tailwind classes are being applied correctly
+11. Test responsive design on different screen sizes
+12. Check for TypeScript errors in the terminal
+13. **Debug custom hooks in isolation** - test them separately from components
+14. **Check if useEffect can be replaced** with a custom hook or React Query
+15. **Verify custom hook dependencies** and memoization
+16. **Test custom hooks with React Testing Library's renderHook**

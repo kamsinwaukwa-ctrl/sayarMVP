@@ -1,139 +1,392 @@
 ---
-description:
-globs:
-alwaysApply: false
+id: "TASK-XXXX"
+title: "<action-oriented task title>"
+owner: "@owner_handle"
+status: "planned"            # planned | in-progress | blocked | done
+priority: "P1"               # P0 | P1 | P2
+theme: "<feature-theme>"     # e.g., "WhatsApp Flows", "Payments", "Catalog"
+user_story: "As a <role>, I want <capability> so that <outcome>."
+labels: ["backend","fastapi","supabase","whatsapp","payments"]  # free-form tags
+dependencies: ["tasks/<other-task>.md"]       # other task files that must be completed first
+created: "YYYY-MM-DD"
+spec_refs:
+  - "sayar_mvp_prd.md#<section>"
+  - "sayar_data_dictionary.md#<table-or-api>"
+touches:
+  - "back/src/api/<area>.py"
+  - "back/src/services/<area>_service.py"
+  - "back/src/integrations/<provider>.py"
+  - "back/src/workers/outbox_worker.py"
+  - "migrations/00X_<migration-name>.sql"
+  - "front/src/pages/<page>.tsx"
 ---
 
 # INSTRUCTIONS — READ THIS FIRST WHEN CREATING NEW TASKS
 
-This file is a single, self-contained TASK for an AI agent. **One task = one file.**
-Follow the steps below when creating new tasks.
+This file is a single, self-contained **TASK** for an AI agent working on Sayar. **One task = one file.**
+It is optimized for our stack (FastAPI + Supabase/Postgres + WhatsApp Cloud + Paystack/Korapay + APScheduler Outbox).
 
-1. **Name your file**: place under `./tasks/` and use kebab-case, e.g., `tasks/add-bar-chart.md`.
-2. **Fill the frontmatter** (above) completely. Keep `title`, `status`, and `owner` accurate.
-3. **Use information-dense keywords** throughout (exact file paths, function signatures, type names, constants, CLI flags).
-4. **Define types first** if adding new data structures. Reference those types by exact name in later steps.
-5. **Order your steps** so later steps explicitly reference earlier artifacts by name (files, types, functions).
-6. **Keep scope tight**: this task should be completable independently. If it’s large, split into multiple task files and add them to `dependencies`.
-7. **Acceptance criteria** must be testable and unambiguous. Include file paths for tests and example CLI/API usage.
-8. **Context plan** must list the files to add to the model’s context at the start (mark dep files read-only) and which files must exist at the end.
-9. **Testing strategy** use primarily integration tests, calling real APIs. No useless unit tests that just test the properties of the class. No tests for front end.
+Keep scope tight. If a task feels big, split it into multiple task files and list them in `dependencies`.
 
 ---
 
-id: "<unique-id-or-ticket>" # e.g., TASK-0123
-title: "<short, action-oriented task title>" # e.g., "Add quartile-colored bar chart"
-status: "planned" # planned, in-progress, blocked, done
-priority: "P1" # P0, P1, P2
-labels: ["feature", "cli", "charts"] # free-form tags
-dependencies: ["<other-task-file>"] # list other task files that must be completed first
-created: "YYYY-MM-DD"
-
-# 1) High-Level Objective
-
+## 1) High-Level Objective
 <One sentence that describes the user-facing end state. Avoid technical jargon.>
 
-# 2) Background / Context (Optional but recommended)
+---
 
+## 2) Background / Context (Optional but recommended)
 <Short rationale or business context for why this task exists. Link any tickets/PRDs.>
 
-# 3) Assumptions & Constraints
+---
 
-- ASSUMPTION: <If any info is missing, state the pragmatic assumption here.>
-- Constraint: <e.g., “Use only deps listed in package.json/pyproject.toml”.>
-- Constraint: <e.g., “Prefer TypeScript for app, Python for scripts”.>
+## 3) Assumptions & Constraints
+- **ASSUMPTION:** <If any info is missing, state the pragmatic assumption here.>
+- **CONSTRAINT:** <e.g., "Use only deps listed in requirements.txt".>
+- **CONSTRAINT:** <e.g., "Prefer FastAPI for APIs, React for frontend".>
+- **CONSTRAINT:** <e.g., "All money fields must be integers in kobo".>
 
-# 4) Dependencies (Other Tasks or Artifacts)
+---
 
-- tasks/<other-task-file>.md
-- files/<required-existing-file-or-schema>
+## 4) Scope
+**In:** <what will change, e.g., new endpoint + migration + worker job>  
+**Out:** <explicitly NOT doing, e.g., analytics dashboard or multi-coupon support>
 
-# 5) Context Plan
+---
 
-**Beginning (add to model context):**
+## 5) API Contract (if applicable)
+**Route:** `POST /api/v1/...` (method + path)  
+**Auth:** `Authorization: Bearer <JWT>`; JWT must include `merchant_id`.  
+**Headers (optional):** `Idempotency-Key: <uuid>`
 
-- src/main.ts
-- src/types.ts
-- package.json _(read-only)_
-- pyproject.toml _(read-only)_
-
-**End state (must exist after completion):**
-
-- src/charts/bar.ts
-- src/charts/index.ts
-- tests/charts/bar.test.ts
-
-# 6) Low-Level Steps (Ordered, information-dense)
-
-> Write concrete, atomic steps. Include **file paths, exact names, signatures, params with defaults, return types**.
-
-1. **Create bar chart module**
-
-   - File: `src/charts/bar.ts`
-   - Exported API:
-     ```ts
-     export type WordCounts = Record<string, number>; // or import from src/types.ts
-     export function renderQuartileBarChart(
-       counts: WordCounts,
-       options?: { minCount?: number; outputPath?: string }
-     ): Promise<void>;
-     ```
-   - Details:
-     - Filter out entries with `count < options.minCount ?? 10`
-     - Sort desc, keep top 100
-     - Color top quartile green, bottom red, remaining blue
-     - Write PNG to `options.outputPath ?? "charts/word_freq_bar.png"`
-
-2. **Re-export in index**
-
-   - File: `src/charts/index.ts`
-   - Add: `export * from "./bar";`
-
-3. **CLI wire-up**
-
-   - File: `src/main.ts`
-   - Add flag `--chart-type bar`, and when selected, call:
-     ```ts
-     await renderQuartileBarChart(result.counts, {
-       minCount: flags.minCount,
-       outputPath: flags.output,
-     });
-     ```
-   - Update help text accordingly.
-
-4. **Tests**
-   - File: `tests/charts/bar.test.ts` (Jest)
-   - Cases:
-     - Renders without error with mixed frequencies
-     - Respects `minCount` filter
-     - Produces output file path when provided
-
-# 7) Types & Interfaces (if applicable)
-
-> Define or reference types here so the model has a stable contract.
-
-```ts
-// src/types.ts
-export interface TranscriptAnalysis {
-  summary: string;
-  keywords: string[];
+**Request JSON (exact):**
+```json
+{
+  "field": "value"
 }
-export type WordCounts = Record<string, number>;
 ```
 
-# 8) Acceptance Criteria
+**Response JSON (exact):**
+```json
+{
+  "ok": true,
+  "id": "<uuid>",
+  "data": { }
+}
+```
 
-- `src/charts/bar.ts` exports `renderQuartileBarChart(...)` with the exact signature above.
-- Running `uv run main --chart-type bar --output charts/out.png` writes a PNG file.
-- All tests in `tests/charts/bar.test.ts` pass locally.
+**Status codes:**  
+- 200 (OK), 201 (Created)  
+- 400 (validation), 401 (auth), 403 (RLS/tenant), 404 (not found)  
+- 409 (idempotency conflict / duplicate), 429 (rate-limit), 500 (unexpected)
 
-# 9) Testing Strategy
+**Idempotency / Dedupe:**  
+- If webhook-like: persist a unique key to `webhook_events(event_key)` before side-effects.  
+- If client-triggered: accept `Idempotency-Key` header and persist to a task-specific table or `webhook_events`.  
+- Conflicts must return **409** with no duplicate side effects.
 
-- Create an integration test that draws a quartile bar chart and writes it to a file.
-- Run the test and ensure the file exists.
-- Integrate into the existing end-to-end tests.
+---
 
-# 10) Notes / Links
+## 6) Data Model & Migration (Postgres, UUIDs, kobo money)
+**Tables touched:** `<table names>`
 
-- Reference spec section: <link or section name>
-- Related tasks: <list others>
+**New/Changed columns, constraints, indexes:**  
+- Use `id uuid primary key default gen_random_uuid()`  
+- **Money as integers (kobo)**: `*_kobo BIGINT`  
+- Add constraints and indexes explicitly (e.g., partial indexes).  
+- Enable RLS and write tenant policies.
+
+**Migration file:** `migrations/00X_<name>.sql` must include:
+- DDL with constraints and indexes
+- `ALTER TABLE ... ENABLE ROW LEVEL SECURITY;`
+- Policies gated by merchant:
+```sql
+create policy tenant_isolation on <table>
+  for all using (merchant_id::text = auth.jwt() ->> 'merchant_id');
+```
+
+If destructive, include a reversible `00X_<name>_down.sql` rollback.
+
+---
+
+## 7) Types & Interfaces (if applicable)
+Define or reference types here so the model has a stable contract.
+
+```ts
+// front/src/types/<area>.ts
+export interface XRequest {
+  field: string;
+  amount_kobo: number;
+}
+
+export interface XResponse {
+  ok: boolean;
+  id: string;
+  data: XData | null;
+}
+
+export type XStatus = 'pending' | 'completed' | 'failed';
+```
+
+```py
+# back/src/models/<area>.py
+from pydantic import BaseModel
+from typing import Optional
+from uuid import UUID
+
+class XRequest(BaseModel):
+    field: str
+    amount_kobo: int
+
+class XResponse(BaseModel):
+    ok: bool = True
+    id: UUID
+    data: Optional[dict] = None
+```
+---
+
+## 8) Reliability & Outbox
+- **Outbox job(s):** if needed, enqueue to `outbox_events(job_type, payload, merchant_id)`
+- Optional `dedupe_key` inside `payload` and unique `(job_type, dedupe_key)` if logical exactly-once is required.
+- **Backoff:** exponential with jitter; `max_attempts = 8`.
+- Worker uses `FOR UPDATE SKIP LOCKED` and updates `status/next_run_at/attempts/last_error`.
+
+---
+
+## 9) Observability (Logs & Metrics)
+Emit structured logs (JSON) at key transitions. Required fields:
+- `event_type`, `merchant_id`, `order_id?`, `wa_message_id?`, `payment_reference?`, `idempotency_key?`
+
+Name events clearly, e.g.:
+- `order_received`, `reserved_ok`, `reserved_insufficient`, `discount_validate_ok`, `discount_invalid`,
+- `payment_link_sent`, `payment_webhook_ok`, `stock_decremented`, `coupon_redeemed`, `catalog_synced`,
+- `outbox_job_start`, `outbox_job_end`
+
+Metrics to increment:
+- Counters: `reservations_created`, `reservations_expired`, `discounts_validated`, `discounts_applied`, `discounts_invalid`, `catalog_sync_success`, `catalog_sync_failed`, `webhook_errors`, `outbox_jobs_processed`
+- Histograms: `payment_confirmation_latency_seconds` (if applicable)
+
+---
+
+## 10) Security Policies
+
+### Row Level Security (RLS) Policies
+Define tenant isolation and access control policies for all tables.
+
+```sql
+-- Enable RLS on all tables
+ALTER TABLE <table_name> ENABLE ROW LEVEL SECURITY;
+
+-- Tenant isolation policy (merchant-based)
+CREATE POLICY tenant_isolation ON <table_name>
+  FOR ALL USING (merchant_id::text = auth.jwt() ->> 'merchant_id');
+
+-- Example: Products belong to merchants
+CREATE POLICY "Merchants can access own products" ON products
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM merchants 
+      WHERE id = products.merchant_id 
+      AND auth.uid() = ANY(merchants.owner_ids)
+    )
+  );
+
+-- Example: Orders belong to merchants
+CREATE POLICY "Merchants can access own orders" ON orders
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM merchants 
+      WHERE id = orders.merchant_id 
+      AND auth.uid() = ANY(merchants.owner_ids)
+    )
+  );
+
+-- Example: Staff can access merchant data
+CREATE POLICY "Staff can access merchant data" ON <table_name>
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM users 
+      WHERE users.merchant_id = <table_name>.merchant_id 
+      AND users.id = auth.uid()
+      AND users.role IN ('owner', 'staff')
+    )
+  );
+```
+
+### Storage Policies (Supabase Storage)
+```sql
+-- Allow merchants to upload to their own folders
+CREATE POLICY "Merchants can upload own files" ON storage.objects
+  FOR INSERT WITH CHECK (
+    bucket_id = 'merchant-assets' AND
+    auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Allow merchants to view their own files
+CREATE POLICY "Merchants can view own files" ON storage.objects
+  FOR SELECT USING (
+    bucket_id = 'merchant-assets' AND
+    auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Allow merchants to delete their own files
+CREATE POLICY "Merchants can delete own files" ON storage.objects
+  FOR DELETE USING (
+    bucket_id = 'merchant-assets' AND
+    auth.uid()::text = (storage.foldername(name))[1]
+  );
+```
+
+### API Security Policies
+- **JWT Validation**: All endpoints require valid JWT with `merchant_id`
+- **Rate Limiting**: Per-merchant limits (1 req/sec, burst 3)
+- **Webhook Signatures**: Verify HMAC for Paystack/Korapay/Meta webhooks
+- **Input Validation**: Pydantic models for all request/response data
+- **CORS**: Configure appropriate origins for frontend access
+
+---
+
+## 11) Security
+- **Webhook signatures:** verify HMAC/signature for Paystack/Korapay/Meta when applicable.
+- **JWT enforcement:** check `merchant_id` in token and pass through to all queries.
+- **Validation:** use Pydantic models for request/response.
+- **Rate limits:** per-merchant `1 req/sec, burst 3` (even a simple in-proc limiter is fine for dev).
+
+---
+
+## 12) Environment / Secrets
+Required env (local & prod):
+- `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
+- `JWT_SECRET_KEY`
+- Integration keys if needed: `PAYSTACK_SECRET_KEY`, `KORAPAY_SECRET_KEY`, `WHATSAPP_ACCESS_TOKEN`, etc.
+
+Local dev quickstart:
+```bash
+cp back/.env.example back/.env
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+---
+
+## 13) Context Plan
+**Beginning (add these to the agent’s context; mark some read-only):**
+- `back/src/api/<area>.py`
+- `back/src/services/<area>_service.py`
+- `back/src/models/<model>.py`
+- `back/src/utils/*` _(read-only)_
+- `migrations/` _(read-only)_
+- `sayar_data_dictionary.md` _(read-only)_
+- `sayar_mvp_prd.md` _(read-only)_
+
+**End state (must exist after completion):**
+- `back/src/api/<new_or_changed>.py`
+- `back/src/services/<new_or_changed>_service.py`
+- `migrations/00X_<name>.sql`
+- `back/tests/integration/<area>_test.py`
+
+---
+
+## 14) Ordered Implementation Steps
+1. **Models** — Add/modify Pydantic models  
+   File: `back/src/models/<model>.py`
+   ```py
+   class XRequest(BaseModel):
+       ...
+
+   class XResponse(BaseModel):
+       ok: bool = True
+       id: UUID
+       data: dict | None = None
+   ```
+
+2. **Migration** — Create SQL migration  
+   File: `migrations/00X_<name>.sql`  
+   - DDL with UUID defaults, kobo fields, constraints, indexes, RLS policies (see §4).
+
+3. **API** — Implement FastAPI route  
+   File: `back/src/api/<area>.py`
+   ```py
+   @router.post("/api/v1/...", response_model=XResponse)
+   async def create_x(req: XRequest, merchant=Depends(auth_dep)):
+       # validate inputs
+       # enforce idempotency (header or table)
+       # write to DB (within transaction)
+       # (optional) enqueue outbox job
+       # log structured event(s)
+       return XResponse(id=<uuid>)
+   ```
+
+4. **Service** — Business logic (idempotency, validation)  
+   File: `back/src/services/<area>_service.py`
+
+5. **Observability** — Add structured logs + metrics increments
+
+6. **Rate limiting** — Per-merchant limiter in route dependency
+
+7. **Docs** — Update `sayar_data_dictionary.md` where applicable
+
+---
+
+## 15) Acceptance Criteria
+- API returns exactly the schema in §5 with the stated status codes.
+- DB writes satisfy all constraints; RLS policies prevent cross-tenant access.
+- Idempotency: repeated call with same key **does not** duplicate effects; returns 409 or prior result.
+- Any outbox jobs created are visible in `outbox_events` and picked up by the worker.
+- Structured logs contain `merchant_id` and expected `event_type`s.
+- Integration tests pass in `back/tests/integration/<area>_test.py`.
+
+---
+
+## 16) Testing Strategy (Integration-first)
+- Use HTTPX to call the real FastAPI app against a test Postgres database.
+- Include at least:
+  - 1 happy path
+  - 1 validation failure (400)
+  - 1 idempotency/duplicate case (409 or prior result)
+  - 1 RLS/merchant isolation case (403/404 depending on route semantics)
+
+**Example skeleton:**
+```py
+# back/tests/integration/test_<area>.py
+import pytest
+from httpx import AsyncClient
+
+@pytest.mark.asyncio
+async def test_create_x_happy(app_client: AsyncClient, test_jwt, seed_db):
+    res = await app_client.post(
+        "/api/v1/...",
+        headers={"Authorization": f"Bearer $test_jwt", "Idempotency-Key": "abc-123"},
+        json={"field": "value"}
+    )
+    assert res.status_code in (200, 201)
+    body = res.json()
+    assert body["ok"] is True
+    # assert DB state here
+```
+---
+
+## 17) Manual QA (copy-pasteable)
+```bash
+http POST :8000/api/v1/...   Authorization:"Bearer $JWT"   Idempotency-Key:$(uuidgen)   field=value
+```
+
+Verify:
+- HTTP status and response JSON match §5
+- DB rows present and correct
+- Logs show expected `event_type`s
+
+---
+
+## 18) Rollback Plan
+- Revert code changes (Git).  
+- Apply `migrations/00X_<name>_down.sql` if schema changes were destructive.  
+- Remove any enqueued outbox jobs that are no longer valid.
+
+---
+
+## Notes / Links
+- PRD: `sayar_mvp_prd.md`
+- Data dictionary: `sayar_data_dictionary.md`
+- Providers: WhatsApp Cloud, Paystack, Korapay
+- Reliability: Outbox + APScheduler worker; `FOR UPDATE SKIP LOCKED`
+- Money fields: **integers in kobo**; convert to ₦ only at UI edges.

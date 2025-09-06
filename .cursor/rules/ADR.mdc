@@ -55,9 +55,14 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
-| 0004 | [Event-Driven Broker Architecture with Firestore](#adr-0004) | 2025-01-27 | Accepted | —          | —             |
-| 0002 | [Monorepo Structure with Frontend and Backend](#adr-0002)    | 2025-01-27 | Accepted | —          | —             |
-| 0001 | [Full-Stack Firebase Template Architecture](#adr-0001)       | 2025-01-27 | Accepted | —          | —             |
+| 0008 | [WhatsApp Commerce Platform Architecture](#adr-0008)         | 2025-01-27 | Accepted | —          | —             |
+| 0007 | [Frontend Architecture with React + Vite](#adr-0007)         | 2025-01-27 | Accepted | —          | —             |
+| 0006 | [Database Architecture with Supabase Postgres](#adr-0006)    | 2025-01-27 | Accepted | —          | —             |
+| 0005 | [Backend Architecture with FastAPI](#adr-0005)               | 2025-01-27 | Accepted | —          | —             |
+| 0004 | [Monorepo Structure for Full-Stack Development](#adr-0004)   | 2025-01-27 | Accepted | —          | —             |
+| 0003 | [Authentication Strategy with JWT](#adr-0003)                | 2025-01-27 | Accepted | —          | —             |
+| 0002 | [Deployment Strategy with Railway](#adr-0002)                | 2025-01-27 | Accepted | —          | —             |
+| 0001 | [Testing Strategy with pytest and Test Database](#adr-0001)  | 2025-01-27 | Accepted | —          | —             |
 
 <!-- END:ADR_INDEX -->
 
@@ -103,48 +108,48 @@ END ADR_AGENT_PROTOCOL
 
 ---
 
-## ADR-0001 — Full-Stack Firebase Template Architecture
+## ADR-0001 — Testing Strategy with pytest and Test Database
 
 <a id="adr-0001"></a>
-**Date**: 2025-01-27 `
+**Date**: 2025-01-27  
 **Status**: Accepted  
 **Owner**: AI Agent
 
 ### Context
 
-Modern web applications require both frontend and backend components with real-time data synchronization. Firebase provides a comprehensive platform for building full-stack applications, but setting up the architecture with best practices requires significant boilerplate code.
+The Sayar WhatsApp checkout platform requires a comprehensive testing strategy that validates both frontend and backend components. Tests need to work with real database connections to ensure data integrity and proper integration between React frontend and FastAPI backend.
 
 ### Alternatives
 
-- **Separate repositories**: Frontend and backend in different repos, harder to coordinate changes
-- **Backend-only template**: Covers only server-side concerns, developers must handle frontend integration
-- **Frontend-only template**: Limited to client-side Firebase SDK, missing serverless functions capabilities
-- **Full-stack monorepo template**: Single template with both Next.js frontend and Python Firebase Functions
+- **Mock all external dependencies**: Fast but doesn't test real integration behavior
+- **Use production database**: Real but dangerous and affects live data
+- **Test database with pytest**: Real database behavior in isolated test environment
 
 ### Decision
 
-Create a comprehensive full-stack Firebase template with:
+Implement pytest-based testing strategy with dedicated test database:
 
-- Next.js 14 frontend with TypeScript and Material-UI
-- Python Firebase Functions backend with broker architecture pattern
-- Shared Firebase project configuration
-- Integrated testing strategy for both frontend and backend
-- Single repository with clear separation of concerns
+- Use pytest for all testing with proper fixtures and parametrization
+- Test database connection to Supabase for integration tests
+- Unit tests for service logic without database dependencies
+- Integration tests that validate complete API workflows
+- Frontend tests with React Testing Library and Jest
+- Database transactions are rolled back after each test
 
 ### Consequences
 
-- **Pros**: Complete starting point for Firebase projects, coordinated development, shared configuration
-- **Cons / risks**: More complex initial setup, larger template size, requires knowledge of both frontend and backend
+- **Pros**: Tests real database behavior, catches integration issues, validates complete workflows, isolated test environment
+- **Cons / risks**: Requires test database setup, slower than mocks, more complex CI/CD configuration
 - **Supersedes**: —
 - **Superseded by**: —
 
 ### Compliance / Verification
 
-Template includes working examples for both frontend and backend. Firebase configuration shared between components. Documentation covers full development workflow.
+All tests use pytest fixtures. Integration tests connect to test database. Database operations are properly isolated and rolled back. Test coverage includes both unit and integration scenarios for frontend and backend.
 
 ---
 
-## ADR-0002 — Monorepo Structure with Frontend and Backend
+## ADR-0002 — Deployment Strategy with Railway
 
 <a id="adr-0002"></a>
 **Date**: 2025-01-27  
@@ -153,7 +158,87 @@ Template includes working examples for both frontend and backend. Firebase confi
 
 ### Context
 
-Full-stack Firebase applications need coordinated development between frontend (Next.js) and backend (Firebase Functions). The question was how to organize the code structure to support both independent development and shared configuration.
+The Sayar platform needs a cost-effective, scalable deployment solution that can handle both frontend and backend components. The system needs to be easy to deploy, maintain, and scale as the business grows.
+
+### Alternatives
+
+- **AWS/GCP with Kubernetes**: Scalable but complex setup and high cost for MVP
+- **Vercel for frontend + separate backend hosting**: Good for frontend but adds complexity
+- **Railway for full-stack deployment**: Simple, cost-effective, and supports both frontend and backend
+
+### Decision
+
+Implement Railway deployment strategy:
+
+- Deploy FastAPI backend to Railway with automatic HTTPS and custom domains
+- Deploy React frontend to Railway with static site hosting
+- Use Railway's built-in database integration with Supabase
+- Environment variables managed through Railway dashboard
+- Automatic deployments from GitHub with preview environments
+
+### Consequences
+
+- **Pros**: Simple deployment, cost-effective for MVP, automatic HTTPS, easy scaling, integrated database
+- **Cons / risks**: Vendor lock-in, limited customization compared to cloud providers
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+Both frontend and backend deploy successfully to Railway. Environment variables are properly configured. Database connections work in production. HTTPS is enabled and working.
+
+---
+
+## ADR-0003 — Authentication Strategy with JWT
+
+<a id="adr-0003"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
+
+### Context
+
+The Sayar platform needs secure authentication for merchants and staff members. The system must handle user sessions, role-based access control, and integrate with both frontend and backend components.
+
+### Alternatives
+
+- **Session-based authentication**: Simple but requires server-side session storage
+- **OAuth with external providers**: Secure but adds complexity and dependency
+- **JWT with Supabase Auth**: Stateless, secure, and integrates well with the tech stack
+
+### Decision
+
+Implement JWT-based authentication with Supabase Auth:
+
+- Use Supabase Auth for user management and JWT token generation
+- JWT tokens contain user ID, merchant ID, and role information
+- Frontend stores JWT in secure HTTP-only cookies
+- Backend validates JWT tokens on protected routes
+- Row Level Security (RLS) policies use JWT claims for data access control
+
+### Consequences
+
+- **Pros**: Stateless authentication, secure token-based access, integrates with Supabase, supports role-based access
+- **Cons / risks**: Token management complexity, need to handle token refresh, security considerations for token storage
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+JWT tokens are properly generated and validated. RLS policies work with JWT claims. Frontend authentication state is properly managed. Protected routes require valid authentication.
+
+---
+
+## ADR-0004 — Monorepo Structure for Full-Stack Development
+
+<a id="adr-0004"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
+
+### Context
+
+The Sayar platform requires coordinated development between React frontend and FastAPI backend. The system needs to support independent development while maintaining shared configuration and documentation.
 
 ### Alternatives
 
@@ -165,61 +250,182 @@ Full-stack Firebase applications need coordinated development between frontend (
 
 Implement side-by-side monorepo structure:
 
-- `/front/` - Next.js frontend application with its own package.json and dependencies
-- `/back/` - Python Firebase Functions backend with its own requirements.txt and structure
-- Root-level Firebase configuration (`firebase.json`, `firestore.rules`, `storage.rules`)
-- Shared documentation in root README.md with component-specific READMEs
+- `/front/` - React (Vite + TypeScript) frontend application with its own package.json
+- `/back/` - FastAPI (Python) backend with its own requirements.txt and structure
+- Root-level configuration files (README.md, .gitignore, etc.)
+- Shared documentation and development guidelines
+- Independent deployment pipelines for frontend and backend
 
 ### Consequences
 
-- **Pros**: Clear separation of concerns, independent tooling, shared Firebase configuration, coordinated documentation
+- **Pros**: Clear separation of concerns, independent tooling, shared documentation, coordinated development
 - **Cons / risks**: Slightly more complex initial setup, need to manage two different development environments
 - **Supersedes**: —
 - **Superseded by**: —
 
 ### Compliance / Verification
 
-Directory structure clearly separates frontend and backend. Firebase CLI recognizes backend functions source in configuration. Both components can be developed independently.
+Directory structure clearly separates frontend and backend. Both components can be developed independently. Shared configuration is properly managed. Documentation covers both components.
 
 ---
 
-## ADR-0004 — Event-Driven Broker Architecture with Firestore
+## ADR-0005 — Backend Architecture with FastAPI
 
-<a id="adr-0004"></a>
+<a id="adr-0005"></a>
 **Date**: 2025-01-27  
 **Status**: Accepted  
 **Owner**: AI Agent
 
 ### Context
 
-Modern full-stack applications require consistent data state between frontend and backend components. Traditional request-response patterns create tight coupling and require complex state synchronization logic. Real-time applications need immediate UI updates when data changes, regardless of the source of the change.
+The Sayar platform requires a robust backend that can handle WhatsApp webhooks, payment processing, inventory management, and API requests. The system needs to be fast, type-safe, and easy to maintain.
 
 ### Alternatives
 
-- **Direct API communication**: Backend returns data directly to frontend, requires manual state management
-- **Event streaming with external broker**: Use services like Redis Pub/Sub or RabbitMQ, adds infrastructure complexity
-- **WebSocket connections**: Real-time but requires connection management and doesn't persist data
-- **Firestore as event-driven broker**: Leverages built-in real-time capabilities and acts as single source of truth
+- **Django**: Full-featured but heavy for API-focused application
+- **Flask**: Lightweight but requires more boilerplate for type safety
+- **FastAPI**: Modern, fast, type-safe, and excellent for API development
 
 ### Decision
 
-Implement event-driven broker architecture where Firestore serves as both the data store and event broker:
+Implement FastAPI backend architecture:
 
-- All data mutations flow through Firestore exclusively
-- Backend functions save data to Firestore without returning responses to frontend
-- Frontend subscribes to Firestore collections/documents using hooks for real-time updates
-- Firestore acts as the single source of truth for both backend and frontend
-- UI updates automatically through Firestore real-time listeners
+- Use FastAPI with Python 3.11+ for type safety and performance
+- SQLAlchemy ORM for database operations with proper type hints
+- Pydantic models for request/response validation
+- Service-oriented architecture with clear separation of concerns
+- Automatic API documentation with OpenAPI/Swagger
 
 ### Consequences
 
-- **Pros**: Eliminates data synchronization issues, automatic real-time updates, reduced coupling between frontend and backend, simplified state management, leverages Firebase's built-in capabilities
-- **Cons / risks**: Increased Firestore read operations, requires proper security rules design, potential data consistency challenges with complex operations, network dependency for all data access
+- **Pros**: Excellent performance, automatic validation, type safety, great developer experience, built-in documentation
+- **Cons / risks**: Learning curve for async/await patterns, requires understanding of modern Python features
 - **Supersedes**: —
 - **Superseded by**: —
 
 ### Compliance / Verification
 
-Backend functions must only perform Firestore writes without returning data responses. Frontend components must use Firestore hooks (useFirestore, real-time listeners) for all data access. No direct API data responses to frontend. All data mutations trigger UI updates through Firestore change events.
+All API endpoints use proper type hints. Pydantic models validate all requests and responses. Service classes handle business logic. API documentation is automatically generated and accessible.
+
+---
+
+## ADR-0006 — Database Architecture with Supabase Postgres
+
+<a id="adr-0006"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
+
+### Context
+
+The Sayar platform needs a reliable, scalable database that can handle multi-tenant data with proper security isolation. The system must support real-time updates and provide excellent developer experience.
+
+### Alternatives
+
+- **Self-hosted Postgres**: Full control but requires database administration
+- **AWS RDS/Azure Database**: Managed but expensive and complex setup
+- **Supabase Postgres**: Managed Postgres with built-in features and excellent DX
+
+### Decision
+
+Implement Supabase Postgres database architecture:
+
+- Use Supabase as managed Postgres database with built-in features
+- Row Level Security (RLS) for multi-tenant data isolation
+- Real-time subscriptions for live updates
+- Built-in authentication and authorization
+- Automatic API generation with PostgREST
+
+### Consequences
+
+- **Pros**: Managed database, built-in security, real-time capabilities, excellent developer experience, cost-effective
+- **Cons / risks**: Vendor lock-in, limited customization compared to self-hosted solutions
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+Database schema is properly designed with RLS policies. Multi-tenant isolation works correctly. Real-time subscriptions function as expected. Database migrations are version controlled.
+
+---
+
+## ADR-0007 — Frontend Architecture with React + Vite
+
+<a id="adr-0007"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
+
+### Context
+
+The Sayar platform needs a modern, performant frontend for merchant dashboards and admin interfaces. The system must be fast, maintainable, and provide excellent user experience.
+
+### Alternatives
+
+- **Next.js**: Full-stack framework but adds complexity for SPA
+- **Create React App**: Simple but slow build times and limited customization
+- **React + Vite**: Fast, modern, and excellent developer experience
+
+### Decision
+
+Implement React + Vite frontend architecture:
+
+- Use React 18 with TypeScript for type safety
+- Vite for fast development and building
+- Tailwind CSS for styling and responsive design
+- React Query for server state management
+- React Router for client-side routing
+
+### Consequences
+
+- **Pros**: Fast development, excellent performance, modern tooling, great developer experience, type safety
+- **Cons / risks**: Learning curve for modern React patterns, requires understanding of hooks and context
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+Frontend builds successfully with Vite. TypeScript compilation works without errors. React Query manages server state properly. Tailwind CSS provides responsive design.
+
+---
+
+## ADR-0008 — WhatsApp Commerce Platform Architecture
+
+<a id="adr-0008"></a>
+**Date**: 2025-01-27  
+**Status**: Accepted  
+**Owner**: AI Agent
+
+### Context
+
+The Sayar platform is a WhatsApp-first commerce solution that enables merchants to sell products directly through WhatsApp conversations. The system needs to handle messaging, payments, inventory, and provide merchant dashboards.
+
+### Alternatives
+
+- **Traditional e-commerce platform**: Standard web store but doesn't leverage WhatsApp's reach
+- **WhatsApp Business API only**: Limited to basic messaging without commerce features
+- **Integrated WhatsApp commerce platform**: Complete solution with messaging, payments, and inventory
+
+### Decision
+
+Implement integrated WhatsApp commerce platform:
+
+- WhatsApp Cloud API for messaging and interactive experiences
+- FastAPI backend for business logic and webhook handling
+- Supabase Postgres for data storage with multi-tenant isolation
+- React frontend for merchant dashboards and admin interfaces
+- Payment gateway integrations (Paystack, Korapay) for Nigerian market
+- Inventory management with atomic reservations
+
+### Consequences
+
+- **Pros**: Leverages WhatsApp's massive user base, complete commerce solution, scalable architecture, cost-effective
+- **Cons / risks**: Complex integration requirements, dependency on WhatsApp policies, requires Meta verification
+- **Supersedes**: —
+- **Superseded by**: —
+
+### Compliance / Verification
+
+WhatsApp integration works correctly. Payment processing functions properly. Inventory management prevents overselling. Merchant dashboards provide necessary functionality. Multi-tenant isolation is secure.
 
 ---

@@ -1,0 +1,28 @@
+# Global owners
+* @dev-team
+
+# Backend code
+/back/ @backend-team
+/back/src/api/ @backend-team
+/back/src/database/ @backend-team
+/back/src/services/ @backend-team
+/back/tests/ @backend-team
+
+# Frontend code  
+/front/ @frontend-team
+/front/src/ @frontend-team
+
+# Infrastructure and CI/CD
+/.github/ @dev-team
+/migrations/ @backend-team
+/.pre-commit-config.yaml @dev-team
+/README.md @dev-team
+
+# Task management
+/tasks/ @dev-team
+
+# Configuration files
+*.yml @dev-team
+*.yaml @dev-team
+*.json @dev-team
+*.md @dev-team

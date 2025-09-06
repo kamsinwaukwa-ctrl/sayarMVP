@@ -1,68 +1,115 @@
 """
-Firebase Functions entry point.
-All functions must be exported from this file for deployment.
+Sayar WhatsApp Commerce Platform - FastAPI Backend
+Main application entry point with OpenAPI v3 documentation
 """
 
-import logging
-from firebase_admin import initialize_app
-from firebase_admin import credentials
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
+import uvicorn
 import os
+from datetime import datetime
 
-# Set emulator environment variables if running in emulators
-if os.getenv('FUNCTIONS_EMULATOR') == 'true':
-    # These are typically already set by the test runner, but ensure they're set
-    if not os.getenv('FIRESTORE_EMULATOR_HOST'):
-        os.environ['FIRESTORE_EMULATOR_HOST'] = 'localhost:8080'
-    if not os.getenv('FIREBASE_AUTH_EMULATOR_HOST'):
-        os.environ['FIREBASE_AUTH_EMULATOR_HOST'] = 'localhost:9099'
-    if not os.getenv('FIREBASE_STORAGE_EMULATOR_HOST'):
-        os.environ['FIREBASE_STORAGE_EMULATOR_HOST'] = 'localhost:9199'
+# Import API routers
+from src.api.auth import router as auth_router
+from src.api.merchants import router as merchants_router
+from src.api.products import router as products_router
+from src.api.delivery_rates import router as delivery_rates_router
+from src.api.discounts import router as discounts_router
 
-# Initialize Firebase Admin SDK
-# The SDK automatically detects emulator environment variables
-# No credentials needed when running in emulators
-try:
-    import firebase_admin
-    # Only initialize if no app exists yet
-    if not firebase_admin._apps:
-        initialize_app()
-except ValueError:
-    # App already initialized (can happen in tests)
-    pass
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager"""
+    # Startup
+    print("🚀 Sayar backend starting up...")
+    yield
+    # Shutdown
+    print("🛑 Sayar backend shutting down...")
 
-# Import callable functions
-from src.brokers.callable.example_callable import example_callable
-from src.brokers.callable.create_item import create_item_callable
-from src.brokers.callable.get_item import get_item_callable
 
-# Import HTTPS functions
-from src.brokers.https.health_check import health_check
-from src.brokers.https.webhook_handler import webhook_handler
-
-# Import triggered functions
-from src.brokers.triggered.on_item_created import on_item_created
-from src.brokers.triggered.on_item_updated import on_item_updated
-from src.brokers.triggered.on_item_deleted import on_item_deleted
-
-# Export all functions for Firebase deployment
-__all__ = [
-    # Callable functions
-    'example_callable',
-    'create_item_callable',
-    'get_item_callable',
+# Create FastAPI app with OpenAPI configuration
+app = FastAPI(
+    title="Sayar API",
+    description="""
+    Sayar WhatsApp Commerce Platform API
     
-    # HTTPS functions
-    'health_check',
-    'webhook_handler',
+    **Version:** 0.1.0
     
-    # Triggered functions
-    'on_item_created',
-    'on_item_updated',
-    'on_item_deleted',
-]
+    Provides endpoints for authentication, merchants, products, delivery rates, and discounts.
+    All endpoints require JWT authentication with merchant_id claim.
+    """,
+    version="0.1.0",
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+    servers=[
+        {
+            "url": "http://localhost:8000",
+            "description": "Development server"
+        },
+        {
+            "url": "https://api.sayar.example.com",
+            "description": "Production server"
+        }
+    ]
+)
 
-logger.info("Firebase Functions initialized successfully")
+# Configure CORS from environment variable
+cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include API routers
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(merchants_router, prefix="/api/v1")
+app.include_router(products_router, prefix="/api/v1")
+app.include_router(delivery_rates_router, prefix="/api/v1")
+app.include_router(discounts_router, prefix="/api/v1")
+
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "message": "Sayar WhatsApp Commerce API",
+        "version": "1.0.0",
+        "status": "running"
+    }
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "service": "sayar-backend"
+    }
+
+
+@app.get("/api/v1/health")
+async def api_health_check():
+    """API health check endpoint"""
+    return {
+        "status": "healthy",
+        "api_version": "v1",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+if __name__ == "__main__":
+    # For development only
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True
+    )
