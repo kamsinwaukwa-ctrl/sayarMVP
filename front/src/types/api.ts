@@ -33,28 +33,52 @@ export interface AuthRequest {
   password: string;
 }
 
+export interface RegisterRequest {
+  name: string;
+  email: string;
+  password: string;
+  business_name: string;
+  whatsapp_phone_e164?: string; // Optional WhatsApp phone
+}
+
 export interface AuthResponse {
   token: string;
   user: {
     id: string;
     email: string;
     name: string;
-    role: 'owner' | 'staff';
+    role: 'admin' | 'staff'; // Updated to match backend enum
     merchant_id: string;
+  };
+}
+
+export interface RegisterResponse {
+  token: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    role: 'admin' | 'staff';
+    merchant_id: string;
+  };
+  merchant: {
+    id: string;
+    name: string;
+    whatsapp_phone_e164?: string; // Optional WhatsApp phone
   };
 }
 
 // Merchant Types
 export interface CreateMerchantRequest {
   name: string;
-  whatsapp_phone_e164: string;
+  whatsapp_phone_e164?: string; // Optional WhatsApp phone
 }
 
 export interface MerchantResponse {
   id: string;
   name: string;
   slug: string;
-  whatsapp_phone_e164: string;
+  whatsapp_phone_e164?: string; // Optional WhatsApp phone
   currency: string;
   created_at: string;
   updated_at: string;

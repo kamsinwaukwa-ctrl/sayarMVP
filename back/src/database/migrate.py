@@ -9,6 +9,7 @@ import os
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
+from sqlalchemy import text
 
 # Add the parent directory to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -30,23 +31,20 @@ async def apply_migration():
         
         print("Applying database migration...")
         
-        async with engine.connect() as conn:
-            # Execute the migration SQL
-            await conn.execute("BEGIN")
-            
+        async with engine.begin() as conn:
             # Split SQL by semicolons and execute each statement
             statements = migration_sql.split(';')
-            for statement in statements:
+            for i, statement in enumerate(statements):
                 statement = statement.strip()
                 if statement:  # Skip empty statements
                     try:
-                        await conn.execute(statement)
-                        print(f"✓ Executed: {statement[:100]}...")
+                        await conn.execute(text(statement))
+                        print(f"✓ Executed statement {i+1}: {statement[:100]}...")
                     except Exception as e:
-                        print(f"⚠ Warning executing statement: {e}")
+                        print(f"❌ Error executing statement {i+1}: {e}")
+                        print(f"Statement: {statement[:200]}...")
                         # Continue with other statements
             
-            await conn.execute("COMMIT")
             print("✅ Migration completed successfully!")
             return True
             
@@ -55,7 +53,7 @@ async def apply_migration():
         # Try to rollback
         try:
             async with engine.connect() as conn:
-                await conn.execute("ROLLBACK")
+                await conn.execute(text("ROLLBACK"))
                 print("Rolled back transaction")
         except:
             pass
@@ -67,13 +65,13 @@ async def verify_migration():
         async with engine.connect() as conn:
             # Check if merchants table exists
             result = await conn.execute(
-                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'merchants')"
+                text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'merchants')")
             )
             merchants_exists = result.scalar()
             
             # Check if RLS is enabled on merchants table
             result = await conn.execute(
-                "SELECT rowsecurity FROM pg_tables WHERE tablename = 'merchants'"
+                text("SELECT rowsecurity FROM pg_tables WHERE tablename = 'merchants'")
             )
             rls_enabled = result.scalar()
             
@@ -82,7 +80,7 @@ async def verify_migration():
             
             # Count tables created
             result = await conn.execute(
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'"
+                text("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'")
             )
             table_count = result.scalar()
             print(f"Total tables in public schema: {table_count}")
@@ -101,11 +99,10 @@ async def main():
     print("=" * 50)
     
     # Check if environment variables are set
-    supabase_url = os.getenv("SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+    database_url = os.getenv("DATABASE_URL")
     
-    if not supabase_url or not supabase_key:
-        print("❌ Error: SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in .env file")
+    if not database_url:
+        print("❌ Error: DATABASE_URL must be set in .env file")
         print("Please update back/.env with your Supabase credentials")
         return False
     
@@ -115,7 +112,7 @@ async def main():
     print("Testing database connection...")
     try:
         async with engine.connect() as conn:
-            version = await conn.scalar("SELECT version()")
+            version = await conn.scalar(text("SELECT version()"))
             print(f"✅ Connected to: {version}")
     except Exception as e:
         print(f"❌ Database connection failed: {e}")

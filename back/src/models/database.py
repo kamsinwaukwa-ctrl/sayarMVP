@@ -2,9 +2,10 @@
 Pydantic models for Sayar WhatsApp Commerce Platform database schema
 These models provide type safety and validation for database operations
 """
+from .sqlalchemy_models import Base, SystemSetting, MerchantSetting, FeatureFlag  # Re-export models
 
-from pydantic import BaseModel, Field, validator
-from typing import Optional, List
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Optional, List, Any
 from uuid import UUID
 from datetime import datetime
 from enum import Enum
@@ -114,9 +115,10 @@ class ProductDB(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    @validator('reserved_qty')
-    def validate_reserved_qty(cls, v, values):
-        if 'stock' in values and v > values['stock']:
+    @field_validator('reserved_qty')
+    @classmethod
+    def validate_reserved_qty(cls, v, info):
+        if hasattr(info, 'data') and 'stock' in info.data and v > info.data['stock']:
             raise ValueError('reserved_qty cannot exceed stock')
         return v
 
@@ -169,15 +171,18 @@ class OrderDB(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    @validator('total_kobo')
-    def validate_total_kobo(cls, v, values):
-        subtotal = values.get('subtotal_kobo', 0)
-        shipping = values.get('shipping_kobo', 0)
-        discount = values.get('discount_kobo', 0)
-        expected_total = subtotal + shipping - discount
-        
-        if v != expected_total:
-            raise ValueError(f'total_kobo must equal subtotal + shipping - discount. Expected {expected_total}, got {v}')
+    @field_validator('total_kobo')
+    @classmethod
+    def validate_total_kobo(cls, v, info):
+        if hasattr(info, 'data'):
+            data = info.data
+            subtotal = data.get('subtotal_kobo', 0)
+            shipping = data.get('shipping_kobo', 0)
+            discount = data.get('discount_kobo', 0)
+            expected_total = subtotal + shipping - discount
+            
+            if v != expected_total:
+                raise ValueError(f'total_kobo must equal subtotal + shipping - discount. Expected {expected_total}, got {v}')
         return v
 
     class Config:
@@ -203,22 +208,20 @@ class DiscountDB(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    @validator('value_bp', 'amount_kobo', always=True)
-    def validate_discount_values(cls, v, values):
-        discount_type = values.get('type')
-        
-        if discount_type == DiscountType.PERCENT:
-            if v is None:
+    @model_validator(mode='after')
+    def validate_discount_values(self):
+        if self.type == DiscountType.PERCENT:
+            if self.value_bp is None:
                 raise ValueError('value_bp is required for percentage discounts')
-            if values.get('amount_kobo') is not None:
+            if self.amount_kobo is not None:
                 raise ValueError('amount_kobo must be null for percentage discounts')
-        elif discount_type == DiscountType.FIXED:
-            if v is not None:
+        elif self.type == DiscountType.FIXED:
+            if self.value_bp is not None:
                 raise ValueError('value_bp must be null for fixed discounts')
-            if values.get('amount_kobo') is None:
+            if self.amount_kobo is None:
                 raise ValueError('amount_kobo is required for fixed discounts')
         
-        return v
+        return self
 
     class Config:
         from_attributes = True
@@ -228,9 +231,12 @@ class ProductResponse(ProductDB):
     """Product response model with formatted price"""
     price_ngn: float = Field(..., description="Price in NGN (derived from price_kobo)")
     
-    @validator('price_ngn', pre=True, always=True)
-    def convert_kobo_to_ngn(cls, v, values):
-        return values['price_kobo'] / 100.0
+    @field_validator('price_ngn', mode='before')
+    @classmethod
+    def convert_kobo_to_ngn(cls, v, info):
+        if hasattr(info, 'data') and 'price_kobo' in info.data:
+            return info.data['price_kobo'] / 100.0
+        return v
 
 class OrderResponse(OrderDB):
     """Order response model with formatted amounts"""
@@ -239,7 +245,14 @@ class OrderResponse(OrderDB):
     discount_ngn: float = Field(..., description="Discount in NGN")
     total_ngn: float = Field(..., description="Total in NGN")
     
-    @validator('subtotal_ngn', 'shipping_ngn', 'discount_ngn', 'total_ngn', pre=True, always=True)
-    def convert_kobo_to_ngn(cls, v, values, field):
-        kobo_field = field.name.replace('_ngn', '_kobo')
-        return values[kobo_field] / 100.0
+    @field_validator('subtotal_ngn', 'shipping_ngn', 'discount_ngn', 'total_ngn', mode='before')
+    @classmethod
+    def convert_kobo_to_ngn(cls, v, info):
+        if hasattr(info, 'data'):
+            data = info.data
+            # Get the field name from the validation info
+            field_name = info.field_name
+            kobo_field = field_name.replace('_ngn', '_kobo')
+            if kobo_field in data:
+                return data[kobo_field] / 100.0
+        return v

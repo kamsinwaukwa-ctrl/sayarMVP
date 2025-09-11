@@ -1,5 +1,5 @@
 import { Navigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthProvider'
+import { useAuth } from '../hooks/useAuth'
 import { CircularProgress, Box } from '@mui/material'
 
 interface ProtectedRouteProps {
@@ -7,7 +7,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { user, loading } = useAuth()
+  const { isAuthenticated, loading, error } = useAuth()
 
   if (loading) {
     return (
@@ -22,7 +22,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     )
   }
 
-  if (!user) {
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace />
   }
 

@@ -111,7 +111,7 @@ END ADR_AGENT_PROTOCOL
 ## ADR-0001 — Testing Strategy with pytest and Test Database
 
 <a id="adr-0001"></a>
-**Date**: 2025-01-27  
+**Date**: 2025-09-05  
 **Status**: Accepted  
 **Owner**: AI Agent
 

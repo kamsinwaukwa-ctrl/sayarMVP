@@ -1,0 +1,132 @@
+-- Supabase Storage policies for Sayar WhatsApp Commerce Platform
+-- Execute these policies in the Supabase SQL editor to set up media upload security
+
+-- First, ensure the merchant-logos bucket exists and is configured as private
+-- This should be done through the Supabase dashboard or via SQL:
+-- INSERT INTO storage.buckets (id, name, public) VALUES ('merchant-logos', 'merchant-logos', false);
+
+-- ============================================================================
+-- MERCHANT LOGOS BUCKET POLICIES
+-- ============================================================================
+
+-- Policy: Admins can upload logos to their own folder
+-- Path convention: merchant-logos/<merchant_id>/logo.<ext>
+CREATE POLICY "Admins can upload their own logo"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  -- Check bucket is merchant-logos
+  bucket_id = 'merchant-logos'
+  -- Verify merchant_id in path matches JWT claim  
+  AND (auth.jwt() ->> 'merchant_id') = (storage.foldername(name))[1]
+  -- Require admin role
+  AND (auth.jwt() ->> 'role') = 'admin'
+  -- Optional: Restrict file patterns (logo.png, logo.jpg, etc.)
+  AND name ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/logo\.(png|jpg|jpeg|webp)$'
+);
+
+-- Policy: Business users (admin & staff) can view their own logo via signed URL creation
+CREATE POLICY "Business users can view their own logo"
+ON storage.objects FOR SELECT
+USING (
+  -- Check bucket is merchant-logos
+  bucket_id = 'merchant-logos'
+  -- Verify merchant_id in path matches JWT claim
+  AND (auth.jwt() ->> 'merchant_id') = (storage.foldername(name))[1]
+  -- Allow both admin and staff roles
+  AND (auth.jwt() ->> 'role') IN ('admin','staff')
+);
+
+-- Policy: Admins can replace/delete their own logo
+CREATE POLICY "Admins can update their own logo"
+ON storage.objects FOR UPDATE
+USING (
+  -- Check bucket is merchant-logos
+  bucket_id = 'merchant-logos'
+  -- Verify merchant_id in path matches JWT claim
+  AND (auth.jwt() ->> 'merchant_id') = (storage.foldername(name))[1]
+  -- Require admin role for updates
+  AND (auth.jwt() ->> 'role') = 'admin'
+)
+WITH CHECK (
+  -- Same conditions for the updated object
+  bucket_id = 'merchant-logos'
+  AND (auth.jwt() ->> 'merchant_id') = (storage.foldername(name))[1]
+  AND (auth.jwt() ->> 'role') = 'admin'
+);
+
+-- Policy: Admins can delete their own logo
+CREATE POLICY "Admins can delete their own logo"
+ON storage.objects FOR DELETE
+USING (
+  -- Check bucket is merchant-logos
+  bucket_id = 'merchant-logos'
+  -- Verify merchant_id in path matches JWT claim
+  AND (auth.jwt() ->> 'merchant_id') = (storage.foldername(name))[1]
+  -- Require admin role for deletion
+  AND (auth.jwt() ->> 'role') = 'admin'
+);
+
+-- ============================================================================
+-- SECURITY NOTES
+-- ============================================================================
+
+/*
+1. JWT Claims Required:
+   - 'merchant_id': UUID string identifying the merchant
+   - 'role': Either 'admin' or 'staff'
+
+2. Path Convention:
+   - All logo files stored as: merchant-logos/<merchant_id>/logo.<ext>
+   - Supported extensions: png, jpg, jpeg, webp
+
+3. Access Control:
+   - Upload: Admin only
+   - View/Download: Admin and Staff (via signed URLs)
+   - Update/Delete: Admin only
+
+4. Multi-tenant Isolation:
+   - RLS policies ensure merchants can only access their own files
+   - Path-based isolation using merchant_id folder structure
+
+5. Bucket Configuration:
+   - Bucket must be configured as private (public=false)
+   - All access is via signed URLs only
+   - No public file access allowed
+
+6. File Pattern Restrictions:
+   - Optional regex pattern restricts filenames to logo.<ext>
+   - Prevents path traversal and unauthorized file uploads
+   - Can be adjusted based on requirements
+
+7. Testing Policy Changes:
+   - Test with different JWT tokens containing various merchant_id values
+   - Verify cross-tenant access is properly blocked
+   - Test role-based restrictions (admin vs staff)
+
+8. Rollback Instructions:
+   If you need to remove these policies:
+   
+   DROP POLICY IF EXISTS "Admins can upload their own logo" ON storage.objects;
+   DROP POLICY IF EXISTS "Business users can view their own logo" ON storage.objects;
+   DROP POLICY IF EXISTS "Admins can update their own logo" ON storage.objects;
+   DROP POLICY IF EXISTS "Admins can delete their own logo" ON storage.objects;
+*/
+
+-- ============================================================================
+-- BUCKET CREATION (if needed)
+-- ============================================================================
+
+/*
+-- Create the merchant-logos bucket if it doesn't exist
+-- Execute this separately in Supabase SQL editor if the bucket doesn't exist:
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'merchant-logos',
+  'merchant-logos', 
+  false,  -- private bucket
+  5242880,  -- 5MB limit
+  ARRAY['image/jpeg', 'image/png', 'image/webp']  -- allowed MIME types
+)
+ON CONFLICT (id) DO NOTHING;
+*/

@@ -241,3 +241,33 @@ def get_whatsapp_integration() -> WhatsAppIntegration:
         WhatsAppIntegration instance
     """
     return WhatsAppIntegration()
+
+
+async def send_whatsapp_message(
+    to: str,
+    message_type: str = "text",
+    content: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Send WhatsApp message using global integration instance
+    
+    Args:
+        to: Recipient phone number in E.164 format
+        message_type: Message type (text, template)
+        content: Message content
+        
+    Returns:
+        Message sending response
+    """
+    wa = get_whatsapp_integration()
+    
+    if message_type == "text":
+        message = content.get("text", "") if content else ""
+        return await wa.send_message(to, message, message_type="text")
+    elif message_type == "template":
+        template_name = content.get("template_name", "") if content else ""
+        parameters = content.get("parameters", []) if content else []
+        language = content.get("language", "en") if content else "en"
+        return await wa.send_template_message(to, template_name, parameters, language)
+    else:
+        raise ValueError(f"Unsupported message type: {message_type}")

@@ -13,23 +13,25 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Database configuration
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-    raise ValueError("Supabase URL and Service Key must be set in environment variables")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL must be set in environment variables")
 
-# Construct database URL with service key
-# Supabase connection format: postgresql+asyncpg://postgres:[service-key]@[host]/postgres
-DATABASE_URL = SUPABASE_URL.replace("https://", "postgresql+asyncpg://postgres:") \
-    .replace(".supabase.co", ".supabase.co:6543/postgres") + f"?sslmode=require&password={SUPABASE_SERVICE_KEY}"
+# Debug: Print the constructed URL (without password for security)
+print(f"🔍 Using DATABASE_URL: {DATABASE_URL.split('@')[0]}@***")
 
 # Create async engine
 engine = create_async_engine(
     DATABASE_URL,
     echo=os.getenv("DEBUG", "false").lower() == "true",
     poolclass=NullPool,  # Use NullPool for serverless environments
-    future=True
+    future=True,
+    connect_args={
+        "ssl": "prefer",             # TLS preferred, more permissive for development
+        "statement_cache_size": 0,   # Disable statement caching to avoid pgbouncer issues
+    },
+    pool_recycle=3600,
 )
 
 # Create async session factory

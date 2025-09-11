@@ -29,14 +29,14 @@ CREATE TABLE merchants (
     updated_at timestamptz not null default now()
 );
 
--- Users (owners and staff)
+-- Users (admin and staff)
 CREATE TABLE users (
     id uuid primary key default gen_random_uuid(),
     merchant_id uuid not null references merchants(id) on delete cascade,
     name text not null,
     email text not null,
     password_hash text,
-    role text not null check (role in ('owner', 'staff')),
+    role text not null check (role in ('admin', 'staff')),
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
     unique(email)
@@ -128,7 +128,7 @@ CREATE TABLE orders (
 CREATE TABLE order_items (
     id uuid primary key default gen_random_uuid(),
     order_id uuid not null references orders(id) on delete cascade,
-    product_id uuid not null references products(id) restrict,
+    product_id uuid not null references products(id) on delete restrict,
     qty int not null check (qty > 0),
     unit_price_kobo bigint not null check (unit_price_kobo >= 0),
     total_kobo bigint not null check (total_kobo >= 0),

@@ -3,7 +3,7 @@ Pydantic models for API requests and responses with OpenAPI schema examples
 """
 
 from pydantic import BaseModel, Field, EmailStr
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Generic, TypeVar
 from uuid import UUID
 from datetime import datetime
 from enum import Enum
@@ -11,18 +11,20 @@ from enum import Enum
 from .database import UserRole, ProductStatus, DiscountStatus, DiscountType
 from .errors import ErrorCode, ErrorDetails, APIError
 
+# Type variable for generic API responses
+T = TypeVar('T')
 
-class ApiResponse(BaseModel):
+class ApiResponse(BaseModel, Generic[T]):
     """Standard API response envelope for success"""
     ok: bool = True
     id: Optional[UUID] = Field(None, description="Unique identifier for the operation")
-    data: Optional[Any] = Field(None, description="Response data payload")
+    data: Optional[T] = Field(None, description="Response data payload")
     message: Optional[str] = Field(None, description="Human-readable success message")
     timestamp: datetime = Field(default_factory=datetime.now, description="Response timestamp")
     
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "ok": True,
                 "id": "7c8de9a5-7e2b-4e7e-9c0a-9b7b0d2b0e1a",
@@ -41,7 +43,7 @@ class ApiErrorResponse(BaseModel):
     
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "ok": False,
                 "error": {
@@ -56,13 +58,47 @@ class ApiErrorResponse(BaseModel):
 
 
 # Auth Models
+class RegisterRequest(BaseModel):
+    """User registration request"""
+    name: str = Field(..., min_length=1, max_length=100, description="User full name")
+    email: EmailStr = Field(..., description="User email address")
+    password: str = Field(..., min_length=8, description="User password")
+    business_name: str = Field(..., min_length=1, max_length=100, description="Business name")
+    whatsapp_phone_e164: Optional[str] = Field(None, description="WhatsApp phone number in E.164 format (optional)")
+    
+    class Config:
+        json_schema_extra = {
+            "examples": {
+                "minimal": {
+                    "summary": "Registration without WhatsApp phone",
+                    "value": {
+                        "name": "John Doe",
+                        "email": "john@example.com",
+                        "password": "secure_password",
+                        "business_name": "My Store"
+                    }
+                },
+                "withWhatsApp": {
+                    "summary": "Registration with WhatsApp phone (optional)",
+                    "value": {
+                        "name": "John Doe",
+                        "email": "john@example.com",
+                        "password": "secure_password",
+                        "business_name": "My Store",
+                        "whatsapp_phone_e164": "+2348012345678"
+                    }
+                }
+            }
+        }
+
+
 class AuthRequest(BaseModel):
     """Authentication request"""
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., min_length=8, description="User password")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "email": "user@example.com",
                 "password": "securepassword123"
@@ -76,7 +112,7 @@ class AuthResponse(BaseModel):
     user: Dict[str, Any] = Field(..., description="User information")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                 "user": {
@@ -97,7 +133,7 @@ class CreateMerchantRequest(BaseModel):
     whatsapp_phone_e164: str = Field(..., description="WhatsApp phone number in E.164 format")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "Awesome Beauty Store",
                 "whatsapp_phone_e164": "+2341234567890"
@@ -117,7 +153,7 @@ class MerchantResponse(BaseModel):
     
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "660e8400-e29b-41d4-a716-446655440001",
                 "name": "Awesome Beauty Store",
@@ -142,7 +178,7 @@ class CreateProductRequest(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Product tags")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "title": "Premium Face Cream",
                 "description": "Luxury anti-aging face cream with natural ingredients",
@@ -176,7 +212,7 @@ class ProductResponse(BaseModel):
     
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "770e8400-e29b-41d4-a716-446655440002",
                 "merchant_id": "660e8400-e29b-41d4-a716-446655440001",
@@ -207,7 +243,7 @@ class CreateDeliveryRateRequest(BaseModel):
     description: Optional[str] = Field(None, max_length=500, description="Delivery rate description")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "Lagos Mainland Delivery",
                 "areas_text": "Ikeja, Surulere, Yaba, Mushin",
@@ -231,7 +267,7 @@ class DeliveryRateResponse(BaseModel):
     
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "880e8400-e29b-41d4-a716-446655440003",
                 "merchant_id": "660e8400-e29b-41d4-a716-446655440001",
@@ -254,7 +290,7 @@ class ValidateDiscountRequest(BaseModel):
     customer_id: Optional[UUID] = Field(None, description="Customer ID for per-customer limits")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "code": "SUMMER20",
                 "subtotal_kobo": 10000,
@@ -270,7 +306,7 @@ class DiscountValidationResponse(BaseModel):
     reason: Optional[str] = Field(None, description="Reason if invalid")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "valid": True,
                 "discount_kobo": 2000,
@@ -296,7 +332,7 @@ class PaginatedResponse(BaseModel):
     
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "ok": True,
                 "data": [],

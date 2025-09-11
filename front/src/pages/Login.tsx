@@ -1,116 +1,66 @@
-import { useState } from 'react'
+/**
+ * Login Page for Sayar WhatsApp Commerce Platform
+ * Clean Tailwind implementation
+ */
+
+import { useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import {
-  Container,
-  Paper,
-  TextField,
-  Button,
-  Typography,
-  Box,
-  Alert,
-} from '@mui/material'
-import { supabase } from '../lib/supabase'
-import { useAuth } from '../context/AuthProvider'
+import { useAuth } from '../hooks/useAuth'
+import LoginForm from '../components/auth/LoginForm'
 
 const Login = () => {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { isAuthenticated, loading } = useAuth()
 
-  // Redirect if already authenticated
-  if (user) {
-    navigate('/dashboard')
+  useEffect(() => {
+    if (isAuthenticated && !loading) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [isAuthenticated, loading, navigate])
+
+  const handleLoginSuccess = () => {
+    navigate('/dashboard', { replace: true })
+  }
+
+  const handleLoginError = (error: string) => {
+    console.error('Login error:', error)
+  }
+
+  if (isAuthenticated) {
     return null
   }
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (error) throw error
-
-      navigate('/dashboard')
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'An error occurred')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
-    <Container maxWidth="sm">
-      <Box
-        display="flex"
-        flexDirection="column"
-        alignItems="center"
-        justifyContent="center"
-        minHeight="100vh"
-      >
-        <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
-          <Typography variant="h4" component="h1" gutterBottom align="center">
-            Sayar Dashboard
-          </Typography>
-          <Typography variant="h6" gutterBottom align="center" color="textSecondary">
-            Sign in to your merchant account
-          </Typography>
+    <div className="min-h-screen bg-white flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        {/* Logo */}
+        <div className="flex justify-center">
+          <img src="/logo.png" alt="Sayar" className="h-12 w-auto" />
+        </div>
+        
+        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
+          Sign in to your account
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Or{' '}
+          <Link
+            to="/signup"
+            className="font-medium text-blue-600 hover:text-blue-500"
+          >
+            create a new account
+          </Link>
+        </p>
+      </div>
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
-
-          <Box component="form" onSubmit={handleLogin}>
-            <TextField
-              fullWidth
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              margin="normal"
-              required
-            />
-            <TextField
-              fullWidth
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              margin="normal"
-              required
-            />
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              sx={{ mt: 3, mb: 2 }}
-              disabled={loading}
-            >
-              {loading ? 'Signing In...' : 'Sign In'}
-            </Button>
-          </Box>
-
-          <Box textAlign="center" mt={2}>
-            <Typography variant="body2">
-              Don't have an account?{' '}
-              <Link to="/signup" style={{ color: '#1976d2' }}>
-                Sign up
-              </Link>
-            </Typography>
-          </Box>
-        </Paper>
-      </Box>
-    </Container>
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-gray-200">
+          <LoginForm 
+            onSuccess={handleLoginSuccess}
+            onError={handleLoginError}
+          />
+        </div>
+      </div>
+    </div>
   )
 }
 

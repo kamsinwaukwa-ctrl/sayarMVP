@@ -1,0 +1,347 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Sayar API",
+    "description": "Sayar WhatsApp Commerce Platform API\n    \n    **Version:** 0.1.1\n    \n    Provides endpoints for authentication, merchants, products, delivery rates, and discounts.\n    All endpoints require JWT authentication with merchant_id claim.\n    \n    **Changelog v0.1.1:**\n    - Made WhatsApp phone number optional during user registration",
+    "version": "0.1.1",
+    "x-api-version": "0.1.1"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Development server"
+    },
+    {
+      "url": "https://api.sayar.example.com",
+      "description": "Production server"
+    }
+  ],
+  "paths": {
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Register new user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              },
+              "examples": {
+                "minimal": {
+                  "summary": "Register without WhatsApp number",
+                  "value": {
+                    "name": "John Doe",
+                    "email": "john@example.com",
+                    "password": "secure_password",
+                    "business_name": "My Store"
+                  }
+                },
+                "withWhatsApp": {
+                  "summary": "Register with WhatsApp number (optional)",
+                  "value": {
+                    "name": "John Doe",
+                    "email": "john@example.com",
+                    "password": "secure_password",
+                    "business_name": "My Store",
+                    "whatsapp_phone_e164": "+2348012345678"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Registration successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Registration failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "User login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Get current user",
+        "description": "Get information about the currently authenticated user",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "User information retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Refresh access token",
+        "description": "Refresh JWT access token (optional endpoint)",
+        "responses": {
+          "200": {
+            "description": "Token refreshed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "in": "header",
+        "name": "Idempotency-Key",
+        "required": false,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Unique key to ensure idempotency of mutating requests."
+      }
+    },
+    "schemas": {
+      "RegisterRequest": {
+        "type": "object",
+        "required": ["name", "email", "password", "business_name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "User full name"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "User email address"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "description": "User password"
+          },
+          "business_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Business name"
+          },
+          "whatsapp_phone_e164": {
+            "type": "string",
+            "description": "WhatsApp phone number in E.164 format (optional)",
+            "example": "+2348012345678"
+          }
+        },
+        "example": {
+          "name": "John Doe",
+          "email": "john@example.com",
+          "password": "secure_password",
+          "business_name": "My Store"
+        }
+      },
+      "AuthRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "User email address"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "description": "User password"
+          }
+        },
+        "example": {
+          "email": "user@example.com",
+          "password": "securepassword123"
+        }
+      },
+      "ApiResponse": {
+        "type": "object",
+        "required": ["ok", "timestamp"],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "default": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for the operation"
+          },
+          "data": {
+            "description": "Response data payload"
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable success message"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Response timestamp"
+          }
+        },
+        "example": {
+          "ok": true,
+          "id": "7c8de9a5-7e2b-4e7e-9c0a-9b7b0d2b0e1a",
+          "data": {"result": "success"},
+          "message": "Operation completed successfully",
+          "timestamp": "2025-01-27T10:00:00Z"
+        }
+      },
+      "ApiErrorResponse": {
+        "type": "object",
+        "required": ["ok", "error", "timestamp"],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "default": false
+          },
+          "error": {
+            "$ref": "#/components/schemas/APIError"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Error timestamp"
+          }
+        },
+        "example": {
+          "ok": false,
+          "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "Invalid input data",
+            "details": {"field": "email", "reason": "Invalid email format"},
+            "trace_id": "trace_abc123"
+          },
+          "timestamp": "2025-01-27T10:00:00Z"
+        }
+      },
+      "APIError": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Error code"
+          },
+          "message": {
+            "type": "string",
+            "description": "Error message"
+          },
+          "details": {
+            "type": "object",
+            "description": "Additional error details"
+          },
+          "trace_id": {
+            "type": "string",
+            "description": "Trace ID for debugging"
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+    "mcpServers": {
+      "playwright": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@playwright/mcp@latest",
+          "--headless",
+          "--isolated",
+          "--caps=pdf,vision",
+          "--save-trace"
+        ],
+        "env": {}
+      },
+      "shadcn": {
+      "command": "npx",
+      "args": ["shadcn@latest", "mcp"],
+      "env": {}
+      }
+    }
+  }

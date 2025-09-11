@@ -1,225 +1,450 @@
 """
-Retry utilities with exponential backoff and jitter for reliable external service calls
+Retry utilities for Sayar WhatsApp Commerce Platform
+Provides exponential backoff with jitter for reliable operation retry
 """
 
 import asyncio
 import random
 import time
-from typing import Callable, Any, Optional, TypeVar, Coroutine
+from dataclasses import dataclass
 from functools import wraps
+from typing import Optional, Callable, Any, Union, Type, Tuple
 import logging
 
-from ..models.security import RetryConfig
+from ..models.errors import RetryableError
+from ..utils.logger import log, log_error
+from ..utils.metrics import record_error, record_retry_attempt, record_retry_failure
 
 
-T = TypeVar("T")
+@dataclass
+class RetryConfig:
+    """Configuration for retry behavior"""
+    max_attempts: int = 8
+    base_delay: float = 1.0  # seconds
+    max_delay: float = 300.0  # seconds (5 minutes)
+    exponential_base: float = 2.0
+    jitter: bool = True
 
 
-class RetryService:
-    """Service for managing retry operations with exponential backoff"""
-    
-    def __init__(self, config: Optional[RetryConfig] = None):
-        """
-        Initialize retry service with configuration
-        
-        Args:
-            config: Retry configuration (uses defaults if not provided)
-        """
-        self.config = config or RetryConfig()
-    
-    async def execute_with_retry(
-        self, 
-        func: Callable[..., Coroutine[Any, Any, T]],
-        *args,
-        **kwargs
-    ) -> T:
-        """
-        Execute a function with retry logic and exponential backoff
-        
-        Args:
-            func: Async function to execute
-            *args: Function arguments
-            **kwargs: Function keyword arguments
-            
-        Returns:
-            Result of the function call
-            
-        Raises:
-            Exception: If all retry attempts fail
-        """
-        attempt = 0
-        delay = self.config.base_delay
-        
-        while True:
-            try:
-                return await func(*args, **kwargs)
-                
-            except Exception as e:
-                attempt += 1
-                
-                # Check if we should retry
-                if attempt >= self.config.max_attempts:
-                    logging.error(
-                        f"Retry exhausted after {attempt} attempts",
-                        extra={
-                            "attempt": attempt,
-                            "max_attempts": self.config.max_attempts,
-                            "error": str(e)
-                        }
-                    )
-                    raise
-                
-                # Calculate delay with jitter
-                jitter = random.uniform(0, delay) if self.config.jitter else 0
-                sleep_time = min(self.config.max_delay, delay + jitter)
-                
-                logging.warning(
-                    f"Retry attempt {attempt}/{self.config.max_attempts} after error: {e}",
-                    extra={
-                        "attempt": attempt,
-                        "max_attempts": self.config.max_attempts,
-                        "delay_seconds": sleep_time,
-                        "error": str(e)
-                    }
-                )
-                
-                # Wait before retrying
-                await asyncio.sleep(sleep_time)
-                
-                # Increase delay exponentially
-                delay *= self.config.exponential_base
-    
-    def retry_decorator(self):
-        """
-        Create a decorator for retrying async functions
-        
-        Returns:
-            Decorator function
-        """
-        def decorator(func: Callable[..., Coroutine[Any, Any, T]]):
-            @wraps(func)
-            async def wrapper(*args, **kwargs) -> T:
-                return await self.execute_with_retry(func, *args, **kwargs)
-            return wrapper
-        return decorator
-
-
-def retry_with_backoff(
-    config: Optional[RetryConfig] = None
-) -> Callable[[Callable[..., Coroutine[Any, Any, T]]], Callable[..., Coroutine[Any, Any, T]]]:
+def is_retryable_exception(exception: Exception) -> bool:
     """
-    Decorator for retrying async functions with exponential backoff
+    Default classifier for retryable exceptions
     
     Args:
-        config: Retry configuration (optional)
+        exception: The exception to classify
         
     Returns:
-        Decorator function
+        True if the exception should trigger a retry
     """
-    service = RetryService(config)
-    return service.retry_decorator()
-
-
-def is_retryable_error(error: Exception) -> bool:
-    """
-    Determine if an error is retryable
+    # Always retry RetryableError
+    if isinstance(exception, RetryableError):
+        return True
     
-    Args:
-        error: Exception to check
-        
-    Returns:
-        True if the error should be retried
-    """
-    retryable_errors = (
+    # Retry common network/timeout errors
+    if isinstance(exception, (
         ConnectionError,
         TimeoutError,
-        asyncio.TimeoutError,
-        # HTTP 5xx errors (converted to exceptions)
-        # Rate limiting errors
-    )
-    
-    error_str = str(error).lower()
-    
-    # Check for retryable error patterns
-    retryable_patterns = [
-        'timeout',
-        'connection',
-        'network',
-        'temporarily',
-        'busy',
-        'rate limit',
-        'too many requests',
-        'service unavailable',
-        'gateway timeout',
-        'internal server error'
-    ]
-    
-    # Check if it's a known retryable error type
-    if isinstance(error, retryable_errors):
+        OSError,
+    )):
         return True
     
-    # Check error message for retryable patterns
-    if any(pattern in error_str for pattern in retryable_patterns):
-        return True
+    # Check for common HTTP client errors that are retryable
+    if hasattr(exception, 'status_code'):
+        status = getattr(exception, 'status_code')
+        # Retry 5xx server errors and 429 rate limits
+        return status >= 500 or status == 429
     
     return False
 
 
-def calculate_backoff_delay(
-    attempt: int, 
-    base_delay: float = 1.0, 
-    max_delay: float = 300.0,
-    exponential_base: float = 2.0,
-    jitter: bool = True
-) -> float:
+def calculate_delay(attempt: int, config: RetryConfig) -> float:
     """
-    Calculate backoff delay for a given attempt
+    Calculate delay for retry attempt with exponential backoff and jitter
     
     Args:
         attempt: Current attempt number (1-based)
-        base_delay: Base delay in seconds
-        max_delay: Maximum delay in seconds
-        exponential_base: Exponential base for backoff
-        jitter: Whether to add random jitter
+        config: Retry configuration
         
     Returns:
-        Delay in seconds
+        Delay in seconds before next retry
     """
-    if attempt < 1:
-        attempt = 1
+    if attempt <= 1:
+        return 0
     
     # Exponential backoff: base_delay * (exponential_base ^ (attempt - 1))
-    delay = base_delay * (exponential_base ** (attempt - 1))
+    delay = config.base_delay * (config.exponential_base ** (attempt - 2))
     
-    # Add jitter (random value between 0 and delay)
-    if jitter:
-        delay += random.uniform(0, delay * 0.1)  # 10% jitter
+    # Cap at max_delay
+    delay = min(delay, config.max_delay)
     
-    # Cap at maximum delay
-    return min(delay, max_delay)
+    # Add jitter to prevent thundering herd
+    if config.jitter:
+        # Use full jitter: multiply by random factor between 0 and 1
+        delay = delay * random.random()
+    
+    return delay
 
 
-# Global retry service instance with default config
-_default_retry_service = RetryService()
-
-
-def execute_with_retry(
-    func: Callable[..., Coroutine[Any, Any, T]],
-    *args,
+def retryable(
     config: Optional[RetryConfig] = None,
-    **kwargs
-) -> T:
+    classify: Optional[Callable[[Exception], bool]] = None,
+    on_retry: Optional[Callable[[int, Exception, float], None]] = None
+):
     """
-    Execute a function with retry logic
+    Decorator for adding retry logic to functions
     
     Args:
-        func: Async function to execute
-        *args: Function arguments
-        config: Retry configuration (optional)
-        **kwargs: Function keyword arguments
+        config: Retry configuration (uses defaults if None)
+        classify: Function to determine if exception is retryable
+        on_retry: Callback called before each retry attempt
+    """
+    if config is None:
+        config = RetryConfig()
+    
+    if classify is None:
+        classify = is_retryable_exception
+    
+    def decorator(func: Callable) -> Callable:
+        if asyncio.iscoroutinefunction(func):
+            return _async_retryable_wrapper(func, config, classify, on_retry)
+        else:
+            return _sync_retryable_wrapper(func, config, classify, on_retry)
+    
+    return decorator
+
+
+def _sync_retryable_wrapper(
+    func: Callable,
+    config: RetryConfig,
+    classify: Callable[[Exception], bool],
+    on_retry: Optional[Callable[[int, Exception, float], None]]
+) -> Callable:
+    """Synchronous retry wrapper"""
+    
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        last_exception = None
+        
+        for attempt in range(1, config.max_attempts + 1):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                last_exception = e
+                
+                # Check if this exception should trigger a retry
+                if not classify(e):
+                    log_error(
+                        "retry_not_retryable",
+                        f"Exception not retryable: {type(e).__name__}",
+                        exception=e,
+                        function=func.__name__,
+                        attempt=attempt
+                    )
+                    raise
+                
+                # Don't retry on last attempt
+                if attempt >= config.max_attempts:
+                    break
+                
+                # Calculate delay and log retry attempt
+                delay = calculate_delay(attempt, config)
+                
+                log.warning(
+                    f"Retry attempt {attempt}/{config.max_attempts} for {func.__name__}",
+                    extra={
+                        "event_type": "retry_attempt",
+                        "function": func.__name__,
+                        "attempt": attempt,
+                        "max_attempts": config.max_attempts,
+                        "delay_seconds": delay,
+                        "exception_type": type(e).__name__,
+                        "exception_message": str(e)
+                    }
+                )
+                
+                # Call retry callback if provided
+                if on_retry:
+                    on_retry(attempt, e, delay)
+                
+                # Record metrics
+                record_retry_attempt(func.__name__)
+                
+                # Wait before retrying
+                if delay > 0:
+                    time.sleep(delay)
+        
+        # All retries exhausted
+        log_error(
+            "retry_failed",
+            f"All retry attempts exhausted for {func.__name__}",
+            exception=last_exception,
+            function=func.__name__,
+            total_attempts=config.max_attempts
+        )
+        
+        record_retry_failure(func.__name__)
+        
+        # Raise RetryableError to signal that this operation failed after retries
+        if isinstance(last_exception, RetryableError):
+            raise last_exception
+        else:
+            raise RetryableError(
+                service=func.__name__,
+                message=f"Operation failed after {config.max_attempts} attempts: {str(last_exception)}"
+            )
+    
+    return wrapper
+
+
+def _async_retryable_wrapper(
+    func: Callable,
+    config: RetryConfig,
+    classify: Callable[[Exception], bool],
+    on_retry: Optional[Callable[[int, Exception, float], None]]
+) -> Callable:
+    """Asynchronous retry wrapper"""
+    
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        last_exception = None
+        
+        for attempt in range(1, config.max_attempts + 1):
+            try:
+                return await func(*args, **kwargs)
+            except Exception as e:
+                last_exception = e
+                
+                # Check if this exception should trigger a retry
+                if not classify(e):
+                    log_error(
+                        "retry_not_retryable",
+                        f"Exception not retryable: {type(e).__name__}",
+                        exception=e,
+                        function=func.__name__,
+                        attempt=attempt
+                    )
+                    raise
+                
+                # Don't retry on last attempt
+                if attempt >= config.max_attempts:
+                    break
+                
+                # Calculate delay and log retry attempt
+                delay = calculate_delay(attempt, config)
+                
+                log.warning(
+                    f"Retry attempt {attempt}/{config.max_attempts} for {func.__name__}",
+                    extra={
+                        "event_type": "retry_attempt",
+                        "function": func.__name__,
+                        "attempt": attempt,
+                        "max_attempts": config.max_attempts,
+                        "delay_seconds": delay,
+                        "exception_type": type(e).__name__,
+                        "exception_message": str(e)
+                    }
+                )
+                
+                # Call retry callback if provided
+                if on_retry:
+                    on_retry(attempt, e, delay)
+                
+                # Record metrics
+                record_retry_attempt(func.__name__)
+                
+                # Wait before retrying
+                if delay > 0:
+                    await asyncio.sleep(delay)
+        
+        # All retries exhausted
+        log_error(
+            "retry_failed",
+            f"All retry attempts exhausted for {func.__name__}",
+            exception=last_exception,
+            function=func.__name__,
+            total_attempts=config.max_attempts
+        )
+        
+        record_retry_failure(func.__name__)
+        
+        # Raise RetryableError to signal that this operation failed after retries
+        if isinstance(last_exception, RetryableError):
+            raise last_exception
+        else:
+            raise RetryableError(
+                service=func.__name__,
+                message=f"Operation failed after {config.max_attempts} attempts: {str(last_exception)}"
+            )
+    
+    return wrapper
+
+
+class RetryableOperation:
+    """Context manager for manual retry logic"""
+    
+    def __init__(
+        self,
+        config: Optional[RetryConfig] = None,
+        operation_name: str = "operation",
+        classify: Optional[Callable[[Exception], bool]] = None
+    ):
+        self.config = config or RetryConfig()
+        self.operation_name = operation_name
+        self.classify = classify or is_retryable_exception
+        self.attempt = 0
+        self.last_exception = None
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type and exc_value:
+            self.last_exception = exc_value
+            
+            if self.classify(exc_value):
+                # This exception is retryable
+                return True  # Suppress the exception
+            else:
+                # This exception should not be retried
+                return False  # Let the exception propagate
+        
+        return False
+    
+    def should_retry(self) -> bool:
+        """Check if operation should be retried"""
+        return (
+            self.last_exception and
+            self.attempt < self.config.max_attempts and
+            self.classify(self.last_exception)
+        )
+    
+    def next_attempt(self) -> float:
+        """
+        Prepare for next retry attempt
+        
+        Returns:
+            Delay in seconds before next attempt
+        """
+        self.attempt += 1
+        delay = calculate_delay(self.attempt, self.config)
+        
+        log.warning(
+            f"Retry attempt {self.attempt}/{self.config.max_attempts} for {self.operation_name}",
+            extra={
+                "event_type": "retry_attempt",
+                "operation": self.operation_name,
+                "attempt": self.attempt,
+                "max_attempts": self.config.max_attempts,
+                "delay_seconds": delay,
+                "exception_type": type(self.last_exception).__name__,
+                "exception_message": str(self.last_exception)
+            }
+        )
+        
+        record_retry_attempt(self.operation_name)
+        return delay
+    
+    def exhausted(self) -> RetryableError:
+        """
+        Create error for exhausted retries
+        
+        Returns:
+            RetryableError indicating all retries failed
+        """
+        log_error(
+            "retry_failed",
+            f"All retry attempts exhausted for {self.operation_name}",
+            exception=self.last_exception,
+            operation=self.operation_name,
+            total_attempts=self.config.max_attempts
+        )
+        
+        record_retry_failure(self.operation_name)
+        
+        if isinstance(self.last_exception, RetryableError):
+            return self.last_exception
+        else:
+            return RetryableError(
+                service=self.operation_name,
+                message=f"Operation failed after {self.config.max_attempts} attempts: {str(self.last_exception)}"
+            )
+
+
+# Convenience function for simple retry operations
+async def retry_async(
+    operation: Callable,
+    config: Optional[RetryConfig] = None,
+    classify: Optional[Callable[[Exception], bool]] = None,
+    operation_name: str = "async_operation"
+) -> Any:
+    """
+    Retry an async operation with exponential backoff
+    
+    Args:
+        operation: Async callable to retry
+        config: Retry configuration
+        classify: Function to determine if exception is retryable
+        operation_name: Name for logging/metrics
         
     Returns:
-        Result of the function call
+        Result of successful operation
+        
+    Raises:
+        RetryableError: If all retry attempts are exhausted
     """
-    service = RetryService(config) if config else _default_retry_service
-    return service.execute_with_retry(func, *args, **kwargs)
+    config = config or RetryConfig()
+    classify = classify or is_retryable_exception
+    
+    retry_op = RetryableOperation(config, operation_name, classify)
+    
+    while True:
+        with retry_op:
+            return await operation()
+        
+        if retry_op.should_retry():
+            delay = retry_op.next_attempt()
+            if delay > 0:
+                await asyncio.sleep(delay)
+        else:
+            raise retry_op.exhausted()
+
+
+# Alias for backward compatibility
+retry_with_backoff = retryable
+
+def retry_sync(
+    operation: Callable,
+    config: Optional[RetryConfig] = None,
+    classify: Optional[Callable[[Exception], bool]] = None,
+    operation_name: str = "sync_operation"
+) -> Any:
+    """
+    Retry a sync operation with exponential backoff
+    
+    Args:
+        operation: Callable to retry
+        config: Retry configuration
+        classify: Function to determine if exception is retryable
+        operation_name: Name for logging/metrics
+        
+    Returns:
+        Result of successful operation
+        
+    Raises:
+        RetryableError: If all retry attempts are exhausted
+    """
+    config = config or RetryConfig()
+    classify = classify or is_retryable_exception
+    
+    retry_op = RetryableOperation(config, operation_name, classify)
+    
+    while True:
+        with retry_op:
+            return operation()
+        
+        if retry_op.should_retry():
+            delay = retry_op.next_attempt()
+            if delay > 0:
+                time.sleep(delay)
+        else:
+            raise retry_op.exhausted()
