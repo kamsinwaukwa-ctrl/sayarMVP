@@ -1,14 +1,23 @@
 """
-Products API endpoints with OpenAPI documentation
+Products API endpoints with OpenAPI documentation and Meta catalog integration
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
-from typing import Optional, List
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 
+from ..database.connection import get_db
+from ..dependencies.auth import get_current_user
 from ..models.api import CreateProductRequest, ProductResponse, ApiResponse, ApiErrorResponse, PaginationParams
+from ..models.database import ProductDB, UserDB
+from ..models.meta_catalog import ProductSyncStatus, UpdateProductSyncRequest
 from ..models.errors import ErrorCode
+from ..services.product_service import ProductService
+from ..utils.logger import get_logger
+from ..utils.metrics import increment_counter
 
+logger = get_logger(__name__)
 router = APIRouter(prefix="/products", tags=["Products"])
 
 
@@ -26,7 +35,10 @@ async def list_products(
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     sort: Optional[str] = Query(None, description="Sort field and direction (e.g., 'created_at:desc')"),
     status: Optional[str] = Query(None, description="Filter by product status"),
-    category: Optional[str] = Query(None, description="Filter by category")
+    category: Optional[str] = Query(None, description="Filter by category"),
+    search: Optional[str] = Query(None, description="Search in title, description, or SKU"),
+    current_user: UserDB = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get paginated list of products.
@@ -36,78 +48,137 @@ async def list_products(
     - **sort**: Sort field and direction
     - **status**: Filter by product status
     - **category**: Filter by category
+    - **search**: Search in title, description, or SKU
     """
-    # Stub implementation - returns sample response
-    sample_products = [
-        {
-            "id": "770e8400-e29b-41d4-a716-446655440002",
-            "merchant_id": "660e8400-e29b-41d4-a716-446655440001",
-            "title": "Premium Face Cream",
-            "description": "Luxury anti-aging face cream with natural ingredients",
-            "price_kobo": 15000,
-            "stock": 100,
-            "reserved_qty": 5,
-            "available_qty": 95,
-            "image_url": "https://example.com/images/face-cream.jpg",
-            "sku": "FACE-CREAM-001",
-            "status": "active",
-            "retailer_id": "meta_1234567890",
-            "category_path": "skincare/face/creams",
-            "tags": ["premium", "anti-aging", "natural"],
-            "created_at": "2025-01-27T10:00:00Z",
-            "updated_at": "2025-01-27T10:00:00Z"
-        }
-    ]
+    logger.info("Listing products", extra={
+        "event_type": "products_list_start",
+        "merchant_id": str(current_user.merchant_id),
+        "user_id": str(current_user.id),
+        "page": page,
+        "page_size": page_size
+    })
     
-    return ApiResponse(
-        data=sample_products,
-        message="Products retrieved successfully"
-    )
+    try:
+        product_service = ProductService(db)
+        
+        products, total_count = await product_service.list_products(
+            merchant_id=current_user.merchant_id,
+            page=page,
+            page_size=page_size,
+            status_filter=status,
+            search=search,
+            category=category,
+            sort=sort
+        )
+        
+        # Calculate pagination info
+        total_pages = (total_count + page_size - 1) // page_size
+        has_next = page < total_pages
+        has_prev = page > 1
+        
+        pagination = {
+            "page": page,
+            "page_size": page_size,
+            "total_items": total_count,
+            "total_pages": total_pages,
+            "has_next": has_next,
+            "has_prev": has_prev
+        }
+        
+        logger.info("Products listed successfully", extra={
+            "event_type": "products_listed",
+            "merchant_id": str(current_user.merchant_id),
+            "product_count": len(products),
+            "total_count": total_count
+        })
+        
+        increment_counter("products_list_requests_total", {
+            "merchant_id": str(current_user.merchant_id)
+        })
+        
+        return ApiResponse(
+            data={
+                "products": [product.dict() for product in products],
+                "pagination": pagination
+            },
+            message="Products retrieved successfully"
+        )
+        
+    except Exception as e:
+        logger.error("Error listing products", extra={
+            "event_type": "products_list_error",
+            "merchant_id": str(current_user.merchant_id),
+            "error": str(e)
+        })
+        raise
 
 
 @router.post(
     "",
     response_model=ApiResponse,
+    status_code=status.HTTP_201_CREATED,
     responses={
         400: {"model": ApiErrorResponse, "description": "Validation error"},
-        401: {"model": ApiErrorResponse, "description": "Unauthorized"}
+        401: {"model": ApiErrorResponse, "description": "Unauthorized"},
+        409: {"model": ApiErrorResponse, "description": "Conflict - SKU already exists"}
     },
     summary="Create product",
     description="Create a new product for the current merchant"
 )
 async def create_product(
     request: CreateProductRequest,
+    current_user: UserDB = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
 ):
     """
-    Create a new product.
+    Create a new product with Meta catalog integration.
     
     - **request**: Product creation data
     - **Idempotency-Key**: Optional header to ensure idempotent operation
     """
-    # Stub implementation - returns sample response
-    return ApiResponse(
-        id=UUID("b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e"),
-        data={
-            "id": "880e8400-e29b-41d4-a716-446655440003",
-            "merchant_id": "660e8400-e29b-41d4-a716-446655440001",
-            "title": request.title,
-            "description": request.description,
-            "price_kobo": request.price_kobo,
-            "stock": request.stock,
-            "reserved_qty": 0,
-            "available_qty": request.stock,
-            "image_url": None,
-            "sku": request.sku,
-            "status": "active",
-            "retailer_id": f"meta_{UUID().hex[:10]}",
-            "category_path": request.category_path,
-            "tags": request.tags or [],
-            "created_at": "2025-01-27T10:00:00Z",
-            "updated_at": "2025-01-27T10:00:00Z"
-        },
-        message="Product created successfully"
-    )
+    logger.info("Creating product", extra={
+        "event_type": "product_create_start",
+        "merchant_id": str(current_user.merchant_id),
+        "user_id": str(current_user.id),
+        "sku": request.sku,
+        "idempotency_key": idempotency_key
+    })
+    
+    try:
+        product_service = ProductService(db)
+        
+        product = await product_service.create_product(
+            merchant_id=current_user.merchant_id,
+            product_data=request,
+            idempotency_key=idempotency_key
+        )
+        
+        logger.info("Product created successfully", extra={
+            "event_type": "product_created",
+            "merchant_id": str(current_user.merchant_id),
+            "product_id": str(product.id),
+            "sku": product.sku
+        })
+        
+        return ApiResponse(
+            id=product.id,
+            data=product.dict(),
+            message="Product created successfully"
+        )
+        
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions from service layer
+    except Exception as e:
+        logger.error("Unexpected error creating product", extra={
+            "event_type": "product_create_error",
+            "merchant_id": str(current_user.merchant_id),
+            "error": str(e)
+        })
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error creating product"
+        )
 
 
 @router.get(
@@ -120,34 +191,60 @@ async def create_product(
     summary="Get product",
     description="Get a specific product by ID"
 )
-async def get_product(product_id: UUID):
+async def get_product(
+    product_id: UUID,
+    current_user: UserDB = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """
-    Get product by ID.
+    Get product by ID with tenant isolation.
     
     - **product_id**: Product UUID
     """
-    # Stub implementation - returns sample response
-    return ApiResponse(
-        data={
-            "id": product_id,
-            "merchant_id": "660e8400-e29b-41d4-a716-446655440001",
-            "title": "Premium Face Cream",
-            "description": "Luxury anti-aging face cream with natural ingredients",
-            "price_kobo": 15000,
-            "stock": 100,
-            "reserved_qty": 5,
-            "available_qty": 95,
-            "image_url": "https://example.com/images/face-cream.jpg",
-            "sku": "FACE-CREAM-001",
-            "status": "active",
-            "retailer_id": "meta_1234567890",
-            "category_path": "skincare/face/creams",
-            "tags": ["premium", "anti-aging", "natural"],
-            "created_at": "2025-01-27T10:00:00Z",
-            "updated_at": "2025-01-27T10:00:00Z"
-        },
-        message="Product retrieved successfully"
-    )
+    logger.info("Getting product", extra={
+        "event_type": "product_get_start",
+        "merchant_id": str(current_user.merchant_id),
+        "product_id": str(product_id)
+    })
+    
+    try:
+        product_service = ProductService(db)
+        
+        product = await product_service.get_product(
+            merchant_id=current_user.merchant_id,
+            product_id=product_id
+        )
+        
+        if not product:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Product not found"
+            )
+        
+        logger.info("Product retrieved successfully", extra={
+            "event_type": "product_retrieved",
+            "merchant_id": str(current_user.merchant_id),
+            "product_id": str(product_id)
+        })
+        
+        return ApiResponse(
+            data=product.dict(),
+            message="Product retrieved successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error retrieving product", extra={
+            "event_type": "product_get_error",
+            "merchant_id": str(current_user.merchant_id),
+            "product_id": str(product_id),
+            "error": str(e)
+        })
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error retrieving product"
+        )
 
 
 @router.put(
@@ -156,46 +253,86 @@ async def get_product(product_id: UUID):
     responses={
         400: {"model": ApiErrorResponse, "description": "Validation error"},
         401: {"model": ApiErrorResponse, "description": "Unauthorized"},
-        404: {"model": ApiErrorResponse, "description": "Product not found"}
+        404: {"model": ApiErrorResponse, "description": "Product not found"},
+        409: {"model": ApiErrorResponse, "description": "Conflict - SKU already exists"}
     },
     summary="Update product",
     description="Update a specific product"
 )
 async def update_product(
     product_id: UUID,
-    request: dict,
+    request: Dict[str, Any],
+    current_user: UserDB = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
 ):
     """
-    Update product by ID.
+    Update product by ID with Meta catalog sync.
     
     - **product_id**: Product UUID
     - **request**: Partial product data to update
     - **Idempotency-Key**: Optional header to ensure idempotent operation
     """
-    # Stub implementation - returns sample response
-    return ApiResponse(
-        id=UUID("c3d4e5f6-a7b8-9c0d-1e2f-3a4b5c6d7e8f"),
-        data={
-            "id": product_id,
-            "merchant_id": "660e8400-e29b-41d4-a716-446655440001",
-            "title": request.get("title", "Premium Face Cream"),
-            "description": request.get("description", "Luxury anti-aging face cream with natural ingredients"),
-            "price_kobo": request.get("price_kobo", 15000),
-            "stock": request.get("stock", 100),
-            "reserved_qty": 5,
-            "available_qty": 95,
-            "image_url": "https://example.com/images/face-cream.jpg",
-            "sku": "FACE-CREAM-001",
-            "status": "active",
-            "retailer_id": "meta_1234567890",
-            "category_path": "skincare/face/creams",
-            "tags": ["premium", "anti-aging", "natural"],
-            "created_at": "2025-01-27T10:00:00Z",
-            "updated_at": "2025-01-27T10:05:00Z"  # Updated timestamp
-        },
-        message="Product updated successfully"
-    )
+    logger.info("Updating product", extra={
+        "event_type": "product_update_start",
+        "merchant_id": str(current_user.merchant_id),
+        "product_id": str(product_id),
+        "idempotency_key": idempotency_key
+    })
+    
+    try:
+        product_service = ProductService(db)
+        
+        # Validate that only allowed fields are being updated
+        allowed_fields = {
+            "title", "description", "price_kobo", "stock", "sku", 
+            "status", "category_path", "tags", "image_url"
+        }
+        invalid_fields = set(request.keys()) - allowed_fields
+        if invalid_fields:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid fields: {', '.join(invalid_fields)}"
+            )
+        
+        product = await product_service.update_product(
+            merchant_id=current_user.merchant_id,
+            product_id=product_id,
+            update_data=request,
+            idempotency_key=idempotency_key
+        )
+        
+        if not product:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Product not found"
+            )
+        
+        logger.info("Product updated successfully", extra={
+            "event_type": "product_updated",
+            "merchant_id": str(current_user.merchant_id),
+            "product_id": str(product_id)
+        })
+        
+        return ApiResponse(
+            id=product_id,
+            data=product.dict(),
+            message="Product updated successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error updating product", extra={
+            "event_type": "product_update_error",
+            "merchant_id": str(current_user.merchant_id),
+            "product_id": str(product_id),
+            "error": str(e)
+        })
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error updating product"
+        )
 
 
 @router.delete(
@@ -210,17 +347,116 @@ async def update_product(
 )
 async def delete_product(
     product_id: UUID,
+    current_user: UserDB = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
 ):
     """
-    Delete product by ID.
+    Delete product by ID with Meta catalog cleanup.
     
     - **product_id**: Product UUID
     - **Idempotency-Key**: Optional header to ensure idempotent operation
     """
-    # Stub implementation - returns sample response
-    return ApiResponse(
-        id=UUID("d4e5f6a7-b8c9-0d1e-2f3a-4b5c6d7e8f9a"),
-        data={"deleted": True},
-        message="Product deleted successfully"
-    )
+    logger.info("Deleting product", extra={
+        "event_type": "product_delete_start",
+        "merchant_id": str(current_user.merchant_id),
+        "product_id": str(product_id),
+        "idempotency_key": idempotency_key
+    })
+    
+    try:
+        product_service = ProductService(db)
+        
+        deleted = await product_service.delete_product(
+            merchant_id=current_user.merchant_id,
+            product_id=product_id,
+            idempotency_key=idempotency_key
+        )
+        
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Product not found"
+            )
+        
+        logger.info("Product deleted successfully", extra={
+            "event_type": "product_deleted",
+            "merchant_id": str(current_user.merchant_id),
+            "product_id": str(product_id)
+        })
+        
+        return ApiResponse(
+            id=product_id,
+            data={"deleted": True},
+            message="Product deleted successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error deleting product", extra={
+            "event_type": "product_delete_error",
+            "merchant_id": str(current_user.merchant_id),
+            "product_id": str(product_id),
+            "error": str(e)
+        })
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error deleting product"
+        )
+
+
+# Additional endpoints for Meta catalog integration
+
+@router.get(
+    "/{product_id}/sync-status",
+    response_model=ApiResponse,
+    responses={
+        401: {"model": ApiErrorResponse, "description": "Unauthorized"},
+        404: {"model": ApiErrorResponse, "description": "Product not found"}
+    },
+    summary="Get product sync status",
+    description="Get Meta catalog synchronization status for a product"
+)
+async def get_product_sync_status(
+    product_id: UUID,
+    current_user: UserDB = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get Meta catalog sync status for a product.
+    
+    - **product_id**: Product UUID
+    """
+    try:
+        product_service = ProductService(db)
+        
+        sync_status = await product_service.get_sync_status(
+            merchant_id=current_user.merchant_id,
+            product_id=product_id
+        )
+        
+        if not sync_status:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Product not found"
+            )
+        
+        return ApiResponse(
+            data=sync_status.dict(),
+            message="Sync status retrieved successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error getting sync status", extra={
+            "event_type": "product_sync_status_error",
+            "merchant_id": str(current_user.merchant_id),
+            "product_id": str(product_id),
+            "error": str(e)
+        })
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error getting sync status"
+        )
