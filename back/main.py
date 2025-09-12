@@ -91,7 +91,7 @@ app = FastAPI(
             "description": "Development server"
         },
         {
-            "url": "https://api.sayar.example.com",
+            "url": "https://api.usesayar.com",
             "description": "Production server"
         }
     ]
@@ -228,9 +228,10 @@ if os.getenv("ENV", "development") == "development":
 
 if __name__ == "__main__":
     # For development only
+    port = int(os.getenv("PORT", 8000))  # Railway provides PORT env var
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
-        reload=True
+        port=port,
+        reload=os.getenv("ENV", "development") == "development"
     )

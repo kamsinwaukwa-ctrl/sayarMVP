@@ -168,7 +168,7 @@ class MerchantResponse(BaseModel):
 
 # Product Models
 class CreateProductRequest(BaseModel):
-    """Create product request"""
+    """Create product request with Meta catalog support"""
     title: str = Field(..., min_length=1, max_length=200, description="Product title")
     description: Optional[str] = Field(None, max_length=1000, description="Product description")
     price_kobo: int = Field(..., ge=0, description="Price in kobo (1 NGN = 100 kobo)")
@@ -176,6 +176,8 @@ class CreateProductRequest(BaseModel):
     sku: str = Field(..., min_length=1, max_length=50, description="Stock keeping unit")
     category_path: Optional[str] = Field(None, description="Category path")
     tags: Optional[List[str]] = Field(None, description="Product tags")
+    meta_catalog_visible: bool = Field(default=True, description="Whether to sync to Meta catalog")
+    image_file_id: Optional[str] = Field(None, description="Reference to uploaded image file")
     
     class Config:
         json_schema_extra = {
@@ -186,13 +188,37 @@ class CreateProductRequest(BaseModel):
                 "stock": 100,
                 "sku": "FACE-CREAM-001",
                 "category_path": "skincare/face/creams",
-                "tags": ["premium", "anti-aging", "natural"]
+                "tags": ["premium", "anti-aging", "natural"],
+                "meta_catalog_visible": True,
+                "image_file_id": "img_123456"
+            }
+        }
+
+class UpdateProductRequest(BaseModel):
+    """Update product request with partial fields"""
+    title: Optional[str] = Field(None, min_length=1, max_length=200, description="Product title")
+    description: Optional[str] = Field(None, max_length=1000, description="Product description")
+    price_kobo: Optional[int] = Field(None, ge=0, description="Price in kobo")
+    stock: Optional[int] = Field(None, ge=0, description="Stock quantity")
+    category_path: Optional[str] = Field(None, description="Category path")
+    tags: Optional[List[str]] = Field(None, description="Product tags")
+    meta_catalog_visible: Optional[bool] = Field(None, description="Meta catalog visibility")
+    status: Optional[str] = Field(None, description="Product status (active/inactive)")
+    image_file_id: Optional[str] = Field(None, description="Reference to uploaded image file")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "title": "Updated Premium Face Cream",
+                "price_kobo": 18000,
+                "stock": 150,
+                "meta_catalog_visible": True
             }
         }
 
 
 class ProductResponse(BaseModel):
-    """Product response"""
+    """Product response with Meta catalog fields"""
     id: UUID
     merchant_id: UUID
     title: str
@@ -207,6 +233,10 @@ class ProductResponse(BaseModel):
     retailer_id: str
     category_path: Optional[str]
     tags: List[str]
+    meta_catalog_visible: bool
+    meta_sync_status: str
+    meta_sync_errors: Optional[List[str]]
+    meta_last_synced_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
     
@@ -225,9 +255,13 @@ class ProductResponse(BaseModel):
                 "image_url": "https://example.com/images/face-cream.jpg",
                 "sku": "FACE-CREAM-001",
                 "status": "active",
-                "retailer_id": "meta_1234567890",
+                "retailer_id": "meta_merchant123_prod456",
                 "category_path": "skincare/face/creams",
                 "tags": ["premium", "anti-aging", "natural"],
+                "meta_catalog_visible": True,
+                "meta_sync_status": "synced",
+                "meta_sync_errors": None,
+                "meta_last_synced_at": "2025-01-27T10:05:00Z",
                 "created_at": "2025-01-27T10:00:00Z",
                 "updated_at": "2025-01-27T10:00:00Z"
             }

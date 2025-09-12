@@ -6,7 +6,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { ReactNode } from 'react'
-import { useAuth, AuthProvider } from '../hooks/useAuth'
+import { useAuth } from '../hooks/useAuth'
+import { AuthProvider } from '../context/AuthProvider'
 import { apiClient } from '../lib/api-client'
 
 // Mock the API client

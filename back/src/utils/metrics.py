@@ -333,6 +333,57 @@ class DbMetricsContext:
         record_db_query(self.operation, duration)
 
 
+# Generic counter for increment operations
+GENERIC_COUNTER = Counter(
+    "generic_operations_total",
+    "Total generic operations",
+    ["operation", "component"]
+)
+
+# Generic histogram for duration recording
+GENERIC_HISTOGRAM = Histogram(
+    "generic_operations_duration_seconds",
+    "Duration of generic operations",
+    ["operation", "component"],
+    buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]
+)
+
+
+def increment_counter(operation: str, component: str = "unknown"):
+    """
+    Increment a generic counter
+    
+    Args:
+        operation: Name of the operation
+        component: Component performing the operation
+    """
+    GENERIC_COUNTER.labels(operation=operation, component=component).inc()
+
+
+def record_histogram(operation: str, duration_seconds: float, component: str = "unknown"):
+    """
+    Record duration in a generic histogram
+    
+    Args:
+        operation: Name of the operation
+        duration_seconds: Duration in seconds
+        component: Component performing the operation
+    """
+    GENERIC_HISTOGRAM.labels(operation=operation, component=component).observe(duration_seconds)
+
+
+def record_timer(operation: str, duration_seconds: float, component: str = "unknown"):
+    """
+    Record timer duration (alias for record_histogram for backward compatibility)
+    
+    Args:
+        operation: Name of the operation
+        duration_seconds: Duration in seconds
+        component: Component performing the operation
+    """
+    record_histogram(operation, duration_seconds, component)
+
+
 # Alias for backward compatibility with outbox worker
 outbox_jobs_processed_total = OUTBOX_JOBS_PROCESSED_TOTAL
 outbox_jobs_failed_total = OUTBOX_JOBS_FAILED_TOTAL

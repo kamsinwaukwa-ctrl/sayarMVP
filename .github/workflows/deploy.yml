@@ -1,0 +1,142 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # Run tests first
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Backend testing
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: 'back/requirements.txt'
+      
+      - name: Install backend dependencies
+        working-directory: ./back
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Format check with Black
+        working-directory: ./back
+        run: black --check .
+      
+      - name: Lint with Ruff
+        working-directory: ./back
+        run: ruff check .
+      
+      - name: Type check with MyPy
+        working-directory: ./back
+        run: mypy .
+      
+      - name: Test backend with pytest
+        working-directory: ./back
+        run: pytest --cov=src --cov-report=xml
+      
+      # Frontend testing
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: 'front/package-lock.json'
+      
+      - name: Install frontend dependencies
+        working-directory: ./front
+        run: npm ci
+      
+      - name: Lint frontend with ESLint
+        working-directory: ./front
+        run: npm run lint
+      
+      - name: Type check frontend
+        working-directory: ./front
+        run: npm run type-check
+      
+      - name: Build frontend
+        working-directory: ./front
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: https://api.usesayar.com
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+  # Deploy backend to Railway
+  deploy-backend:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+      
+      - name: Deploy to Railway
+        working-directory: ./back
+        run: railway up --service=${{ secrets.RAILWAY_SERVICE_ID }}
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      
+      - name: Verify backend health
+        run: |
+          sleep 30  # Wait for deployment
+          curl -f https://api.usesayar.com/healthz || exit 1
+
+  # Deploy frontend to Vercel
+  deploy-frontend:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: ./front
+          vercel-args: '--prod'
+      
+      - name: Verify frontend health
+        run: |
+          sleep 30  # Wait for deployment
+          curl -f https://usesayar.com/app || exit 1
+
+  # Notify deployment status
+  notify:
+    needs: [deploy-backend, deploy-frontend]
+    runs-on: ubuntu-latest
+    if: always() && github.ref == 'refs/heads/main'
+    steps:
+      - name: Notify success
+        if: needs.deploy-backend.result == 'success' && needs.deploy-frontend.result == 'success'
+        run: |
+          echo "✅ Deployment successful!"
+          echo "Backend: https://api.usesayar.com"
+          echo "Frontend: https://usesayar.com/app"
+      
+      - name: Notify failure
+        if: needs.deploy-backend.result == 'failure' || needs.deploy-frontend.result == 'failure'
+        run: |
+          echo "❌ Deployment failed!"
+          exit 1

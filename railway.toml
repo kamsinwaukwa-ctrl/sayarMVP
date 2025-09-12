@@ -1,0 +1,32 @@
+# Railway Configuration for Sayar WhatsApp Commerce Platform
+# Backend API deployment with custom domain support
+
+[build]
+builder = "nixpacks"
+buildCommand = "pip install -r requirements.txt"
+watchPatterns = ["back/**"]
+
+[deploy]
+startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/healthz"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+
+# Custom domain configuration
+# Domain: api.usesayar.com
+# This will be configured in Railway dashboard
+
+[environments.production]
+variables = { 
+  ENV = "production",
+  DEBUG = "false",
+  API_HOST = "0.0.0.0"
+}
+
+# Development environment (optional)
+[environments.development]
+variables = { 
+  ENV = "development",
+  DEBUG = "true",
+  API_HOST = "0.0.0.0"
+}

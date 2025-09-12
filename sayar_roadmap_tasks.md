@@ -9,6 +9,8 @@
 
 - [ ] **BE-000 — Monorepo & CI bootstrap**  
   _Deliver:_ repo skeleton (`front/`, `back/`, `migrations/`, `tasks/`), pre-commit, black/ruff/mypy, eslint/prettier, GitHub Actions (lint + BE tests + FE build).
+- [ ] **BE-000.1 — Production Deployment & Infrastructure Setup**  
+  _Deliver:_ Railway backend deployment, Vercel frontend deployment, environment management, CI/CD pipeline, SSL/HTTPS, monitoring setup, deployment documentation. **Target**: Support 20+ businesses for $15 over 3 months.
 
 ---
 
@@ -46,7 +48,9 @@
 ## Phase 2 — Core Commerce Config (P1) → **Gate B: merchant can configure catalog, shipping, payments, WA creds**
 
 - [ ] **BE-010 — Products CRUD + Meta Catalog sync**  
-  _Deliver:_ CRUD endpoints, storage signed upload, Graph upsert, `retailer_id` mapping, “visible in Catalog” check.
+  _Deliver:_ CRUD endpoints, storage signed upload, Graph upsert, `retailer_id` mapping, "visible in Catalog" check.
+- [ ] **BE-010.1 — Meta Catalog Feed Endpoint (Multi-Tenant CSV)**  
+  _Deliver:_ `/api/v1/meta/feeds/{merchant_slug}/products.csv` endpoint, HTTP caching, merchant isolation, dashboard integration. **Enables**: Zero-friction merchant onboarding with instant feed URLs.
 - [ ] **BE-012 — Delivery Rates CRUD**  
   _Deliver:_ simple string-match MVP, at least one active rule validation.
 - [ ] **BE-013 — Payments: provider verify + key storage**  
@@ -172,6 +176,13 @@
 - [ ] **INV-001 — Low-stock alerts (thresholds, email channel, merchant-config)**
 - [ ] **GRO-001 — Gamified popups & leads**
 - [ ] **GRO-002 — On-site retargeting nudges**
+
+---
+
+## Infrastructure Scaling (P2 — as needed)
+
+- [ ] **INFRA-001 — Multi-Tier Scaling Strategy Implementation** `→ BE-000.1`  
+  _Deliver:_ Growth tier setup (Railway Pro + Vercel Pro + CDN), Scale tier setup (multi-region), monitoring and alerting upgrades, cost optimization strategies. **Reference**: `docs/INFRA-001-multi-tier-scaling-strategy.md`
 
 ---
 
