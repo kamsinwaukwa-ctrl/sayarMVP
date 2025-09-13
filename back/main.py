@@ -19,6 +19,8 @@ from src.api.products import router as products_router
 from src.api.delivery_rates import router as delivery_rates_router
 from src.api.discounts import router as discounts_router
 from src.api.health import router as health_router
+from src.api.meta_feeds import router as meta_feeds_router
+from src.api.payment_providers import router as payment_providers_router
 
 # Import observability components
 from src.middleware.logging import LoggingMiddleware
@@ -136,12 +138,16 @@ app.add_middleware(
 # Include observability routers first (no auth required)
 app.include_router(health_router)
 
-# Include API routers
+# Include public API routers (no auth required)
+app.include_router(meta_feeds_router, prefix="/api/v1")
+
+# Include authenticated API routers
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(merchants_router, prefix="/api/v1")
 app.include_router(products_router, prefix="/api/v1")
 app.include_router(delivery_rates_router, prefix="/api/v1")
 app.include_router(discounts_router, prefix="/api/v1")
+app.include_router(payment_providers_router, prefix="/api/v1")
 
 
 @app.get("/")

@@ -2,106 +2,137 @@
 Delivery Rates API endpoints with OpenAPI documentation
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
-from typing import Optional, List
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Header
+from typing import Optional, List, Annotated
 from uuid import UUID
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.api import CreateDeliveryRateRequest, DeliveryRateResponse, ApiResponse, ApiErrorResponse
-from ..models.errors import ErrorCode
+from ..models.api import (
+    CreateDeliveryRateRequest, 
+    UpdateDeliveryRateRequest,
+    DeliveryRateResponse, 
+    ApiResponse, 
+    ApiErrorResponse
+)
+from ..database.connection import get_db
+from ..dependencies.auth import get_current_user, get_current_admin, CurrentUser, CurrentAdmin
+from ..services.delivery_rates_service import DeliveryRatesService, DeliveryRateError
 
 router = APIRouter(prefix="/delivery-rates", tags=["Delivery Rates"])
 
 
 @router.get(
     "",
-    response_model=ApiResponse,
+    response_model=ApiResponse[List[DeliveryRateResponse]],
     responses={
         401: {"model": ApiErrorResponse, "description": "Unauthorized"}
     },
     summary="List delivery rates",
-    description="Get list of delivery rates for the current merchant"
+    description="Get list of delivery rates for the current merchant (admin + staff access)"
 )
 async def list_delivery_rates(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
     active: Optional[bool] = Query(None, description="Filter by active status")
 ):
     """
-    Get list of delivery rates.
+    Get list of delivery rates for the authenticated merchant.
     
-    - **active**: Filter by active status
+    - **active**: Optional filter by active status
+    - **Requires**: Admin or Staff role
     """
-    # Stub implementation - returns sample response
-    sample_rates = [
-        {
-            "id": "880e8400-e29b-41d4-a716-446655440003",
-            "merchant_id": "660e8400-e29b-41d4-a716-446655440001",
-            "name": "Lagos Mainland Delivery",
-            "areas_text": "Ikeja, Surulere, Yaba, Mushin",
-            "price_kobo": 1500,
-            "description": "Next day delivery within Lagos Mainland",
-            "active": True,
-            "created_at": "2025-01-27T10:00:00Z",
-            "updated_at": "2025-01-27T10:00:00Z"
-        }
-    ]
-    
-    return ApiResponse(
-        data=sample_rates,
-        message="Delivery rates retrieved successfully"
-    )
+    try:
+        service = DeliveryRatesService(db)
+        rates = await service.list_rates(
+            merchant_id=current_user.merchant_id,
+            active_only=active
+        )
+        
+        return ApiResponse(
+            data=rates,
+            message=f"Found {len(rates)} delivery rate(s)"
+        )
+        
+    except DeliveryRateError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list delivery rates"
+        )
 
 
 @router.post(
     "",
-    response_model=ApiResponse,
+    response_model=ApiResponse[DeliveryRateResponse],
+    status_code=status.HTTP_201_CREATED,
     responses={
         400: {"model": ApiErrorResponse, "description": "Validation error"},
-        401: {"model": ApiErrorResponse, "description": "Unauthorized"}
+        401: {"model": ApiErrorResponse, "description": "Unauthorized"},
+        403: {"model": ApiErrorResponse, "description": "Admin access required"}
     },
     summary="Create delivery rate",
-    description="Create a new delivery rate for the current merchant"
+    description="Create a new delivery rate for the current merchant (admin only)"
 )
 async def create_delivery_rate(
     request: CreateDeliveryRateRequest,
+    current_user: CurrentAdmin,
+    db: Annotated[AsyncSession, Depends(get_db)],
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
 ):
     """
     Create a new delivery rate.
     
     - **request**: Delivery rate creation data
+    - **Requires**: Admin role only
     - **Idempotency-Key**: Optional header to ensure idempotent operation
     """
-    # Stub implementation - returns sample response
-    return ApiResponse(
-        id=UUID("e5f6a7b8-c9d0-1e2f-3a4b-5c6d7e8f9a0b"),
-        data={
-            "id": "990e8400-e29b-41d4-a716-446655440004",
-            "merchant_id": "660e8400-e29b-41d4-a716-446655440001",
-            "name": request.name,
-            "areas_text": request.areas_text,
-            "price_kobo": request.price_kobo,
-            "description": request.description,
-            "active": True,
-            "created_at": "2025-01-27T10:00:00Z",
-            "updated_at": "2025-01-27T10:00:00Z"
-        },
-        message="Delivery rate created successfully"
-    )
+    try:
+        service = DeliveryRatesService(db)
+        rate = await service.create_rate(
+            merchant_id=current_user.merchant_id,
+            request=request
+        )
+        
+        return ApiResponse(
+            id=rate.id,
+            data=rate,
+            message="Delivery rate created successfully"
+        )
+        
+    except DeliveryRateError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create delivery rate"
+        )
 
 
 @router.put(
     "/{rate_id}",
-    response_model=ApiResponse,
+    response_model=ApiResponse[DeliveryRateResponse],
     responses={
-        400: {"model": ApiErrorResponse, "description": "Validation error"},
+        400: {"model": ApiErrorResponse, "description": "Validation error or business rule violation"},
         401: {"model": ApiErrorResponse, "description": "Unauthorized"},
-        404: {"model": ApiErrorResponse, "description": "Delivery rate not found"}
+        403: {"model": ApiErrorResponse, "description": "Admin access required"},
+        404: {"model": ApiErrorResponse, "description": "Delivery rate not found"},
+        409: {"model": ApiErrorResponse, "description": "Cannot deactivate last active rate"}
     },
     summary="Update delivery rate",
-    description="Update a specific delivery rate"
+    description="Update a specific delivery rate with business validation (admin only)"
 )
 async def update_delivery_rate(
     rate_id: UUID,
-    request: dict,
+    request: UpdateDeliveryRateRequest,
+    current_user: CurrentAdmin,
+    db: Annotated[AsyncSession, Depends(get_db)],
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
 ):
     """
@@ -109,49 +140,106 @@ async def update_delivery_rate(
     
     - **rate_id**: Delivery rate UUID
     - **request**: Partial delivery rate data to update
+    - **Requires**: Admin role only
     - **Idempotency-Key**: Optional header to ensure idempotent operation
+    - **Business Rules**: Cannot deactivate the last active delivery rate
     """
-    # Stub implementation - returns sample response
-    return ApiResponse(
-        id=UUID("f6a7b8c9-d0e1-2f3a-4b5c-6d7e8f9a0b1c"),
-        data={
-            "id": rate_id,
-            "merchant_id": "660e8400-e29b-41d4-a716-446655440001",
-            "name": request.get("name", "Lagos Mainland Delivery"),
-            "areas_text": request.get("areas_text", "Ikeja, Surulere, Yaba, Mushin"),
-            "price_kobo": request.get("price_kobo", 1500),
-            "description": request.get("description", "Next day delivery within Lagos Mainland"),
-            "active": request.get("active", True),
-            "created_at": "2025-01-27T10:00:00Z",
-            "updated_at": "2025-01-27T10:05:00Z"  # Updated timestamp
-        },
-        message="Delivery rate updated successfully"
-    )
+    try:
+        service = DeliveryRatesService(db)
+        rate = await service.update_rate(
+            merchant_id=current_user.merchant_id,
+            rate_id=rate_id,
+            request=request
+        )
+        
+        return ApiResponse(
+            id=rate.id,
+            data=rate,
+            message="Delivery rate updated successfully"
+        )
+        
+    except DeliveryRateError as e:
+        # Check if it's a business rule violation
+        if "at least one active" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(e)
+            )
+        elif "not found" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e)
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update delivery rate"
+        )
 
 
 @router.delete(
     "/{rate_id}",
-    response_model=ApiResponse,
+    response_model=ApiResponse[dict],
     responses={
         401: {"model": ApiErrorResponse, "description": "Unauthorized"},
-        404: {"model": ApiErrorResponse, "description": "Delivery rate not found"}
+        403: {"model": ApiErrorResponse, "description": "Admin access required"},
+        404: {"model": ApiErrorResponse, "description": "Delivery rate not found"},
+        409: {"model": ApiErrorResponse, "description": "Cannot delete last active rate"}
     },
     summary="Delete delivery rate",
-    description="Delete a specific delivery rate"
+    description="Delete a specific delivery rate with business validation (admin only)"
 )
 async def delete_delivery_rate(
     rate_id: UUID,
+    current_user: CurrentAdmin,
+    db: Annotated[AsyncSession, Depends(get_db)],
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
 ):
     """
     Delete delivery rate by ID.
     
     - **rate_id**: Delivery rate UUID
+    - **Requires**: Admin role only
     - **Idempotency-Key**: Optional header to ensure idempotent operation
+    - **Business Rules**: Cannot delete the last active delivery rate
     """
-    # Stub implementation - returns sample response
-    return ApiResponse(
-        id=UUID("a7b8c9d0-e1f2-3a4b-5c6d-7e8f9a0b1c2d"),
-        data={"deleted": True},
-        message="Delivery rate deleted successfully"
-    )
+    try:
+        service = DeliveryRatesService(db)
+        await service.delete_rate(
+            merchant_id=current_user.merchant_id,
+            rate_id=rate_id
+        )
+        
+        return ApiResponse(
+            id=rate_id,
+            data={"deleted": True, "rate_id": str(rate_id)},
+            message="Delivery rate deleted successfully"
+        )
+        
+    except DeliveryRateError as e:
+        # Check if it's a business rule violation
+        if "at least one active" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=str(e)
+            )
+        elif "not found" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e)
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete delivery rate"
+        )

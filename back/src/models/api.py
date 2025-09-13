@@ -287,6 +287,26 @@ class CreateDeliveryRateRequest(BaseModel):
         }
 
 
+class UpdateDeliveryRateRequest(BaseModel):
+    """Update delivery rate request"""
+    name: Optional[str] = Field(None, min_length=1, max_length=100, description="Delivery rate name")
+    areas_text: Optional[str] = Field(None, min_length=1, description="Coverage areas as text")
+    price_kobo: Optional[int] = Field(None, ge=0, description="Delivery price in kobo")
+    description: Optional[str] = Field(None, max_length=500, description="Delivery rate description")
+    active: Optional[bool] = Field(None, description="Whether delivery rate is active")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "name": "Lagos Mainland Express",
+                "areas_text": "Ikeja, Surulere, Yaba, Mushin, Maryland",
+                "price_kobo": 2000,
+                "description": "Same day delivery within Lagos Mainland",
+                "active": True
+            }
+        }
+
+
 class DeliveryRateResponse(BaseModel):
     """Delivery rate response"""
     id: UUID
@@ -338,13 +358,137 @@ class DiscountValidationResponse(BaseModel):
     valid: bool = Field(..., description="Whether discount is valid")
     discount_kobo: Optional[int] = Field(None, ge=0, description="Discount amount in kobo")
     reason: Optional[str] = Field(None, description="Reason if invalid")
-    
+
     class Config:
         json_schema_extra = {
             "example": {
                 "valid": True,
                 "discount_kobo": 2000,
                 "reason": None
+            }
+        }
+
+
+class CreateDiscountRequest(BaseModel):
+    """Create discount request"""
+    code: str = Field(..., min_length=1, max_length=50, description="Discount code (uppercase alphanumeric)")
+    type: str = Field(..., description="Discount type", regex="^(percent|fixed)$")
+    value_bp: Optional[int] = Field(None, ge=0, le=10000, description="Percentage in basis points (0-10000 = 0-100%)")
+    amount_kobo: Optional[int] = Field(None, ge=0, description="Fixed discount amount in kobo")
+    max_discount_kobo: Optional[int] = Field(None, ge=0, description="Maximum discount cap in kobo")
+    min_subtotal_kobo: int = Field(0, ge=0, description="Minimum order subtotal required in kobo")
+    starts_at: Optional[datetime] = Field(None, description="Discount start time")
+    expires_at: Optional[datetime] = Field(None, description="Discount expiry time")
+    usage_limit_total: Optional[int] = Field(None, ge=1, description="Total usage limit across all customers")
+    usage_limit_per_customer: Optional[int] = Field(None, ge=1, description="Usage limit per customer")
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+        json_schema_extra = {
+            "examples": {
+                "percent_discount": {
+                    "summary": "25% off discount with minimum spend",
+                    "value": {
+                        "code": "SUMMER25",
+                        "type": "percent",
+                        "value_bp": 2500,
+                        "max_discount_kobo": 5000,
+                        "min_subtotal_kobo": 10000,
+                        "expires_at": "2025-12-31T23:59:59Z",
+                        "usage_limit_total": 100,
+                        "usage_limit_per_customer": 1
+                    }
+                },
+                "fixed_discount": {
+                    "summary": "Fixed ₦20 off discount",
+                    "value": {
+                        "code": "SAVE20",
+                        "type": "fixed",
+                        "amount_kobo": 2000,
+                        "min_subtotal_kobo": 5000,
+                        "usage_limit_total": 50
+                    }
+                }
+            }
+        }
+
+
+class UpdateDiscountRequest(BaseModel):
+    """Update discount request"""
+    status: Optional[str] = Field(None, description="Discount status", regex="^(active|paused)$")
+    expires_at: Optional[datetime] = Field(None, description="Update expiry time")
+    usage_limit_total: Optional[int] = Field(None, ge=1, description="Update total usage limit")
+    usage_limit_per_customer: Optional[int] = Field(None, ge=1, description="Update per-customer usage limit")
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+        json_schema_extra = {
+            "examples": {
+                "pause_discount": {
+                    "summary": "Pause an active discount",
+                    "value": {
+                        "status": "paused"
+                    }
+                },
+                "extend_expiry": {
+                    "summary": "Extend discount expiry date",
+                    "value": {
+                        "expires_at": "2025-12-31T23:59:59Z"
+                    }
+                },
+                "increase_usage_limit": {
+                    "summary": "Increase usage limits",
+                    "value": {
+                        "usage_limit_total": 200,
+                        "usage_limit_per_customer": 2
+                    }
+                }
+            }
+        }
+
+
+class DiscountResponse(BaseModel):
+    """Discount response"""
+    id: UUID
+    merchant_id: UUID
+    code: str
+    type: str
+    value_bp: Optional[int]
+    amount_kobo: Optional[int]
+    max_discount_kobo: Optional[int]
+    min_subtotal_kobo: int
+    starts_at: Optional[datetime]
+    expires_at: Optional[datetime]
+    usage_limit_total: Optional[int]
+    usage_limit_per_customer: Optional[int]
+    times_redeemed: int
+    status: str
+    stackable: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+        json_encoders = {datetime: lambda v: v.isoformat()}
+        json_schema_extra = {
+            "example": {
+                "id": "550e8400-e29b-41d4-a716-446655440000",
+                "merchant_id": "660e8400-e29b-41d4-a716-446655440001",
+                "code": "SUMMER25",
+                "type": "percent",
+                "value_bp": 2500,
+                "amount_kobo": None,
+                "max_discount_kobo": 5000,
+                "min_subtotal_kobo": 10000,
+                "starts_at": "2025-06-01T00:00:00Z",
+                "expires_at": "2025-12-31T23:59:59Z",
+                "usage_limit_total": 100,
+                "usage_limit_per_customer": 1,
+                "times_redeemed": 25,
+                "status": "active",
+                "stackable": False,
+                "created_at": "2025-01-27T10:00:00Z",
+                "updated_at": "2025-01-27T10:00:00Z"
             }
         }
 

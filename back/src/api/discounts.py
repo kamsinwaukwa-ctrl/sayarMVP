@@ -2,141 +2,374 @@
 Discounts API endpoints with OpenAPI documentation
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
-from typing import Optional, List
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, status
+from typing import Optional, List, Annotated
 from uuid import UUID
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.api import ValidateDiscountRequest, DiscountValidationResponse, ApiResponse, ApiErrorResponse
+from ..models.api import (
+    CreateDiscountRequest,
+    UpdateDiscountRequest,
+    DiscountResponse,
+    ValidateDiscountRequest,
+    DiscountValidationResponse,
+    ApiResponse,
+    ApiErrorResponse
+)
 from ..models.errors import ErrorCode
+from ..database.connection import get_db
+from ..dependencies.auth import CurrentUser, CurrentAdmin
+from ..services.discounts_service import DiscountsService, DiscountError
+from ..utils.logger import log
 
 router = APIRouter(prefix="/discounts", tags=["Discounts"])
 
 
 @router.get(
     "",
-    response_model=ApiResponse,
+    response_model=ApiResponse[List[DiscountResponse]],
     responses={
         401: {"model": ApiErrorResponse, "description": "Unauthorized"}
     },
     summary="List discounts",
-    description="Get list of discounts for the current merchant"
+    description="Get list of discounts for the current merchant with optional filtering"
 )
 async def list_discounts(
-    status: Optional[str] = Query(None, description="Filter by discount status"),
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    status: Optional[str] = Query(None, description="Filter by status (active, paused, expired)"),
     active: Optional[bool] = Query(None, description="Filter by active status")
 ):
     """
-    Get list of discounts.
-    
-    - **status**: Filter by discount status
-    - **active**: Filter by active status
+    Get list of discounts for the authenticated merchant.
+
+    **Access**: Admin and staff users can list discounts
+
+    **Query Parameters**:
+    - **status**: Filter by discount status ('active', 'paused', 'expired')
+    - **active**: Filter by active status (true/false)
+
+    **Returns**: List of discount objects with full details
     """
-    # Stub implementation - returns sample response
-    sample_discounts = [
-        {
-            "id": "aa0e8400-e29b-41d4-a716-446655440005",
-            "merchant_id": "660e8400-e29b-41d4-a716-446655440001",
-            "code": "SUMMER20",
-            "type": "percent",
-            "value_bp": 2000,
-            "amount_kobo": None,
-            "max_discount_kobo": 5000,
-            "min_subtotal_kobo": 10000,
-            "starts_at": "2025-06-01T00:00:00Z",
-            "expires_at": "2025-08-31T23:59:59Z",
-            "usage_limit_total": 1000,
-            "usage_limit_per_customer": 1,
-            "times_redeemed": 150,
-            "status": "active",
-            "stackable": False,
-            "created_at": "2025-01-27T10:00:00Z",
-            "updated_at": "2025-01-27T10:00:00Z"
-        }
-    ]
-    
-    return ApiResponse(
-        data=sample_discounts,
-        message="Discounts retrieved successfully"
-    )
+    try:
+        service = DiscountsService(db)
+        discounts = await service.list_discounts(
+            merchant_id=current_user.merchant_id,
+            status=status,
+            active_only=active
+        )
+
+        return ApiResponse(
+            ok=True,
+            data=discounts,
+            message=f"Retrieved {len(discounts)} discounts"
+        )
+
+    except DiscountError as e:
+        log.error("Failed to list discounts", extra={
+            "merchant_id": str(current_user.merchant_id),
+            "error": str(e),
+            "event_type": "api_discounts_list_error"
+        })
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve discounts"
+        )
+
+    except Exception as e:
+        log.error("Unexpected error listing discounts", extra={
+            "merchant_id": str(current_user.merchant_id),
+            "error": str(e),
+            "event_type": "api_discounts_list_unexpected_error"
+        })
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred"
+        )
 
 
 @router.post(
     "",
-    response_model=ApiResponse,
+    response_model=ApiResponse[DiscountResponse],
+    status_code=status.HTTP_201_CREATED,
     responses={
         400: {"model": ApiErrorResponse, "description": "Validation error"},
-        401: {"model": ApiErrorResponse, "description": "Unauthorized"}
+        401: {"model": ApiErrorResponse, "description": "Unauthorized"},
+        403: {"model": ApiErrorResponse, "description": "Forbidden - admin required"},
+        409: {"model": ApiErrorResponse, "description": "Duplicate discount code"}
     },
     summary="Create discount",
-    description="Create a new discount for the current merchant"
+    description="Create a new discount code for the current merchant"
 )
 async def create_discount(
-    request: dict,
+    discount_data: CreateDiscountRequest,
+    current_admin: CurrentAdmin,
+    db: Annotated[AsyncSession, Depends(get_db)],
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
 ):
     """
-    Create a new discount.
-    
-    - **request**: Discount creation data
-    - **Idempotency-Key**: Optional header to ensure idempotent operation
+    Create a new discount code.
+
+    **Access**: Admin users only
+
+    **Request Body**: Complete discount configuration including:
+    - **code**: Unique discount code (will be normalized to uppercase)
+    - **type**: 'percent' or 'fixed'
+    - **value_bp**: Percentage in basis points (for percent discounts)
+    - **amount_kobo**: Fixed amount in kobo (for fixed discounts)
+    - **min_subtotal_kobo**: Minimum order amount required
+    - **usage_limit_total**: Total usage limit (optional)
+    - **usage_limit_per_customer**: Per-customer usage limit (optional)
+    - **starts_at**: Discount start time (optional)
+    - **expires_at**: Discount expiry time (optional)
+
+    **Headers**:
+    - **Idempotency-Key**: Optional header for idempotent operations
+
+    **Returns**: Created discount object with generated ID
     """
-    # Stub implementation - returns sample response
-    return ApiResponse(
-        id=UUID("b8c9d0e1-f2a3-4b5c-6d7e-8f9a0b1c2d3e"),
-        data={
-            "id": "bb0e8400-e29b-41d4-a716-446655440006",
-            "merchant_id": "660e8400-e29b-41d4-a716-446655440001",
-            "code": request.get("code", "WINTER15"),
-            "type": request.get("type", "percent"),
-            "value_bp": request.get("value_bp", 1500),
-            "amount_kobo": request.get("amount_kobo"),
-            "max_discount_kobo": request.get("max_discount_kobo", 3000),
-            "min_subtotal_kobo": request.get("min_subtotal_kobo", 5000),
-            "starts_at": request.get("starts_at"),
-            "expires_at": request.get("expires_at"),
-            "usage_limit_total": request.get("usage_limit_total", 500),
-            "usage_limit_per_customer": request.get("usage_limit_per_customer", 1),
-            "times_redeemed": 0,
-            "status": "active",
-            "stackable": request.get("stackable", False),
-            "created_at": "2025-01-27T10:00:00Z",
-            "updated_at": "2025-01-27T10:00:00Z"
-        },
-        message="Discount created successfully"
-    )
+    try:
+        service = DiscountsService(db)
+        discount = await service.create_discount(
+            merchant_id=current_admin.merchant_id,
+            discount_data=discount_data,
+            idempotency_key=idempotency_key
+        )
+
+        return ApiResponse(
+            ok=True,
+            id=discount.id,
+            data=discount,
+            message=f"Discount '{discount.code}' created successfully"
+        )
+
+    except DiscountError as e:
+        error_msg = str(e)
+
+        if "already exists" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=error_msg
+            )
+        elif any(word in error_msg.lower() for word in ["required", "invalid", "must be", "cannot"]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_msg
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create discount"
+            )
+
+    except Exception as e:
+        log.error("Unexpected error creating discount", extra={
+            "merchant_id": str(current_admin.merchant_id),
+            "code": discount_data.code,
+            "error": str(e),
+            "event_type": "api_discount_create_unexpected_error"
+        })
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred"
+        )
+
+
+@router.put(
+    "/{discount_id}",
+    response_model=ApiResponse[DiscountResponse],
+    responses={
+        400: {"model": ApiErrorResponse, "description": "Validation error"},
+        401: {"model": ApiErrorResponse, "description": "Unauthorized"},
+        403: {"model": ApiErrorResponse, "description": "Forbidden - admin required"},
+        404: {"model": ApiErrorResponse, "description": "Discount not found"}
+    },
+    summary="Update discount",
+    description="Update an existing discount (status, expiry, usage limits)"
+)
+async def update_discount(
+    discount_id: UUID,
+    update_data: UpdateDiscountRequest,
+    current_admin: CurrentAdmin,
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """
+    Update an existing discount.
+
+    **Access**: Admin users only
+
+    **Path Parameters**:
+    - **discount_id**: UUID of the discount to update
+
+    **Request Body**: Fields to update:
+    - **status**: Change status to 'active' or 'paused'
+    - **expires_at**: Update expiry date
+    - **usage_limit_total**: Update total usage limit
+    - **usage_limit_per_customer**: Update per-customer limit
+
+    **Returns**: Updated discount object
+    """
+    try:
+        service = DiscountsService(db)
+        discount = await service.update_discount(
+            merchant_id=current_admin.merchant_id,
+            discount_id=discount_id,
+            update_data=update_data
+        )
+
+        return ApiResponse(
+            ok=True,
+            data=discount,
+            message=f"Discount '{discount.code}' updated successfully"
+        )
+
+    except DiscountError as e:
+        error_msg = str(e)
+
+        if "not found" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_msg
+            )
+        elif any(word in error_msg.lower() for word in ["invalid", "must be", "cannot"]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_msg
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update discount"
+            )
+
+    except Exception as e:
+        log.error("Unexpected error updating discount", extra={
+            "merchant_id": str(current_admin.merchant_id),
+            "discount_id": str(discount_id),
+            "error": str(e),
+            "event_type": "api_discount_update_unexpected_error"
+        })
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred"
+        )
+
+
+@router.delete(
+    "/{discount_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        401: {"model": ApiErrorResponse, "description": "Unauthorized"},
+        403: {"model": ApiErrorResponse, "description": "Forbidden - admin required"},
+        404: {"model": ApiErrorResponse, "description": "Discount not found"}
+    },
+    summary="Delete discount",
+    description="Delete a discount permanently"
+)
+async def delete_discount(
+    discount_id: UUID,
+    current_admin: CurrentAdmin,
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """
+    Delete a discount permanently.
+
+    **Access**: Admin users only
+
+    **Path Parameters**:
+    - **discount_id**: UUID of the discount to delete
+
+    **Returns**: 204 No Content on success
+    """
+    try:
+        service = DiscountsService(db)
+        deleted = await service.delete_discount(
+            merchant_id=current_admin.merchant_id,
+            discount_id=discount_id
+        )
+
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Discount with ID {discount_id} not found"
+            )
+
+        # Return 204 No Content (no response body)
+
+    except HTTPException:
+        raise
+    except DiscountError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete discount"
+        )
+    except Exception as e:
+        log.error("Unexpected error deleting discount", extra={
+            "merchant_id": str(current_admin.merchant_id),
+            "discount_id": str(discount_id),
+            "error": str(e),
+            "event_type": "api_discount_delete_unexpected_error"
+        })
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred"
+        )
 
 
 @router.post(
     "/validate",
-    response_model=ApiResponse,
+    response_model=ApiResponse[DiscountValidationResponse],
     responses={
         400: {"model": ApiErrorResponse, "description": "Validation error"},
         401: {"model": ApiErrorResponse, "description": "Unauthorized"}
     },
     summary="Validate discount",
-    description="Validate a discount code for an order"
+    description="Validate a discount code for checkout"
 )
-async def validate_discount(request: ValidateDiscountRequest):
+async def validate_discount(
+    validation_request: ValidateDiscountRequest,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
     """
-    Validate a discount code.
-    
-    - **request**: Discount validation request
+    Validate a discount code for an order.
+
+    **Access**: Any authenticated user
+
+    **Request Body**:
+    - **code**: Discount code to validate
+    - **subtotal_kobo**: Order subtotal in kobo
+    - **customer_id**: Customer ID for usage limit checks (optional)
+
+    **Returns**: Validation result with discount amount or failure reason
     """
-    # Stub implementation - returns sample response
-    if request.code == "SUMMER20":
-        validation_result = {
-            "valid": True,
-            "discount_kobo": 2000,  # 20% of 10000 kobo
-            "reason": None
-        }
-    else:
-        validation_result = {
-            "valid": False,
-            "discount_kobo": None,
-            "reason": "Invalid discount code"
-        }
-    
-    return ApiResponse(
-        data=validation_result,
-        message="Discount validation completed"
-    )
+    try:
+        service = DiscountsService(db)
+        result = await service.validate_discount(
+            merchant_id=current_user.merchant_id,
+            validation_request=validation_request
+        )
+
+        return ApiResponse(
+            ok=True,
+            data=result,
+            message="Discount validation completed"
+        )
+
+    except DiscountError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Validation service error"
+        )
+
+    except Exception as e:
+        log.error("Unexpected error validating discount", extra={
+            "merchant_id": str(current_user.merchant_id),
+            "code": validation_request.code,
+            "error": str(e),
+            "event_type": "api_discount_validate_unexpected_error"
+        })
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred"
+        )

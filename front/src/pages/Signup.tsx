@@ -1,12 +1,13 @@
 /**
  * Signup Page for Sayar WhatsApp Commerce Platform
- * Pure Tailwind implementation
+ * Professional two-column layout with AuthLayout component
  */
 
 import { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import SignupForm from '../components/auth/SignupForm'
+import AuthLayout from '../components/auth/AuthLayout'
 
 const Signup = () => {
   const navigate = useNavigate()
@@ -36,63 +37,47 @@ const Signup = () => {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-white flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-gray-200 text-center">
-            <div className="flex justify-center mb-4">
-              <svg className="h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <AuthLayout
+        title="Welcome to Sayar!"
+        description="Your account has been created successfully"
+        footerText=""
+      >
+        <div className="text-center space-y-6">
+          <div className="flex justify-center mb-6">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+              <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Welcome to Sayar!
-            </h2>
-            
-            <p className="text-gray-600 mb-6">
-              Your account has been created successfully.
+          </div>
+          
+          <div className="space-y-2">
+            <h3 className="text-lg font-semibold text-gray-900">Account Created Successfully</h3>
+            <p className="text-gray-600">
+              You can now start building your WhatsApp commerce experience.
             </p>
-            
-            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
-              <p className="text-sm">Redirecting you to your dashboard...</p>
-            </div>
+          </div>
+          
+          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+            <p className="text-sm">Redirecting you to your dashboard...</p>
           </div>
         </div>
-      </div>
+      </AuthLayout>
     )
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        {/* Logo */}
-        <div className="flex justify-center">
-          <img src="/logo.png" alt="Sayar" className="h-12 w-auto" />
-        </div>
-        
-        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
-          Create your account
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Or{' '}
-          <Link
-            to="/login"
-            className="font-medium text-blue-600 hover:text-blue-500"
-          >
-            sign in to your existing account
-          </Link>
-        </p>
-      </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-gray-200">
-          <SignupForm 
-            onSuccess={handleSignupSuccess}
-            onError={handleSignupError}
-          />
-        </div>
-      </div>
-    </div>
+    <AuthLayout
+      title="Create your account"
+      description="Get started with Sayar WhatsApp Commerce Platform"
+      footerText="Already have an account?"
+      footerLink={{ text: "Sign in", href: "/login" }}
+    >
+      <SignupForm 
+        onSuccess={handleSignupSuccess}
+        onError={handleSignupError}
+      />
+    </AuthLayout>
   )
 }
 

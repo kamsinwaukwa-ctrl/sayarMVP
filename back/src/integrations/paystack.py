@@ -165,7 +165,32 @@ class PaystackIntegration:
             "currency": "NGN"
         }
         return await self.make_request("POST", "/transferrecipient", data=data)
-    
+
+    async def verify_credentials(self) -> bool:
+        """
+        Verify Paystack credentials by making a test API call
+
+        Returns:
+            True if credentials are valid, False otherwise
+        """
+        try:
+            response = await self.make_request("GET", "/transaction/totals")
+            return response.get("status") == True
+        except Exception:
+            return False
+
+    async def get_transaction_totals(self) -> Optional[Dict[str, Any]]:
+        """
+        Get transaction totals (used for credential verification)
+
+        Returns:
+            Transaction totals response or None if failed
+        """
+        try:
+            return await self.make_request("GET", "/transaction/totals")
+        except Exception:
+            return None
+
     def verify_webhook(self, payload: bytes, signature: str) -> Dict[str, Any]:
         """
         Verify Paystack webhook signature

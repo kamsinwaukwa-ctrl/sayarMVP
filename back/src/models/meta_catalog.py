@@ -197,3 +197,65 @@ class ProductPagination(BaseModel):
         if v not in ["asc", "desc"]:
             raise ValueError('sort_order must be "asc" or "desc"')
         return v
+
+class MetaFeedProduct(BaseModel):
+    """Product formatted for Meta CSV feed"""
+    id: str = Field(..., description="Retailer ID")
+    title: str = Field(..., description="Product title")
+    description: Optional[str] = Field(None, description="Product description")
+    availability: str = Field(..., description="in stock | out of stock")
+    condition: str = Field(default="new", description="Product condition")
+    price: str = Field(..., description="Formatted price (e.g., '150.00 NGN')")
+    link: str = Field(..., description="Product URL")
+    image_link: str = Field(..., description="Product image URL")
+    brand: str = Field(..., description="Brand name")
+    inventory: Optional[int] = Field(None, description="Stock quantity")
+    product_type: Optional[str] = Field(None, description="Product type/category")
+    google_product_category: Optional[str] = Field(None, description="Google product category")
+
+    @field_validator('availability')
+    @classmethod
+    def validate_availability(cls, v):
+        if v not in ["in stock", "out of stock"]:
+            raise ValueError('availability must be "in stock" or "out of stock"')
+        return v
+
+class MetaFeedResponse(BaseModel):
+    """Meta feed CSV response metadata"""
+    merchant_slug: str = Field(..., description="Merchant slug")
+    product_count: int = Field(..., ge=0, description="Number of products in feed")
+    last_updated: datetime = Field(..., description="Latest product update timestamp")
+    cache_ttl: int = Field(default=3600, description="Cache TTL in seconds")
+    etag: str = Field(..., description="ETag for caching")
+    content_length: int = Field(..., ge=0, description="CSV content size in bytes")
+
+class MetaFeedConfig(BaseModel):
+    """Configuration for Meta feed generation"""
+    base_url: str = Field(..., description="Base URL for product links")
+    cdn_base_url: Optional[str] = Field(None, description="CDN base URL for images")
+    brand_name: str = Field(..., description="Default brand name")
+    default_category: str = Field(default="Health & Beauty", description="Default product category")
+    cache_ttl: int = Field(default=3600, ge=300, le=86400, description="Cache TTL (5min-24h)")
+    max_products_per_feed: int = Field(default=50000, ge=1, description="Maximum products per feed")
+    
+    @field_validator('base_url', 'cdn_base_url')
+    @classmethod
+    def validate_urls(cls, v):
+        if v and not v.startswith(('http://', 'https://')):
+            raise ValueError('URLs must start with http:// or https://')
+        return v
+
+class MetaFeedStats(BaseModel):
+    """Statistics for Meta feed generation"""
+    total_products: int = Field(..., ge=0, description="Total products in merchant catalog")
+    visible_products: int = Field(..., ge=0, description="Products visible in Meta catalog")
+    in_stock_products: int = Field(..., ge=0, description="Products currently in stock")
+    last_sync_at: Optional[datetime] = Field(None, description="Last successful sync timestamp")
+    sync_errors: int = Field(default=0, ge=0, description="Number of products with sync errors")
+    
+    @field_validator('visible_products')
+    @classmethod
+    def validate_visible_le_total(cls, v, info):
+        if hasattr(info, 'data') and 'total_products' in info.data and v > info.data['total_products']:
+            raise ValueError('visible_products cannot exceed total_products')
+        return v

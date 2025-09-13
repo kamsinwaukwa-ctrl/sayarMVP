@@ -2,7 +2,7 @@
 SQLAlchemy models for Sayar WhatsApp Commerce Platform database schema
 """
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Enum, JSON
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Enum, JSON, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import uuid
@@ -54,6 +54,10 @@ class Product(Base):
     retailer_id = Column(String, unique=True, nullable=False)
     category_path = Column(String)
     tags = Column(JSON)
+    meta_catalog_visible = Column(Boolean, default=True, nullable=False)
+    meta_sync_status = Column(String, default="pending")
+    meta_sync_errors = Column(JSON)
+    meta_last_synced_at = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -168,6 +172,20 @@ class MerchantSetting(Base):
         {'extend_existing': True},
     )
 
+class DeliveryRate(Base):
+    """Delivery rate SQLAlchemy model"""
+    __tablename__ = "delivery_rates"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    merchant_id = Column(UUID(as_uuid=True), ForeignKey("merchants.id"), nullable=False)
+    name = Column(String, nullable=False)
+    areas_text = Column(String, nullable=False)
+    price_kobo = Column(Integer, nullable=False)
+    description = Column(String)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class FeatureFlag(Base):
     """Feature flag SQLAlchemy model"""
     __tablename__ = "feature_flags"
@@ -182,5 +200,29 @@ class FeatureFlag(Base):
 
     # Add composite unique constraint for name + merchant_id
     __table_args__ = (
+        {'extend_existing': True},
+    )
+
+class PaymentProviderConfig(Base):
+    """Payment provider configuration SQLAlchemy model"""
+    __tablename__ = "payment_provider_configs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    merchant_id = Column(UUID(as_uuid=True), ForeignKey("merchants.id"), nullable=False)
+    provider_type = Column(String, nullable=False)  # 'paystack' or 'korapay'
+    public_key_encrypted = Column(String, nullable=False)
+    secret_key_encrypted = Column(String, nullable=False)
+    webhook_secret_encrypted = Column(String)  # Optional for some providers
+    environment = Column(String, nullable=False, default='test')  # 'test' or 'live'
+    verification_status = Column(String, nullable=False, default='pending')  # 'pending', 'verified', 'failed'
+    last_verified_at = Column(DateTime)
+    verification_error = Column(String)  # Store error messages
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Add unique constraint for merchant + provider + environment
+    __table_args__ = (
+        UniqueConstraint('merchant_id', 'provider_type', 'environment', name='uq_payment_provider_config_scope'),
         {'extend_existing': True},
     )

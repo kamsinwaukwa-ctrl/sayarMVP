@@ -170,9 +170,100 @@ class KorapayIntegration:
         
         if bvn:
             data["customer"]["bvn"] = bvn
-        
+
         return await self.make_request("POST", "/virtual-accounts", data=data)
-    
+
+    def verify_credentials(self, public_key: str, secret_key: str, environment: str = "test") -> bool:
+        """
+        Verify Korapay credentials by validating key formats and environment consistency
+
+        Args:
+            public_key: Korapay public key
+            secret_key: Korapay secret key
+            environment: Environment (test/live)
+
+        Returns:
+            True if credentials are valid, False otherwise
+        """
+        try:
+            # Validate key formats
+            if not self._validate_key_format(public_key, "pk_"):
+                return False
+
+            if not self._validate_key_format(secret_key, "sk_"):
+                return False
+
+            # Validate environment consistency
+            env_from_public = self._extract_environment_from_key(public_key)
+            env_from_secret = self._extract_environment_from_key(secret_key)
+
+            if env_from_public != env_from_secret:
+                return False
+
+            if environment != env_from_public:
+                return False
+
+            # Additional validation: check key length
+            if len(secret_key) < 20 or len(public_key) < 20:
+                return False
+
+            return True
+
+        except Exception:
+            return False
+
+    def _validate_key_format(self, key: str, expected_prefix: str) -> bool:
+        """Validate Korapay key format"""
+        import re
+
+        if not key.startswith(expected_prefix):
+            return False
+
+        # Check if key contains environment indicator
+        env_pattern = r'_(test|live)_'
+        if not re.search(env_pattern, key):
+            return False
+
+        return True
+
+    def _extract_environment_from_key(self, key: str) -> Optional[str]:
+        """Extract environment from Korapay key"""
+        import re
+
+        env_match = re.search(r'_(test|live)_', key)
+        if env_match:
+            return env_match.group(1)
+        return None
+
+    def validate_webhook_signature(self, payload: Dict[str, Any], webhook_secret: str) -> bool:
+        """
+        Validate webhook signature using secret key
+
+        Args:
+            payload: Webhook payload
+            webhook_secret: Webhook secret for validation
+
+        Returns:
+            True if signature is valid, False otherwise
+        """
+        try:
+            import hmac
+            import hashlib
+            import json
+
+            # Create test signature
+            data_string = json.dumps(payload.get("data", {}), separators=(',', ':'))
+            expected_signature = hmac.new(
+                webhook_secret.encode(),
+                data_string.encode(),
+                hashlib.sha256
+            ).hexdigest()
+
+            return hmac.compare_digest(expected_signature, webhook_secret)
+
+        except Exception:
+            return False
+
     def verify_webhook(self, payload: bytes, signature: str) -> Dict[str, Any]:
         """
         Verify Korapay webhook signature
