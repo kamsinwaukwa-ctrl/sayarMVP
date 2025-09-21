@@ -5,7 +5,7 @@ import Login from '@/pages/Login'
 import Signup from '@/pages/Signup'
 import Logout from '@/pages/Logout'
 import ProtectedRoute from '@/components/ProtectedRoute'
-import UIShowcase from '@/pages/_dev/ui'
+//import UIShowcase from '@/pages/_dev/ui'
 
 function App() {
   return (
@@ -23,7 +23,7 @@ function App() {
         </Route>
 
         {/* Development Routes */}
-        <Route path="_dev/ui" element={<UIShowcase />} />
+        {/*<Route path="_dev/ui" element={<UIShowcase />} />*/}
       </Routes>
     </AuthProvider>
   )
