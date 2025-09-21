@@ -1,24 +1,21 @@
-import { Navigate } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
-import { CircularProgress, Box } from '@mui/material'
+import { LoadingSpinner } from './ui/LoadingSpinner'
 
 interface ProtectedRouteProps {
-  children: React.ReactNode
+  children?: React.ReactNode
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { isAuthenticated, loading } = useAuth()
+  const { isAuthenticated, loading, merchant, merchantLoadAttempted, isLoadingMerchant } = useAuth()
+  const location = useLocation()
 
+  // Always check auth first
   if (loading) {
     return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="100vh"
-      >
-        <CircularProgress />
-      </Box>
+      <div className="flex min-h-screen items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
     )
   }
 
@@ -26,7 +23,33 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     return <Navigate to="/login" replace />
   }
 
-  return <>{children}</>
+  // Handle onboarding routes differently
+  const isOnboarding = location.pathname.startsWith('/onboarding')
+
+  if (isOnboarding) {
+    // For onboarding: allow access once we've attempted to load merchant (even if failed)
+    if (!merchantLoadAttempted) {
+      return (
+        <div className="flex min-h-screen items-center justify-center">
+          <LoadingSpinner size="lg" />
+        </div>
+      )
+    }
+    // Render onboarding even if merchant is null (neutral fallback)
+    return children ? <>{children}</> : <Outlet />
+  }
+
+  // For non-onboarding routes: wait for merchant to be loaded
+  if (!merchant || isLoadingMerchant) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
+
+  // Support both children pattern (legacy) and Outlet pattern (new)
+  return children ? <>{children}</> : <Outlet />
 }
 
 export default ProtectedRoute

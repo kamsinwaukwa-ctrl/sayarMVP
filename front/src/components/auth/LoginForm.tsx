@@ -99,7 +99,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onError }) => {
           type="email"
           autoComplete="email"
           placeholder="Enter your email"
-          className={errors.email ? 'border-red-500 focus-visible:ring-red-500' : ''}
+          className={`h-12 ${errors.email ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
         />
         {errors.email && (
           <p className="text-sm text-red-600">{errors.email.message}</p>
@@ -124,9 +124,21 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onError }) => {
             type={showPassword ? 'text' : 'password'}
             autoComplete="current-password"
             placeholder="Enter your password"
-            className={`${errors.password ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+            className={`h-12 pr-12 ${errors.password ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
           />
-        
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+            onClick={togglePasswordVisibility}
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4 text-gray-500" />
+            ) : (
+              <Eye className="h-4 w-4 text-gray-500" />
+            )}
+          </Button>
         </div>
         {errors.password && (
           <p className="text-sm text-red-500">{errors.password.message}</p>
@@ -152,6 +164,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onError }) => {
         )}
       </Button>
     </form>
+    
   )
 }
 

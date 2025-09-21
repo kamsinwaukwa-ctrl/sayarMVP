@@ -24,60 +24,26 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({
   return (
     <div className="min-h-screen flex">
       {/* Left Column - Brand/Logo Section */}
-      <div className="hidden lg:flex lg:flex-1 relative bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 px-14 py-16">
-        <div className="flex flex-col justify-center w-full max-w-xl mx-auto text-white">
-          {/* Logo */}
-          <div className="mb-1">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-                <span className="text-2xl font-bold text-blue-600">S</span>
-              </div>
-              <span className="text-2xl font-bold">Sayar</span>
-            </div>
+      <div className="hidden lg:flex lg:w-1/2 bg-primary justify-center items-center relative">
+        <div className="absolute inset-0 bg-black opacity-100" />
+        <div className="relative z-10 px-1 max-w-xl">
+          <div className="mb-6">
+            <img src="/logo.png" alt="Sayar" className="h-12 md:h-14 w-auto" />
           </div>
-
-          {/* Hero Content */}
-          <div className="space-y-1">
-            <h1 className="text-3xl font-bold leading-tight">
-              AI-powered WhatsApp Commerce Platform
-            </h1>
-            <p className="text-lg text-blue-100 leading-relaxed">
-              Empowering businesses to increase sales and streamline the entire customer journey - from acquisition, to checkout, to retention.
-            </p>
-            
-            {/* Feature highlights */}
-            <div className="space-y-1 pt-1">
-              <div className="flex items-center space-x-3">
-                <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <span>Native WhatsApp catalog integration</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <span>Automated checkout flows</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <span>Paystack & Korapay integration</span>
-              </div>
+          <p className="text-xl text-white opacity-90 mb-8">
+            The complete WhatsApp commerce solution for your business
+          </p>
+          <div className="grid grid-cols-2 gap-4 text-white">
+            <div className="bg-white/10 backdrop-blur-sm p-4 rounded-lg">
+              <h3 className="font-semibold mb-2">Easy Integration</h3>
+              <p className="text-sm opacity-80">Streamline your WhatsApp commerce process and increase efficiency.</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm p-4 rounded-lg">
+              <h3 className="font-semibold mb-2">Multi-tenant</h3>
+              <p className="text-sm opacity-80">Manage multiple businesses with a single account.</p>
             </div>
           </div>
         </div>
-
-        {/* Decorative elements */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16"></div>
-        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-12 -translate-x-12"></div>
       </div>
 
       {/* Right Column - Form Section */}
@@ -95,12 +61,18 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({
               </div>
             </div>
 
-            <h2 className="text-3xl font-bold text-gray-900">{title}</h2>
-            <p className="mt-2 text-gray-600">{description}</p>
+            
           </div>
 
           {/* Form Content */}
-          <div className="bg-white px-8 py-6 rounded-xl shadow-sm border border-gray-200">
+          
+          
+          <div className="bg-white px-8 py-8 rounded-xl shadow-sm border border-gray-200">
+            <div className="space-y-3">
+              <h3 className="text-3xl font-bold tracking-tight text-center">{title}</h3>
+              <p className="text-muted-foreground text-center">{description}</p>
+            </div>
+          <br/>
             {children}
           </div>
 

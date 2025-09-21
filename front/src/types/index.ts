@@ -1,4 +1,5 @@
 // Database types for Sayar WhatsApp Commerce Platform
+import type { Merchant } from './merchant'
 
 export interface User {
   id: string
@@ -9,21 +10,7 @@ export interface User {
   updated_at: string
 }
 
-export interface Merchant {
-  id: string
-  name: string
-  whatsapp_phone: string
-  logo_url?: string
-  description?: string
-  currency: string
-  waba_id?: string
-  phone_number_id?: string
-  meta_app_id?: string
-  provider_default?: 'paystack' | 'korapay'
-  payments_verified_at?: string
-  created_at: string
-  updated_at: string
-}
+export type { Merchant }
 
 export interface Product {
   id: string

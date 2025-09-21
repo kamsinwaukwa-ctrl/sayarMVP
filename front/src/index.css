@@ -1,45 +1,222 @@
-@import 'tailwindcss/base';
-@import 'tailwindcss/components';
-@import 'tailwindcss/utilities';
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
 
-/* Custom styles for Sayar */
+/* Shadcn/UI Design System - CSS Variables */
+:root {
+  /* Border radius */
+  --radius: 0.5rem;
+
+  /* Core semantic tokens */
+  --background: 0 0% 100%;
+  --foreground: 220 9% 9%;
+
+  /* Component tokens */
+  --card: 0 0% 100%;
+  --card-foreground: 220 9% 9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 9% 9%;
+
+  /* Primary colors (S-Tier SaaS brand color) */
+  --primary: 214 95% 36%;
+  --primary-foreground: 0 0% 98%;
+
+  /* Secondary colors */
+  --secondary: 210 4% 89%;
+  --secondary-foreground: 220 9% 9%;
+
+  /* Muted colors */
+  --muted: 210 4% 96%;
+  --muted-foreground: 215 4% 47%;
+
+  /* Accent colors */
+  --accent: 210 4% 96%;
+  --accent-foreground: 220 9% 9%;
+
+  /* Destructive/Error colors */
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+
+  /* Border and input */
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 214 95% 36%;
+
+  /* Chart colors for data visualization */
+  --chart-1: 12 76% 61%;
+  --chart-2: 173 58% 39%;
+  --chart-3: 197 37% 24%;
+  --chart-4: 43 74% 66%;
+  --chart-5: 27 87% 67%;
+
+  /* Typography scale */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', Consolas, monospace;
+
+  /* Spacing scale (8px grid system) */
+  --spacing-xs: 0.25rem;  /* 4px */
+  --spacing-sm: 0.5rem;   /* 8px */
+  --spacing-md: 1rem;     /* 16px */
+  --spacing-lg: 1.5rem;   /* 24px */
+  --spacing-xl: 2rem;     /* 32px */
+
+  /* Animation timing */
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+
+  /* Easing curves */
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Component-specific variables */
+  --button-border-radius: calc(var(--radius) - 2px);
+  --card-border-radius: var(--radius);
+  --card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --input-border-radius: calc(var(--radius) - 2px);
+  --input-height: 2.5rem;
+}
+
+/* Dark mode variables */
+.dark {
+  --background: 220 9% 9%;
+  --foreground: 0 0% 98%;
+
+  --card: 220 9% 9%;
+  --card-foreground: 0 0% 98%;
+  --popover: 220 9% 9%;
+  --popover-foreground: 0 0% 98%;
+
+  --primary: 214 95% 36%;
+  --primary-foreground: 0 0% 98%;
+
+  --secondary: 220 9% 13%;
+  --secondary-foreground: 0 0% 98%;
+
+  --muted: 220 9% 13%;
+  --muted-foreground: 215 4% 47%;
+
+  --accent: 220 9% 13%;
+  --accent-foreground: 0 0% 98%;
+
+  --destructive: 0 62% 52%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 220 9% 13%;
+  --input: 220 9% 13%;
+  --ring: 214 95% 36%;
+
+  --chart-1: 220 70% 50%;
+  --chart-2: 160 60% 45%;
+  --chart-3: 30 80% 55%;
+  --chart-4: 280 65% 60%;
+  --chart-5: 340 75% 55%;
+}
+
+/* Base layer styles */
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Enhanced root with design system integration */
 #root {
   width: 100%;
   height: 100vh;
   margin: 0;
   padding: 0;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
 }
 
+/* Enhanced typography with variable fonts */
 body {
   margin: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #ffffff;
-  color: #000000;
+  line-height: 1.5;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
 }
 
-/* Remove default button styles to let Tailwind handle them */
+/* Enhanced button reset */
 button {
   font-family: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
 }
 
-/* Custom scrollbar */
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Focus visible enhancements */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Enhanced scrollbar with theme integration */
 ::-webkit-scrollbar {
   width: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: hsl(var(--muted));
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
+  background: hsl(var(--muted-foreground) / 0.4);
+  border-radius: calc(var(--radius) * 0.5);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: hsl(var(--muted-foreground) / 0.6);
+}
+
+/* Form elements styling */
+input, textarea, select {
+  font-family: inherit;
+}
+
+/* Selection styling */
+::selection {
+  background-color: hsl(var(--primary) / 0.2);
+  color: hsl(var(--primary-foreground));
+}
+
+/* Smooth transitions for theme switching */
+* {
+  transition: background-color var(--duration-normal) var(--ease-in-out),
+              border-color var(--duration-normal) var(--ease-in-out),
+              color var(--duration-normal) var(--ease-in-out);
+}
+
+/* Print styles */
+@media print {
+  * {
+    background: transparent !important;
+    color: black !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

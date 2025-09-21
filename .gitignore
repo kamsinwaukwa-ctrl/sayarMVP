@@ -50,6 +50,8 @@ ENV/
 env.bak/
 venv.bak/
 
+.claude/tasks/
+
 # Jupyter Notebook
 .ipynb_checkpoints
 
@@ -190,3 +192,12 @@ static/collected/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+
+# Playwright & test artefacts
+.playwright-mcp/
+playwright-report/
+test-results/
+
+# Dev-only UI pages (optional — keep if you don't want them in repo)
+front/src/pages/_dev/**

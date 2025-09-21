@@ -88,7 +88,7 @@ globs:
 - `POST /api/v1/auth/login`
 
 **DB**
-- `users(id, merchant_id, name, email, password_hash, role{owner,staff})`
+- `users(id, merchant_id, name, email, password_hash, role{admin,staff})`
 - `merchants(id, name, slug, whatsapp_phone_e164, .....)`
 
 ---
@@ -216,7 +216,7 @@ globs:
 - **Orders:** List (pending/paid/failed), detail (shows discount if applied), totals/fees.  
 - **Customers:** Basic list + saved addresses.  
 - **Settings:** Settlement currency, who bears fees, business info.  
-- **Staff:** Invite staff (email), assign role = staff (read/write: orders/products/discounts).
+- **Staff:** Invite staff (email), assign role = staff (read-only within tenant; no writes).
 
 ### C) Sayar Admin Flow
 - **Tenants list** (merchants) + health: last webhook received, error rate.  

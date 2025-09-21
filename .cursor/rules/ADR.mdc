@@ -55,12 +55,13 @@ END ADR_AGENT_PROTOCOL
 
 | ID   | Title                                                        | Date       | Status   | Supersedes | Superseded by |
 | ---- | ------------------------------------------------------------ | ---------- | -------- | ---------- | ------------- |
+| 0009 | [Authentication: App-Managed JWT + Admin/Staff Roles](#adr-0009) | 2025-09-16 | Accepted | 0003       | —             |
 | 0008 | [WhatsApp Commerce Platform Architecture](#adr-0008)         | 2025-01-27 | Accepted | —          | —             |
 | 0007 | [Frontend Architecture with React + Vite](#adr-0007)         | 2025-01-27 | Accepted | —          | —             |
 | 0006 | [Database Architecture with Supabase Postgres](#adr-0006)    | 2025-01-27 | Accepted | —          | —             |
 | 0005 | [Backend Architecture with FastAPI](#adr-0005)               | 2025-01-27 | Accepted | —          | —             |
 | 0004 | [Monorepo Structure for Full-Stack Development](#adr-0004)   | 2025-01-27 | Accepted | —          | —             |
-| 0003 | [Authentication Strategy with JWT](#adr-0003)                | 2025-01-27 | Accepted | —          | —             |
+| 0003 | [Authentication Strategy with JWT](#adr-0003)                | 2025-01-27 | Superseded | —          | 0009          |
 | 0002 | [Deployment Strategy with Railway](#adr-0002)                | 2025-01-27 | Accepted | —          | —             |
 | 0001 | [Testing Strategy with pytest and Test Database](#adr-0001)  | 2025-01-27 | Accepted | —          | —             |
 
@@ -193,7 +194,7 @@ Both frontend and backend deploy successfully to Railway. Environment variables 
 
 <a id="adr-0003"></a>
 **Date**: 2025-01-27  
-**Status**: Accepted  
+**Status**: Superseded  
 **Owner**: AI Agent
 
 ### Context
@@ -221,7 +222,7 @@ Implement JWT-based authentication with Supabase Auth:
 - **Pros**: Stateless authentication, secure token-based access, integrates with Supabase, supports role-based access
 - **Cons / risks**: Token management complexity, need to handle token refresh, security considerations for token storage
 - **Supersedes**: —
-- **Superseded by**: —
+- **Superseded by**: ADR-0009
 
 ### Compliance / Verification
 
@@ -429,3 +430,45 @@ Implement integrated WhatsApp commerce platform:
 WhatsApp integration works correctly. Payment processing functions properly. Inventory management prevents overselling. Merchant dashboards provide necessary functionality. Multi-tenant isolation is secure.
 
 ---
+
+## ADR-0009 — Authentication: App-Managed JWT + Admin/Staff Roles
+
+<a id="adr-0009"></a>
+**Date**: 2025-09-16  
+**Status**: Accepted  
+**Owner**: AI Agent
+
+### Context
+
+The implementation uses application-managed JWT authentication in FastAPI with Argon2id password hashing and explicit RBAC enforced via Postgres RLS. The merchant owner role has been migrated to admin, standardizing roles to admin and staff, where staff are read-only within their tenant.
+
+### Alternatives
+
+- Supabase Auth-managed JWTs — increases coupling and deviates from the current FastAPI auth stack
+- Session-based authentication — requires server-side session storage, not aligned with stateless APIs
+
+### Decision
+
+Use app-managed JWT authentication and two roles:
+
+- Admin: full CRUD within tenant
+- Staff: read-only within tenant
+
+Implementation specifics:
+
+- Argon2id hashing for passwords; optional pepper
+- JWT issued/verified by FastAPI (Authorization: Bearer <token>) with claims including merchant_id and role
+- RLS claims bridged per request to Postgres session
+- Owner role is deprecated and migrated to admin
+
+### Consequences
+
+* **Pros**: Full control over auth flow, consistent with FastAPI stack, clear RBAC semantics, strong password hashing
+* **Cons / risks**: Responsibility for token lifecycle/rotation; additional maintenance vs. managed auth
+* **Supersedes**: ADR-0003
+* **Superseded by**: —
+
+### (Optional) Compliance / Verification
+
+Integration tests cover register/login/me. RLS policies validated for admin (writes allowed) and staff (writes denied). Token includes merchant_id and role; middleware applies claims to DB session.
+

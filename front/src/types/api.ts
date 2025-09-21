@@ -69,20 +69,10 @@ export interface RegisterResponse {
 }
 
 // Merchant Types
-export interface CreateMerchantRequest {
-  name: string;
-  whatsapp_phone_e164?: string; // Optional WhatsApp phone
-}
+import type { MerchantSummary, CreateMerchantRequest } from './merchant'
 
-export interface MerchantResponse {
-  id: string;
-  name: string;
-  slug: string;
-  whatsapp_phone_e164?: string; // Optional WhatsApp phone
-  currency: string;
-  created_at: string;
-  updated_at: string;
-}
+export type { CreateMerchantRequest }
+export type MerchantResponse = MerchantSummary
 
 // Product Types
 export interface CreateProductRequest {

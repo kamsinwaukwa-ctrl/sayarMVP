@@ -14,13 +14,13 @@ Sayar is a WhatsApp-first commerce platform that enables SMEs (starting with bea
 
 ### Frontend (`/front`)
 - **Framework**: React 18 + Vite + TypeScript
-- **Styling**: Tailwind CSS + Material-UI
+- **Styling**: Tailwind CSS + shadcn/ui
 - **State Management**: React Query for server state, React Context for client state
-- **Authentication**: JWT with Supabase Auth
+- **Authentication**: App-managed JWT (issued by backend)
 - **Database**: Supabase (Postgres) with real-time subscriptions
 
 ### Backend (`/back`)
-- **Framework**: FastAPI (Python) - **Note: Currently uses Flask but migrating to FastAPI**
+- **Framework**: FastAPI (Python)
 - **Database**: Supabase Postgres with SQLAlchemy ORM
 - **Job Processing**: Postgres outbox pattern + APScheduler worker
 - **Architecture Pattern**: Service-oriented with Repository pattern
@@ -44,7 +44,7 @@ cd back
 python -m venv venv && source venv/bin/activate  # Create and activate virtual environment
 pip install -r requirements.txt                  # Install dependencies
 
-# Run development server
+# Run development server (FastAPI)
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 # Testing
@@ -96,7 +96,7 @@ pylint src/                  # Linting
 
 ### Multi-Tenant Security
 - **Row Level Security (RLS)**: All tables use RLS policies with merchant_id isolation
-- **JWT Claims**: Authentication tokens contain merchant_id for access control
+- **JWT Claims**: Tokens include `merchant_id` and `role`; backend injects claims to DB session per request
 - **Service Layer**: All database access goes through service classes that enforce tenant boundaries
 
 ### WhatsApp Commerce Integration
@@ -110,7 +110,7 @@ pylint src/                  # Linting
 ### Configuration Files
 - `front/package.json` - Frontend dependencies and scripts
 - `back/requirements.txt` - Python dependencies
-- `back/main.py` - FastAPI application entry point (currently Flask)
+- `back/main.py` - FastAPI application entry point
 - `front/vite.config.ts` - Vite build configuration
 - `front/tailwind.config.js` - Tailwind CSS configuration
 
@@ -241,6 +241,238 @@ JWT_SECRET_KEY=your_jwt_secret_key
 - JWT tokens must be validated on all protected endpoints
 - Webhook signatures must be verified for all external integrations
 
+## Authentication & Token Management
+
+### JWT Token Lifecycle
+- **Token Duration**: JWT tokens expire after 30 minutes (1800 seconds)
+- **Token Claims**: Include `merchant_id`, `role`, `iat` (issued at), `exp` (expires at)
+- **Authentication Flow**: Login → JWT → 30-min expiration → Need refresh
+
+### Common Authentication Issues
+```bash
+# Decode JWT token to check expiration
+echo "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." | base64 -d
+
+# Common 401 scenarios:
+# 1. Token expired (most common after 30 minutes)
+# 2. Invalid token format
+# 3. Missing Authorization header
+# 4. Backend JWT_SECRET_KEY mismatch
+```
+
+### Token Refresh Patterns
+- **Frontend**: Should implement automatic token refresh on 401 responses
+- **Manual Fix**: Refresh page or re-login when encountering 401 errors
+- **API Client**: Should intercept 401s and attempt token refresh before failing
+
+## Error Handling Patterns
+
+### Cloudinary Integration Errors
+```python
+# Common Cloudinary issues:
+# 1. Invalid transformation syntax: "c_limit,w_500" → use "w_500,h_500,c_limit"
+# 2. Missing environment variables
+# 3. Network timeouts
+# 4. File size/format validation failures
+
+# Debug Cloudinary uploads:
+response = cloudinary.uploader.upload(
+    file_content,
+    folder=f"sayar/merchants/{merchant_id}/brand",
+    public_id=image_uuid,
+    overwrite=True,
+    resource_type="image"
+    # Note: Remove transformation parameter if causing errors
+)
+```
+
+### Payment Provider Errors
+- **Webhook Signature Verification**: Always verify signatures for security
+- **Idempotency**: Payment operations must be idempotent
+- **Provider Failover**: Implement fallback between Paystack and Korapay
+- **Amount Format**: Store amounts as integers in kobo (Nigerian currency)
+
+### Multi-Tenant RLS Errors
+```sql
+-- Common RLS issues:
+-- 1. Missing merchant_id in queries
+-- 2. Incorrect RLS policies
+-- 3. Service-level tenant isolation bypassed
+
+-- Debug RLS violations:
+-- Check for "insufficient privilege" or "policy violation" errors
+-- Verify merchant_id is properly set in database session
+```
+
+## Debugging & Troubleshooting
+
+### Image Upload Issues
+```bash
+# Test image upload endpoint directly:
+curl -X POST http://localhost:8000/api/v1/merchants/me/logo \
+  -H "Authorization: Bearer [TOKEN]" \
+  -F "file=@/path/to/image.png"
+
+# Common issues:
+# 1. JWT token expired (401 Unauthorized)
+# 2. Invalid Cloudinary transformation syntax
+# 3. File size exceeded (5MB limit)
+# 4. Invalid file type (must be image/*)
+```
+
+### Authentication Debugging
+```bash
+# Get fresh authentication token:
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"password"}'
+
+# Test token validity:
+curl -X GET http://localhost:8000/api/v1/merchants/me \
+  -H "Authorization: Bearer [TOKEN]"
+```
+
+### Database Connection Issues
+```bash
+# Test database connectivity:
+# 1. Verify SUPABASE_URL and SUPABASE_SERVICE_KEY in .env
+# 2. Check network connectivity to Supabase
+# 3. Verify RLS policies are not blocking queries
+# 4. Check merchant_id isolation in service classes
+```
+
+## Development Philosophy (from Cursor Rules)
+
+### Backend Development Principles
+- 🪟 **No broken windows**: Keep code clean from the start
+- 🔄 **DRY**: Don't repeat yourself - refactor common patterns
+- 🌐 **Leave it better**: Improve bad code as you encounter it
+- 🧪 **Test First**: Write integration tests before implementation
+- 👨‍💻 **SOLID**: Single purpose, self-contained functions
+
+### Frontend UX Philosophy
+- **Critical User Perspective**: Always adopt the view of a critical user
+- **Self-Explanatory**: Users should never wonder "what's happening?"
+- **Loading States**: Use spinners/skeletons for all async operations
+- **Error States**: Show informative error messages via toast notifications
+- **Empty States**: Display helpful empty state components
+- **Mobile-First**: Use `100dvh` instead of `100vh` for mobile compatibility
+
+## Testing Commands
+
+### Running Specific Tests
+```bash
+# Run single test file:
+pytest tests/integration/test_products.py
+
+# Run specific test method:
+pytest tests/integration/test_products.py::test_create_product
+
+# Run tests with coverage for specific module:
+pytest --cov=src/services tests/integration/
+
+# Run tests matching pattern:
+pytest -k "test_upload" tests/
+
+# Run tests with verbose output:
+pytest -v tests/integration/test_merchants.py
+```
+
+### Frontend Testing
+```bash
+# Run specific component tests:
+npm test -- --testNamePattern="ImageUpload"
+
+# Run tests in watch mode:
+npm test -- --watch
+
+# Run tests with coverage:
+npm test -- --coverage
+```
+
+## API Debugging
+
+### Common API Endpoints
+```bash
+# Authentication
+POST /api/v1/auth/login
+GET /api/v1/auth/me
+
+# Merchant operations
+GET /api/v1/merchants/me
+PATCH /api/v1/merchants/me
+POST /api/v1/merchants/me/logo
+
+# Products
+GET /api/v1/products
+POST /api/v1/products
+POST /api/v1/products/{id}/image
+
+# Onboarding
+GET /api/v1/merchants/me/onboarding
+PUT /api/v1/merchants/me/onboarding
+```
+
+### Webhook Testing with ngrok
+```bash
+# Start ngrok tunnel:
+ngrok http 8000
+
+# Test webhook endpoints:
+# - /api/v1/webhooks/whatsapp
+# - /api/v1/webhooks/paystack
+# - /api/v1/webhooks/korapay
+
+# Verify webhook signatures in logs
+```
+
+### JWT Token Inspection
+```javascript
+// Decode JWT token in browser console:
+function parseJwt(token) {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+}
+
+// Usage: parseJwt("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
+```
+
+## Mobile Development Considerations
+
+### Viewport and Layout
+```css
+/* Use mobile-safe viewport units */
+.full-height {
+  height: 100dvh; /* NOT 100vh */
+}
+
+/* Mobile-first responsive design */
+.container {
+  @apply px-4 sm:px-6 lg:px-8;
+}
+```
+
+### Touch Interactions
+- **Minimum touch targets**: 44px x 44px minimum for tap areas
+- **Touch feedback**: Use hover states carefully (prefer focus states)
+- **Scroll behavior**: Test overflow scrolling on mobile devices
+- **WhatsApp Web compatibility**: Ensure components work within WhatsApp Web iframe
+
+### Testing on Mobile
+```bash
+# Start dev server accessible on network:
+npm run dev -- --host 0.0.0.0
+
+# Test on mobile device:
+# 1. Connect to same WiFi network
+# 2. Visit http://[YOUR_IP]:5173
+# 3. Test touch interactions and viewport behavior
+```
+
 When working on this codebase, always prioritize the integration testing approach, respect the event-driven architecture patterns, and ensure all multi-tenant security measures are properly implemented.
 
 ## Visual Development & Testing
@@ -250,7 +482,7 @@ When working on this codebase, always prioritize the integration testing approac
 The project follows S-Tier SaaS design standards inspired by Stripe, Airbnb, and Linear. All UI development must adhere to:
 
 - **Design Principles**: `/context/design-principles.md` - Comprehensive checklist for world-class UI
-- **Component Library**: NextUI with custom Tailwind configuration
+- **Component Library**: shadcn/ui with Tailwind configuration
 
 ### Quick Visual Check
 
@@ -357,14 +589,37 @@ When implementing UI features, verify:
 
 
 ## Sub agents
-You have access to 1 sub agent1:
-- shadcn-ui-expert: all task related to UI building & tweaking HAVE TO consult this agent
+You have access to 5 sub agents:
+
+	•	task-orchestrator-agent — TASK authoring & coordination
+must be consulted for every new feature/brief that needs to become a Sayar TASK file. consumes .claude/tasks/context.md, task-local context, and PRD anchors. proposes exact scope, contracts, migrations/RLS, and cross-team touchpoints. delegates research only to sub-agents (UI, Payments, WhatsApp, Catalog), digests their outputs, and hands back a complete tasks/<TASK_ID>-<kebab-title>.mdc spec. after engineers implement, update context files (TOC, DIGEST, session notes) to maintain continuity.
+	•	shadcn-ui-expert — UI design/pattern research
+must be consulted for all UI build/tweak work. consumes the current .claude/tasks/context_session_x.md, proposes component structure, states, and accessibility notes; hands back a mini spec + snapshots before you implement. after you ship, update the session context.  ￼
+	•	payments-integration — Paystack/Korapay verify & webhooks
+must be consulted for payment provider setup, “verify connection” flows, webhook signature checks, idempotency, and failure modes. inputs: provider choice, keys (enc), envs; outputs: verify test plan, sample requests/responses, webhook schemas, retry/backoff matrix, and a pass/fail checklist aligned to PRD acceptance. scope includes metadata for reconciliation and link-generation patterns.  ￼
+	•	whatsapp-integration — WhatsApp Cloud API, webhooks, template/flow wiring
+must be consulted for WA message send, 24-hour window rules, webhook verification (X-Hub signature), auto-reply buttons, Flow-first + inline fallbacks, and order-event ingestion. inputs: WABA/phone number IDs, access token, app secret, webhook URL; outputs: endpoint map, test cURL set, error taxonomy, and end-to-end “hi → catalog → order event” validation script per PRD.  ￼
+	•	catalog-integration — Meta Catalog (CSV/Graph)
+must be consulted for product → catalog mapping, batch upserts, retailer_id strategy, image rules, and post-payment quantity sync. inputs: product schema, catalog id; outputs: items_batch payload templates, field-by-field validation rules, sync status taxonomy (pending/success/error), and visibility checklist (“product visible in Catalog”).  ￼
+
 
 - Before you do any work, MUST view files in .claude/tasks/context_session_x.md file to get the full context (x being the id of the session we are operate, if file doesnt exist, then create one)
 - context_session_x.md should contain most of context of what we did, overall plan, and sub agents will continuusly add context to the fileß
 - After you finish the work, MUST update the .claude/tasks/context_session_x.md file to make sure others can get full context of what you did
 
 
+## Examples
+- Visual/UI work → `shadcn-ui-expert`
+- Paystack/Korapay verify/webhooks → `payments-expert`
+- WA Cloud (webhooks/templates/rate limits) → `wa-cloud-expert`
+- Meta Catalog (CSV/Graph) → `meta-catalog-expert`
+
 Sub agents will do research about the implementation, but you will do the actual implementation;
-When passing task to sub agent, make sure you pass the context file, e.g. ‘.claude/tasks/session_context_x.md’.
+When passing task to sub agent, make sure you pass the context file, e.g. '.claude/tasks/session_context_x.md'.
 After each sub agent finish the work, make sure you read the related documentation they created to get full context of the plan before you start executing
+
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.

@@ -15,11 +15,13 @@ const Login = () => {
 
   useEffect(() => {
     if (isAuthenticated && !loading) {
+      // Always redirect to dashboard - setup cards will handle incomplete setup
       navigate('/dashboard', { replace: true })
     }
   }, [isAuthenticated, loading, navigate])
 
   const handleLoginSuccess = () => {
+    // Always redirect to dashboard - setup cards will handle incomplete setup
     navigate('/dashboard', { replace: true })
   }
 

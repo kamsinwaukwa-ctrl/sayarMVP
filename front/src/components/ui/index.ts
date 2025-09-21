@@ -1,26 +1,26 @@
-// Tailwind UI Component Library
-// Export all components for easy importing
+/**
+ * UI Components - Complete shadcn/ui + custom component library
+ * Export all components for easy importing across the Sayar platform
+ */
 
-export { Button } from './Button'
-export type { ButtonProps } from './Button'
+// Legacy components (existing)
+export { Button, buttonVariants } from './Button'
 
 export { Input } from './Input'
-export type { InputProps } from './Input'
 
-export { Card, CardContent } from './Card'
-export type { CardProps, CardContentProps } from './Card'
+export { Card, CardHeader, CardContent, CardTitle, CardDescription, CardFooter } from './Card'
 
 export { Alert } from './Alert'
-export type { AlertProps } from './Alert'
 
 export { Typography } from './Typography'
-export type { TypographyProps } from './Typography'
 
 export { Container } from './Container'
-export type { ContainerProps } from './Container'
 
 export { IconButton } from './IconButton'
-export type { IconButtonProps } from './IconButton'
+
+export { LoadingSpinner } from './LoadingSpinner'
+
+export { Select } from './Select'
 
 // Icons
 export {
@@ -37,11 +37,49 @@ export {
 } from './icons'
 export type { IconProps } from './icons'
 
-// Re-export all components as default exports for compatibility
-export { default as ButtonDefault } from './Button'
-export { default as InputDefault } from './Input'
-export { default as CardDefault } from './Card'
-export { default as AlertDefault } from './Alert'
-export { default as TypographyDefault } from './Typography'
-export { default as ContainerDefault } from './Container'
-export { default as IconButtonDefault } from './IconButton'
+// Enhanced shadcn/ui components
+export * from './skeleton'
+export * from './separator'
+export * from './toast'
+export * from './toaster'
+export * from './dialog'
+export * from './alert-dialog'
+export * from './sheet'
+export * from './tooltip'
+export * from './popover'
+export * from './badge'
+export * from './avatar'
+export * from './progress'
+export * from './table'
+export * from './tabs'
+export * from './breadcrumb'
+export * from './dropdown-menu'
+export * from './context-menu'
+export * from './command'
+export * from './checkbox'
+export * from './radio-group'
+export * from './switch'
+export * from './textarea'
+export * from './accordion'
+export * from './collapsible'
+
+// Form system
+export * from './form'
+export * from './form-section'
+export * from './form-actions'
+export * from './label'
+
+// Specialized components
+export * from './empty-state'
+export * from './stat-card'
+export * from './filter-bar'
+export * from './pagination'
+export * from './description-list'
+export * from './data-table'
+export * from './command-palette'
+
+// Hooks
+export * from '../../hooks/use-toast'
+
+// Export types for TypeScript support
+export type { ButtonProps } from './Button'

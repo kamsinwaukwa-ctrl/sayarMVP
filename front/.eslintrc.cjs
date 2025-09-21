@@ -3,7 +3,7 @@ module.exports = {
   env: { browser: true, es2020: true, node: true },
   extends: [
     'eslint:recommended',
-    '@typescript-eslint/recommended',
+    'plugin:@typescript-eslint/recommended',
   ],
   ignorePatterns: ['dist', '.eslintrc.cjs', 'vite.config.ts'],
   parser: '@typescript-eslint/parser',

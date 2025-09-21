@@ -1,5 +1,7 @@
 import { createContext, useContext } from 'react'
 import { AuthRequest, RegisterRequest } from '../types/api'
+import { OnboardingProgressData } from '../types/onboarding'
+import { Merchant } from '../types/merchant'
 
 export interface User {
   id: string
@@ -11,13 +13,21 @@ export interface User {
 
 export interface AuthContextType {
   user: User | null
+  merchant: Merchant | null
+  onboardingProgress: OnboardingProgressData | null
   loading: boolean
+  isLoadingMerchant: boolean
+  isLoadingOnboarding: boolean
+  merchantLoadAttempted: boolean
+  onboardingLoadAttempted: boolean
+  authReady: boolean
   error: string | null
   isAuthenticated: boolean
   login: (credentials: AuthRequest) => Promise<void>
   register: (userData: RegisterRequest) => Promise<void>
   logout: () => void
   refreshUser: () => Promise<void>
+  refreshOnboardingProgress: () => Promise<void>
   clearError: () => void
 }
 

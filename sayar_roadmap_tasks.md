@@ -22,6 +22,8 @@
   _Deliver:_ encrypted key storage, HMAC verify utils (Paystack/Kora), WA verification helper, webhook retry logic.
 - [ ] **BE-003 — OpenAPI v0.1 (contracts-first)**  
   _Deliver:_ Swagger for Auth/Merchants/Products/Delivery Rates/Discount validate (stub), **generated TS client** for FE.
+- [ ] **BE-003.5 — Roles & RLS Policy Tightening**  
+  _Deliver:_ migrate `owner → admin`, enforce roles (`admin`,`staff`), tenant-scoped **SELECT** for admin+staff, restrict **WRITE** (INSERT/UPDATE/DELETE) to **admin only** across tenant tables; update RLS policies accordingly.
 - [ ] **BE-004 — Auth & JWT**  
   _Deliver:_ owner/staff, `merchant_id` in JWT, auth dependency enforcing tenant isolation.
 - [ ] **BE-005 — Observability v1**  
@@ -41,6 +43,11 @@
 - [ ] **FE-000 — App shell + Auth (minimal)** `→ BE-004, BE-003`  
   _Deliver:_ Vite+React+TS shell, Tailwind, React Router, Supabase client bootstrap, **Signup/Login** pages calling BE via generated TS client, `/me` guard page.
 
+- [ ] **FE-000.1 — UI foundations (shadcn/ui reusable component kit)** `→ FE-000, BE-003`  
+  _Deliver:_ shadcn/ui setup & tokens; **AppShell primitives** (Sidebar, Header, PageHeader); **Menu** components (TopNav, SidebarNav, DropdownMenu, ContextMenu, Command/CommandPalette); **Form kit** (Form, Input, Select, Textarea, Switch, Combobox integrated with react-hook-form + zod resolver); **Feedback** (Toast, AlertDialog, Dialog, Tooltip, Skeleton); **Data** (Table w/ pagination & sort placeholders, Badge, EmptyState); **Utilities** (`cn`, class‑variance‑authority variants); **Docs**: README + usage examples. _Scope:_ components only (no pages). _Consumers:_ FE-001/FE-002+.
+
+    Add (dev-only showcase):_ add `/_dev/ui` kitchen-sink page to preview all foundation components; route gated by `import.meta.env.DEV` + `VITE_UI_SHOWCASE=true`.
+
 **Gate A = Done when:** Sign up + login works; JWT carries `merchant_id`; RLS prevents cross-tenant reads; worker heartbeats & metrics visible; error handling framework operational; rate limiting active; media upload working.
 
 ---
@@ -51,6 +58,10 @@
   _Deliver:_ CRUD endpoints, storage signed upload, Graph upsert, `retailer_id` mapping, "visible in Catalog" check.
 - [ ] **BE-010.1 — Meta Catalog Feed Endpoint (Multi-Tenant CSV)**  
   _Deliver:_ `/api/v1/meta/feeds/{merchant_slug}/products.csv` endpoint, HTTP caching, merchant isolation, dashboard integration. **Enables**: Zero-friction merchant onboarding with instant feed URLs.
+- [ ] **BE-010.2 — Auto-brand & MPN (+ SKU fallback)**  
+  _Deliver:_ Default brand from merchant name; auto-generate `mpn` (slug+sku) and `sku` if missing; ensure these flow into product responses and Meta sync payloads.
+- [ ] **BE-010.3 — Additional Images in API & Meta Payload**
+  _Deliver:_ Expose additional_image_urls[] in ProductResponse; include additional_image_link[] (≤10) in Meta sync payload; update OpenAPI and tests.
 - [ ] **BE-012 — Delivery Rates CRUD**  
   _Deliver:_ simple string-match MVP, at least one active rule validation.
 - [ ] **BE-013 — Payments: provider verify + key storage**  
@@ -59,6 +70,26 @@
   _Deliver:_ create/pause, validate(time/status/min subtotal/basic usage); **no redemption yet**.
 - [ ] **BE-015 — WhatsApp Integrations: verify/save**  
   _Deliver:_ save WABA ID/Phone Number ID/App ID/System User Token (encrypted), “Verify” ping.
+- [ ] **BE-016 —  Product Images (Cloudinary): verify/save & upload**  
+  _Deliver:_ save cloud_name / api_key / api_secret (encrypted) + base folder; “Verify” ping to Cloudinary Admin API; upload endpoint that returns public, stable HTTPS URLs for image_link; delete endpoint; basic dimension/type validation before upload.
+    - [ ] **BE-016.1 — Outbox Sync to Meta**  
+      _Deliver:_ when a product’s primary image changes, enqueue a `catalog_sync` outbox event that triggers a Meta Catalog `UPDATE` with the new `image_link`; handle retries, idempotency, and DLQ.  
+    - [ ] **BE-016.2 — Transform Presets**  
+      _Deliver:_ define Cloudinary transformation presets for consistent quality/size.  
+      • Main (Meta): `c_limit,w_1600,h_1600,f_auto,q_auto:good`  
+      • Thumb (dashboards): `c_fill,w_600,h_600,g_auto,f_auto,q_auto:eco`  
+- [ ] **BE-017 — Re-sync Endpoint Only**  
+  _Deliver:_ Deliver: POST /api/v1/products/:id/meta-sync → enqueue job (202, idempotent).
+- [ ] **BE-018 — Status API + Reason Normalizer**  
+  _Deliver:_ Deliver: derive meta_sync_reason from meta_sync_errors; GET /api/v1/products/:id/meta-sync.
+- [ ] **BE-019 — Meta Credentials & Catalog Bootstrap**  
+  _Deliver:_ `meta_integrations` table `{ merchant_id, catalog_id, system_user_token, app_id, waba_id? }`; `GET /api/meta/catalog/status` (per merchant) verifies token & catalog access.  
+  _Acceptance:_ Secrets stored server-side only; token rotation supported. 200 returns catalog name/id; 401/403 surfaced clearly.
+- [ ] **BE-020 — Unpublish on Archive + Admin Unpublish**  
+  _Deliver:_ propagate local archive/hide to Meta; POST /api/v1/products/:id/meta-unpublish.  
+- [ ] **BE-021 — Meta Reconciliation Cron**  
+  _Deliver:_ nightly job to compare local vs Meta state (price, stock, title, image). Auto-enqueue resync jobs for drift and emit metrics (total, drift count, failures).
+
 
 **FE for merchant setup (forms only, no dashboards yet):**
 - [ ] **FE-001 — Onboarding Wizard (steps 1–4)** `→ BE-010/011/012/013/015`  
@@ -69,21 +100,24 @@
   Step 4 Payments verify (keys) → payments verify API  
   Integrations tab to **enter & verify WA creds**.
 
+- [ ] **FE-001.1 — Meta Sync UX**  
+  _Deliver:_ `MetaSyncStatusPopover` (badge → popover with `status`, `last_synced_at`, `reason`), “Re-sync” row action calling `POST /api/products/:id/meta-sync`, optional fields in product form to improve acceptance (`brand`, `condition`, `gtin/mpn`).
+
 **Gate B = Done when:** Product visible in Meta; delivery rate saved; provider verify OK; WA creds saved & verified; discounts can be created + validate returns true/false.
 
 ---
 
 ## Phase 3 — WhatsApp Surface (P1) → **Gate C: end-to-end chat experience up to "order event + address/discount"**
 
-- [ ] **BE-020 — Basic WhatsApp webhook + auto-reply** `→ BE-015, BE-007, BE-008`  
+- [ ] **BE-022 — Basic WhatsApp webhook + auto-reply** `→ BE-015, BE-007, BE-008`  
   _Deliver:_ webhook verification, message send wrapper, 24h window check, auto-reply with **Browse Catalog / Talk to agent**, error handling.
-- [ ] **BE-021 — Flows: Address (Flow-first + inline fallback)**  
+- [ ] **BE-023 — Flows: Address (Flow-first + inline fallback)**  
   _Deliver:_ flow schema + handler, inline prompts fallback, persist addresses, retry logic.
-- [ ] **BE-022 — Flows: Discount mini-flow** `→ BE-014`  
+- [ ] **BE-024 — Flows: Discount mini-flow** `→ BE-014`  
   _Deliver:_ CODE input (Flow) with inline fallback, calls `/discounts/validate`, UX for retry/continue.
-- [ ] **BE-023 — Multi-product message & order event** `→ BE-010`  
+- [ ] **BE-025 — Multi-product message & order event** `→ BE-010`  
   _Deliver:_ send multi-product message, map `retailer_id`, receive `messages[].type=="order"` payload, webhook resilience.
-- [ ] **BE-024 — WhatsApp error recovery & monitoring** `→ BE-007`  
+- [ ] **BE-026 — WhatsApp error recovery & monitoring** `→ BE-007`  
   _Deliver:_ 24h window enforcement, failed message DLQ, webhook retry patterns, message status tracking.
 
 **(No new FE required here beyond the onboarding forms; testing uses Meta test number + Railway webhook.)**

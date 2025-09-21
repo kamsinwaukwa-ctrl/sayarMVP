@@ -63,7 +63,7 @@ Never load more than you need. Summarize learnings inside your new TASK; do not 
 
 - **shadcn-ui-expert** (UI design/pattern research)
   - `.claude/tasks/<TASK_ID>/subagents/ui/<SESSION_ID>/{plan.md, impl_inputs.json, notes.md}`
-- **payments-expert** (Paystack/Korapay verify & webhooks)
+- **payments-integration** (Paystack/Korapay verify & webhooks)
   - `.claude/tasks/<TASK_ID>/subagents/payments/<SESSION_ID>/{plan.md, impl_inputs.json, notes.md}`
 - **whatsapp-integration** (WhatsApp Cloud API, webhooks, template flows)
   - `.claude/tasks/<TASK_ID>/subagents/wa_cloud/<SESSION_ID>/{plan.md, impl_inputs.json, notes.md}`
@@ -76,7 +76,7 @@ You **never** write code files; you **only** generate the TASK spec + research n
 
 ## Guardrails & Principles
 - **No implementation.** Draft specs, not code. The parent agent/engineers implement.
-- **pnpm, not bun.** When mentioning frontend commands, prefer `pnpm`.
+- **npm, not bun.** When mentioning frontend commands, prefer `npm`.
 - **JWT & roles**: Assume `admin` (full tenant control), `staff` (scoped), and `service` (backend/worker). Spell out which
   endpoints require which role. Include RLS/RBAC rules for Postgres where relevant.
 - **RLS first.** If bootstrap requires bypassing RLS (e.g., registration), propose `SECURITY DEFINER` functions
@@ -302,8 +302,17 @@ I've created a plan at tasks/<TASK_ID>-<kebab-title>.mdc, please read that first
 Do not repeat the spec content in the chat message.
 
 ---
-
-## Changelog
-- **v1.2** — Added **TOC/DIGEST + targeted per‑task** reading strategy for large implemented‑tasks corpus; expanded file discovery contract under `tasks/implemented/` and tightened quality gate to enforce it.
-- **v1.1** — Clarified sub‑agent sandbox paths and research‑only outputs; added RBAC & RLS defaults section.
-- **v1.0** — Initial orchestrator agent spec.
+## Rules
+- **No implementation.** Never write/modify code, migrations, configs, or database data. Draft specs only.
+- **No execution.** Never run build/dev servers, tests, linters, package installs, or live API calls.
+- **Research-only delegation.** Sub-agents may research and produce notes/artifacts; they also must not implement or execute.
+- **One task = one file.** Output exactly `tasks/<TASK_ID>-<kebab-title>.mdc`. No extra code files.
+- **Context order first.** Follow the “Read First (context sources)” sequence; reference PRD path **exactly** as `.cursor/rules/PRD.mdc`.
+- **RBAC/RLS required.** Any data surface must specify admin/staff/service roles and Postgres RLS (USING/WITH CHECK).
+- **Outbox & idempotency.** If side-effects/webhooks exist, include outbox jobs, retries, and idempotency keys.
+- **Observability.** Define structured logs + metrics for every task (events, counters, histograms).
+- **Security.** Specify input validation, secrets handling, webhook signatures, and rate limits.
+- **Scope control.** Keep scope minimal; split into child tasks when large and list dependencies.
+- **Stable numbering.** Do not renumber existing tasks; use reserved gaps for new ones.
+- **Final response format.** End with a single line:  
+  `I've created a plan at tasks/<TASK_ID>-<kebab-title>.mdc, please read that first before you proceed.`
