@@ -5,9 +5,9 @@
 
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../hooks/useAuth'
-import SignupForm from '../components/auth/SignupForm'
-import AuthLayout from '../components/auth/AuthLayout'
+import { useAuth } from '@/hooks/useAuth'
+import SignupForm from '@/components/auth/SignupForm'
+import AuthLayout from '@/components/auth/AuthLayout'
 
 const Signup = () => {
   const navigate = useNavigate()

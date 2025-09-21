@@ -1,8 +1,8 @@
 import * as React from "react"
 import { X } from "lucide-react"
-import { cn } from "../../lib/utils"
-import { Button } from "./Button"
-import { Badge } from "./badge"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/Button"
+import { Badge } from "@/components/ui/badge"
 
 interface Filter {
   id: string

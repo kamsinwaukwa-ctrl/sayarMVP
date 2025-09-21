@@ -1,5 +1,5 @@
 // Database types for Sayar WhatsApp Commerce Platform
-import type { Merchant } from './merchant'
+import type { Merchant } from '@/types/merchant'
 
 export interface User {
   id: string

@@ -1,8 +1,8 @@
 //import * as React from "react"
 import { useController, UseControllerProps, FieldValues, FieldPath } from "react-hook-form"
-import { cn } from "../../lib/utils"
-import { FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "../ui/form"
-import { Textarea } from "../ui/textarea"
+import { cn } from "@/lib/utils"
+import { FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form"
+import { Textarea } from "@/components/ui/textarea"
 
 interface TextareaFieldProps<
   TFieldValues extends FieldValues = FieldValues,

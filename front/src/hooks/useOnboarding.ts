@@ -10,9 +10,9 @@ import {
   saveOnboardingProgress,
   getOnboardingProgress,
   trackOnboardingEvent
-} from '../lib/onboarding'
-import { ONBOARDING_EVENTS } from '../constants/onboarding'
-import type { OnboardingStep, OnboardingState } from '../types/onboarding'
+} from '@/lib/onboarding'
+import { ONBOARDING_EVENTS } from '@/constants/onboarding'
+import type { OnboardingStep, OnboardingState } from '@/types/onboarding'
 
 export function useOnboarding(): OnboardingState {
   const navigate = useNavigate()

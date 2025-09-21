@@ -1,6 +1,6 @@
 import * as React from "react"
-import { cn } from "../../lib/utils"
-import { Button } from "./Button"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/Button"
 
 interface EmptyStateProps extends React.HTMLAttributes<HTMLDivElement> {
   icon?: React.ComponentType<{ className?: string }>

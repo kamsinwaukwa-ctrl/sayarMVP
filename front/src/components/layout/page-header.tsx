@@ -1,7 +1,7 @@
 import * as React from "react"
-import { cn } from "../../lib/utils"
-import { Button } from "../ui/Button"
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "../ui/breadcrumb"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/Button"
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 
 interface BreadcrumbItem {
   label: string

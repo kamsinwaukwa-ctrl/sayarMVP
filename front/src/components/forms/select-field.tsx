@@ -1,8 +1,8 @@
 //import * as React from "react"
 import { useController, UseControllerProps, FieldValues, FieldPath } from "react-hook-form"
-import { cn } from "../../lib/utils"
-import { FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "../ui/form"
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "../ui/Select"
+import { cn } from "@/lib/utils"
+import { FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form"
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/Select"
 
 interface SelectOption {
   value: string

@@ -3,10 +3,10 @@
  */
 
 import { useState, useCallback } from 'react'
-import { useOnboarding } from './useOnboarding'
-import { trackOnboardingEvent } from '../lib/onboarding'
-import { ONBOARDING_EVENTS } from '../constants/onboarding'
-import type { OnboardingStep } from '../types/onboarding'
+import { useOnboarding } from '@/hooks/useOnboarding'
+import { trackOnboardingEvent } from '@/lib/onboarding'
+import { ONBOARDING_EVENTS } from '@/constants/onboarding'
+import type { OnboardingStep } from '@/types/onboarding'
 
 interface UseOnboardingStepOptions {
   stepNumber: OnboardingStep

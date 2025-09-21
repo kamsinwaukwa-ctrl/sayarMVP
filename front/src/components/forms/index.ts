@@ -10,6 +10,6 @@ export { SwitchField } from './switch-field'
 export { CheckboxField } from './checkbox-field'
 
 // Re-export form utilities for convenience
-export * from '../ui/form'
-export * from '../ui/form-section'
-export * from '../ui/form-actions'
+export * from '@/components/ui/form'
+export * from '@/components/ui/form-section'
+export * from '@/components/ui/form-actions'

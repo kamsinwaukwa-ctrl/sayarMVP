@@ -1,7 +1,7 @@
 import * as React from "react"
-import { cn } from "../../lib/utils"
-import { Sidebar, type SidebarSection } from "./sidebar"
-import { Header } from "./header"
+import { cn } from "@/lib/utils"
+import { Sidebar, type SidebarSection } from "@/components/layout/sidebar"
+import { Header } from "@/components/layout/header"
 
 interface AppShellProps extends React.HTMLAttributes<HTMLDivElement> {
   sidebarSections: SidebarSection[]

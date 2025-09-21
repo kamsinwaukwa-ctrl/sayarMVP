@@ -1,11 +1,11 @@
 import * as React from "react"
 import { ChevronUp, ChevronDown } from "lucide-react"
-import { cn } from "../../lib/utils"
-//import { Button } from "./Button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./table"
-import { EmptyState } from "./empty-state"
-import { Pagination } from "./pagination"
-import { LoadingSpinner } from "./LoadingSpinner"
+import { cn } from "@/lib/utils"
+//import { Button } from "@/components/ui/Button"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { EmptyState } from "@/components/ui/empty-state"
+import { Pagination } from "@/components/ui/pagination"
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 
 interface TableColumn<T> {
   key: keyof T | string

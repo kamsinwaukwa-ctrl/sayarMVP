@@ -1,11 +1,11 @@
 import { Routes, Route } from 'react-router-dom'
-import { AuthProvider } from './context/AuthProvider'
-import Dashboard from './pages/Dashboard'
-import Login from './pages/Login'
-import Signup from './pages/Signup'
-import Logout from './pages/Logout'
-import ProtectedRoute from './components/ProtectedRoute'
-import UIShowcase from './pages/_dev/ui'
+import { AuthProvider } from '@/context/AuthProvider'
+import Dashboard from '@/pages/Dashboard'
+import Login from '@/pages/Login'
+import Signup from '@/pages/Signup'
+import Logout from '@/pages/Logout'
+import ProtectedRoute from '@/components/ProtectedRoute'
+import UIShowcase from '@/pages/_dev/ui'
 
 function App() {
   return (

@@ -9,12 +9,12 @@ import { useForm } from 'react-hook-form'
 import { yupResolver } from '@hookform/resolvers/yup'
 import * as yup from 'yup'
 import { Eye, EyeOff } from 'lucide-react'
-import { useAuth } from '../../hooks/useAuth'
-import { AuthRequest } from '../../types/api'
-import { Button } from '../ui/Button'
-import { Input } from '../ui/Input'
-import { Label } from '../ui/label'
-import { Alert, AlertDescription } from '../ui/Alert'
+import { useAuth } from '@/hooks/useAuth'
+import { AuthRequest } from '@/types/api'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/Alert'
 
 const loginSchema = yup.object({
   email: yup

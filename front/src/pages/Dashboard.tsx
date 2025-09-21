@@ -4,12 +4,12 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Typography } from '../components/ui/Typography'
-import { Button } from '../components/ui/Button'
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
-import { Alert } from '../components/ui/Alert'
-import { LoadingSpinner } from '../components/ui/LoadingSpinner'
-import { Badge } from '../components/ui/badge'
+import { Typography } from '@/components/ui/Typography'
+import { Button } from '@/components/ui/Button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Alert } from '@/components/ui/Alert'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { Badge } from '@/components/ui/badge'
 import {
   Store,
   ShoppingCart,
@@ -29,9 +29,9 @@ import {
   Home,
   Settings
 } from 'lucide-react'
-import { Sidebar, type SidebarSection } from '../components/layout'
-import { useAuth } from '../hooks/useAuth'
-import { apiClient } from '../lib/api-client'
+import { Sidebar, type SidebarSection } from '@/components/layout'
+import { useAuth } from '@/hooks/useAuth'
+import { apiClient } from '@/lib/api-client'
 import {
   SetupCard,
   BrandBasicsSetup,
@@ -39,9 +39,9 @@ import {
   WhatsAppIntegrationSetup,
   DeliveryRatesSetup,
   PaymentsSetup
-} from '../components/setup'
+} from '@/components/setup'
 import { useToast } from '@/hooks/use-toast'
-import { MerchantSummary } from '../types/merchant'
+import { MerchantSummary } from '@/types/merchant'
 
 const Dashboard = () => {
   const {

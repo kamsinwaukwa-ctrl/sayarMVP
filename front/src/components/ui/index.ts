@@ -79,7 +79,7 @@ export * from './data-table'
 export * from './command-palette'
 
 // Hooks
-export * from '../../hooks/use-toast'
+export * from '@/hooks/use-toast'
 
 // Export types for TypeScript support
 export type { ButtonProps } from './Button'

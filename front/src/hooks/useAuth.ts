@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react'
-import { AuthRequest, RegisterRequest } from '../types/api'
-import { OnboardingProgressData } from '../types/onboarding'
-import { Merchant } from '../types/merchant'
+import { AuthRequest, RegisterRequest } from '@/types/api'
+import { OnboardingProgressData } from '@/types/onboarding'
+import { Merchant } from '@/types/merchant'
 
 export interface User {
   id: string

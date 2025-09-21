@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
-import { apiClient, ApiClientError } from '../lib/api-client'
-import { onboardingApi } from '../lib/api/onboarding'
-import { AuthRequest, RegisterRequest } from '../types/api'
-import { User, AuthContextType } from './useAuth'
-import { Merchant } from '../types/merchant'
-import { OnboardingProgressData } from '../types/onboarding'
+import { apiClient, ApiClientError } from '@/lib/api-client'
+import { onboardingApi } from '@/lib/api/onboarding'
+import { AuthRequest, RegisterRequest } from '@/types/api'
+import { User, AuthContextType } from '@/hooks/useAuth'
+import { Merchant } from '@/types/merchant'
+import { OnboardingProgressData } from '@/types/onboarding'
 
 export function useAuthState(): AuthContextType {
   const [user, setUser] = useState<User | null>(null)

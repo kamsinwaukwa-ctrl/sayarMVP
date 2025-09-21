@@ -69,7 +69,7 @@ export interface RegisterResponse {
 }
 
 // Merchant Types
-import type { MerchantSummary, CreateMerchantRequest } from './merchant'
+import type { MerchantSummary, CreateMerchantRequest } from '@/types/merchant'
 
 export type { CreateMerchantRequest }
 export type MerchantResponse = MerchantSummary

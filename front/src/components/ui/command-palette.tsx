@@ -1,8 +1,8 @@
 import * as React from "react"
 import { Search, Command as CommandIcon } from "lucide-react"
-import { cn } from "../../lib/utils"
-import { Dialog, DialogContent } from "./dialog"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "./command"
+import { cn } from "@/lib/utils"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 
 interface CommandAction {
   id: string

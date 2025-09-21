@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { ApiClient, ApiClientError } from '../lib/api-client'
+import { ApiClient, ApiClientError } from '@/lib/api-client'
 
 // Mock fetch
 global.fetch = vi.fn()

@@ -1,8 +1,8 @@
 import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { cn } from "../../lib/utils"
-import { Button } from "../ui/Button"
-import { Badge } from "../ui/badge"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/Button"
+import { Badge } from "@/components/ui/badge"
 
 interface NavItem {
   label: string
