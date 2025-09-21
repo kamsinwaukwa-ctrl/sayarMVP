@@ -5,7 +5,6 @@ Handles file validation, upload, and signed URL generation
 
 import os
 import re
-import magic
 from typing import BinaryIO, Tuple, Optional
 from uuid import UUID
 from datetime import datetime, timedelta
@@ -23,6 +22,45 @@ from ..utils.logger import get_logger
 from ..utils.metrics import increment_counter, record_histogram
 
 logger = get_logger(__name__)
+
+def _detect_mime_type_from_signature(file_content: bytes, file_ext: str) -> str:
+    """
+    Detect MIME type from file signature (magic bytes) and extension.
+    
+    Args:
+        file_content: File content as bytes
+        file_ext: File extension (e.g., '.png', '.jpg')
+        
+    Returns:
+        MIME type string
+    """
+    # File signature mappings for common image formats
+    signatures = {
+        b'\x89PNG\r\n\x1a\n': 'image/png',
+        b'\xff\xd8\xff': 'image/jpeg',
+        b'\x47\x49\x46\x38': 'image/gif',  # GIF87a or GIF89a
+        b'RIFF': 'image/webp',  # WebP files start with RIFF
+        b'\x00\x00\x01\x00': 'image/x-icon',  # ICO files
+        b'BM': 'image/bmp',
+    }
+    
+    # Check file signatures
+    for signature, mime_type in signatures.items():
+        if file_content.startswith(signature):
+            return mime_type
+    
+    # Fallback to extension-based detection
+    extension_mime_map = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+        '.ico': 'image/x-icon',
+        '.bmp': 'image/bmp',
+    }
+    
+    return extension_mime_map.get(file_ext.lower(), 'application/octet-stream')
 
 class StorageClient:
     """Singleton Supabase Storage client for media operations."""
@@ -118,9 +156,15 @@ def validate_logo_file(file: UploadFile, max_size: Optional[int] = None) -> Tupl
         logger.warning("Empty file uploaded")
         raise HTTPException(status_code=400, detail="Empty file not allowed")
     
-    # Validate MIME type using python-magic
+    # Validate MIME type using file signature and extension
     try:
-        mime_type = magic.from_buffer(file_content, mime=True)
+        # Get MIME type from FastAPI UploadFile first
+        mime_type = file.content_type
+        
+        # If content_type is not available or unreliable, use file signature
+        if not mime_type or mime_type == "application/octet-stream":
+            mime_type = _detect_mime_type_from_signature(file_content, file_ext)
+        
         if mime_type not in allowed_types:
             logger.warning(f"Invalid MIME type: {mime_type}")
             raise HTTPException(
