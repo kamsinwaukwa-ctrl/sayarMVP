@@ -3,7 +3,7 @@ fastapi==0.104.1
 uvicorn==0.24.0
 
 # Data validation and serialization
-pydantic==2.7.1
+pydantic[email]==2.7.1
 python-dateutil==2.9.0
 
 # Database
