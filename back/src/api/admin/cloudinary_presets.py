@@ -14,7 +14,7 @@ from ...models.cloudinary import (
     PresetListResponse,
     PresetStatsResponse,
     PresetProfileStatsResponse,
-    PresetProfile
+    PresetProfile,
 )
 from ...models.errors import APIError, ErrorCode
 from ...services.cloudinary_service import CloudinaryService
@@ -25,18 +25,20 @@ from ...config.cloudinary_presets import (
     QUALITY_TARGETS,
     get_preset_by_id,
     get_profile_by_id,
-    validate_preset_configuration
+    validate_preset_configuration,
 )
 from ...auth.dependencies import get_current_admin_user
 from ...models.sqlalchemy_models import Merchant
 
-router = APIRouter(prefix="/api/v1/admin/cloudinary/presets", tags=["admin", "cloudinary", "presets"])
+router = APIRouter(
+    prefix="/api/v1/admin/cloudinary/presets", tags=["admin", "cloudinary", "presets"]
+)
 
 
 @router.get("/", response_model=PresetManagementResponse)
 async def list_presets(
     admin_user: Merchant = Depends(get_current_admin_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     List all available Cloudinary transformation presets
@@ -59,28 +61,20 @@ async def list_presets(
                     "max_height": preset.constraints.max_height,
                     "min_quality": preset.constraints.min_quality,
                     "max_file_size_kb": preset.constraints.max_file_size_kb,
-                    "maintain_aspect_ratio": preset.constraints.maintain_aspect_ratio
+                    "maintain_aspect_ratio": preset.constraints.maintain_aspect_ratio,
                 },
-                "quality_targets": QUALITY_TARGETS["file_size_kb"].get(preset_id, {})
+                "quality_targets": QUALITY_TARGETS["file_size_kb"].get(preset_id, {}),
             }
             presets_data.append(preset_data)
 
-        return PresetManagementResponse(
-            success=True,
-            data={"presets": presets_data}
-        )
+        return PresetManagementResponse(success=True, data={"presets": presets_data})
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to list presets: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to list presets: {str(e)}")
 
 
 @router.get("/profiles", response_model=PresetManagementResponse)
-async def list_preset_profiles(
-    admin_user: Merchant = Depends(get_current_admin_user)
-):
+async def list_preset_profiles(admin_user: Merchant = Depends(get_current_admin_user)):
     """
     List all available preset profiles
     """
@@ -94,19 +88,15 @@ async def list_preset_profiles(
                 "description": profile.description,
                 "presets": profile.presets,
                 "default_eager_variants": profile.default_eager_variants,
-                "recommended_for": profile.recommended_for
+                "recommended_for": profile.recommended_for,
             }
             profiles_data.append(profile_data)
 
-        return PresetManagementResponse(
-            success=True,
-            data={"profiles": profiles_data}
-        )
+        return PresetManagementResponse(success=True, data={"profiles": profiles_data})
 
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to list profiles: {str(e)}"
+            status_code=500, detail=f"Failed to list profiles: {str(e)}"
         )
 
 
@@ -114,7 +104,7 @@ async def list_preset_profiles(
 async def test_preset(
     request: PresetTestRequest,
     admin_user: Merchant = Depends(get_current_admin_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Test a preset transformation with a sample image
@@ -123,14 +113,12 @@ async def test_preset(
         # Validate preset exists
         if request.preset_id not in STANDARD_PRESETS:
             raise HTTPException(
-                status_code=404,
-                detail=f"Preset {request.preset_id} not found"
+                status_code=404, detail=f"Preset {request.preset_id} not found"
             )
 
         cloudinary_client = CloudinaryClient()
         result = cloudinary_client.test_preset_transformation(
-            preset_id=request.preset_id,
-            test_image_url=request.test_image_url
+            preset_id=request.preset_id, test_image_url=request.test_image_url
         )
 
         return result
@@ -138,10 +126,7 @@ async def test_preset(
     except APIError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to test preset: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to test preset: {str(e)}")
 
 
 @router.get("/stats", response_model=List[PresetStatsResponse])
@@ -150,7 +135,7 @@ async def get_preset_statistics(
     preset_id: Optional[str] = Query(None, description="Filter by preset ID"),
     days: int = Query(30, ge=1, le=365, description="Number of days to include"),
     admin_user: Merchant = Depends(get_current_admin_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get preset usage statistics
@@ -161,11 +146,10 @@ async def get_preset_statistics(
         if merchant_id:
             # Get stats for specific merchant
             from uuid import UUID
+
             merchant_uuid = UUID(merchant_id)
             stats = cloudinary_service.get_preset_statistics(
-                merchant_id=merchant_uuid,
-                preset_id=preset_id,
-                days=days
+                merchant_id=merchant_uuid, preset_id=preset_id, days=days
             )
         else:
             # Get global stats (admin only feature)
@@ -178,28 +162,29 @@ async def get_preset_statistics(
         for stat in stats:
             preset_config = STANDARD_PRESETS.get(stat["preset_id"])
             if preset_config:
-                response_stats.append(PresetStatsResponse(
-                    preset_id=stat["preset_id"],
-                    name=preset_config.name,
-                    transformation=preset_config.transformation,
-                    use_cases=preset_config.use_cases,
-                    eager=preset_config.eager,
-                    stats={
-                        "preset_id": stat["preset_id"],
-                        "usage_count": stat["usage_count"],
-                        "avg_file_size_kb": stat["avg_file_size_kb"],
-                        "avg_processing_time_ms": stat["avg_processing_time_ms"],
-                        "quality_score_avg": stat["quality_score_avg"],
-                        "last_used_at": stat["last_used_at"]
-                    }
-                ))
+                response_stats.append(
+                    PresetStatsResponse(
+                        preset_id=stat["preset_id"],
+                        name=preset_config.name,
+                        transformation=preset_config.transformation,
+                        use_cases=preset_config.use_cases,
+                        eager=preset_config.eager,
+                        stats={
+                            "preset_id": stat["preset_id"],
+                            "usage_count": stat["usage_count"],
+                            "avg_file_size_kb": stat["avg_file_size_kb"],
+                            "avg_processing_time_ms": stat["avg_processing_time_ms"],
+                            "quality_score_avg": stat["quality_score_avg"],
+                            "last_used_at": stat["last_used_at"],
+                        },
+                    )
+                )
 
         return response_stats
 
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get statistics: {str(e)}"
+            status_code=500, detail=f"Failed to get statistics: {str(e)}"
         )
 
 
@@ -208,7 +193,7 @@ async def get_profile_statistics(
     merchant_id: Optional[str] = Query(None, description="Filter by merchant ID"),
     days: int = Query(30, ge=1, le=365, description="Number of days to include"),
     admin_user: Merchant = Depends(get_current_admin_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get preset profile usage statistics
@@ -221,6 +206,7 @@ async def get_profile_statistics(
 
             if merchant_id:
                 from uuid import UUID
+
                 merchant_uuid = UUID(merchant_id)
 
                 # Get stats for all presets in this profile
@@ -230,58 +216,65 @@ async def get_profile_statistics(
 
                 for variant_name, preset_id in profile_config.presets.items():
                     stats = cloudinary_service.get_preset_statistics(
-                        merchant_id=merchant_uuid,
-                        preset_id=preset_id,
-                        days=days
+                        merchant_id=merchant_uuid, preset_id=preset_id, days=days
                     )
 
                     for stat in stats:
                         preset_config = STANDARD_PRESETS.get(stat["preset_id"])
                         if preset_config:
-                            preset_stats.append(PresetStatsResponse(
-                                preset_id=stat["preset_id"],
-                                name=preset_config.name,
-                                transformation=preset_config.transformation,
-                                use_cases=preset_config.use_cases,
-                                eager=preset_config.eager,
-                                stats={
-                                    "preset_id": stat["preset_id"],
-                                    "usage_count": stat["usage_count"],
-                                    "avg_file_size_kb": stat["avg_file_size_kb"],
-                                    "avg_processing_time_ms": stat["avg_processing_time_ms"],
-                                    "quality_score_avg": stat["quality_score_avg"],
-                                    "last_used_at": stat["last_used_at"]
-                                }
-                            ))
+                            preset_stats.append(
+                                PresetStatsResponse(
+                                    preset_id=stat["preset_id"],
+                                    name=preset_config.name,
+                                    transformation=preset_config.transformation,
+                                    use_cases=preset_config.use_cases,
+                                    eager=preset_config.eager,
+                                    stats={
+                                        "preset_id": stat["preset_id"],
+                                        "usage_count": stat["usage_count"],
+                                        "avg_file_size_kb": stat["avg_file_size_kb"],
+                                        "avg_processing_time_ms": stat[
+                                            "avg_processing_time_ms"
+                                        ],
+                                        "quality_score_avg": stat["quality_score_avg"],
+                                        "last_used_at": stat["last_used_at"],
+                                    },
+                                )
+                            )
 
                             total_usage += stat["usage_count"]
                             if stat["avg_processing_time_ms"]:
-                                total_processing_time.append(stat["avg_processing_time_ms"])
+                                total_processing_time.append(
+                                    stat["avg_processing_time_ms"]
+                                )
 
-                avg_processing_time = sum(total_processing_time) // len(total_processing_time) if total_processing_time else None
+                avg_processing_time = (
+                    sum(total_processing_time) // len(total_processing_time)
+                    if total_processing_time
+                    else None
+                )
 
-                profile_stats.append(PresetProfileStatsResponse(
-                    profile_id=profile_id,
-                    name=profile_config.name,
-                    description=profile_config.description,
-                    total_usage=total_usage,
-                    avg_processing_time_ms=avg_processing_time,
-                    presets=preset_stats
-                ))
+                profile_stats.append(
+                    PresetProfileStatsResponse(
+                        profile_id=profile_id,
+                        name=profile_config.name,
+                        description=profile_config.description,
+                        total_usage=total_usage,
+                        avg_processing_time_ms=avg_processing_time,
+                        presets=preset_stats,
+                    )
+                )
 
         return profile_stats
 
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get profile statistics: {str(e)}"
+            status_code=500, detail=f"Failed to get profile statistics: {str(e)}"
         )
 
 
 @router.get("/validate", response_model=PresetManagementResponse)
-async def validate_presets(
-    admin_user: Merchant = Depends(get_current_admin_user)
-):
+async def validate_presets(admin_user: Merchant = Depends(get_current_admin_user)):
     """
     Validate all preset configurations
     """
@@ -292,10 +285,14 @@ async def validate_presets(
             success=validation_result,
             data={
                 "valid": validation_result,
-                "message": "All presets are valid" if validation_result else "Some presets have validation errors",
+                "message": (
+                    "All presets are valid"
+                    if validation_result
+                    else "Some presets have validation errors"
+                ),
                 "presets_count": len(STANDARD_PRESETS),
-                "profiles_count": len(PRESET_PROFILES)
-            }
+                "profiles_count": len(PRESET_PROFILES),
+            },
         )
 
     except Exception as e:
@@ -304,15 +301,15 @@ async def validate_presets(
             data={
                 "valid": False,
                 "message": f"Validation failed: {str(e)}",
-                "error": str(e)
-            }
+                "error": str(e),
+            },
         )
 
 
 @router.get("/health", response_model=PresetManagementResponse)
 async def check_preset_health(
     admin_user: Merchant = Depends(get_current_admin_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Check health of preset system and Cloudinary integration
@@ -340,22 +337,19 @@ async def check_preset_health(
                 "preset_config_valid": config_valid,
                 "database_healthy": db_healthy,
                 "presets_available": len(STANDARD_PRESETS),
-                "profiles_available": len(PRESET_PROFILES)
-            }
+                "profiles_available": len(PRESET_PROFILES),
+            },
         )
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Health check failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
 
 
 @router.get("/performance", response_model=PresetManagementResponse)
 async def get_performance_metrics(
     days: int = Query(7, ge=1, le=90, description="Number of days to analyze"),
     admin_user: Merchant = Depends(get_current_admin_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Get performance metrics for preset system
@@ -386,30 +380,37 @@ async def get_performance_metrics(
         for row in result:
             preset_config = STANDARD_PRESETS.get(row[0])
             if preset_config:
-                target_size = QUALITY_TARGETS["file_size_kb"].get(row[0], {}).get("target", 0)
-                performance_data.append({
-                    "preset_id": row[0],
-                    "preset_name": preset_config.name,
-                    "total_merchants": row[1],
-                    "total_usage": row[2],
-                    "avg_file_size_kb": round(row[3], 1) if row[3] else None,
-                    "avg_processing_time_ms": round(row[4], 1) if row[4] else None,
-                    "avg_quality_score": round(row[5], 1) if row[5] else None,
-                    "target_file_size_kb": target_size,
-                    "size_efficiency": round((target_size / row[3]) * 100, 1) if row[3] and target_size else None
-                })
+                target_size = (
+                    QUALITY_TARGETS["file_size_kb"].get(row[0], {}).get("target", 0)
+                )
+                performance_data.append(
+                    {
+                        "preset_id": row[0],
+                        "preset_name": preset_config.name,
+                        "total_merchants": row[1],
+                        "total_usage": row[2],
+                        "avg_file_size_kb": round(row[3], 1) if row[3] else None,
+                        "avg_processing_time_ms": round(row[4], 1) if row[4] else None,
+                        "avg_quality_score": round(row[5], 1) if row[5] else None,
+                        "target_file_size_kb": target_size,
+                        "size_efficiency": (
+                            round((target_size / row[3]) * 100, 1)
+                            if row[3] and target_size
+                            else None
+                        ),
+                    }
+                )
 
         return PresetManagementResponse(
             success=True,
             data={
                 "period_days": days,
                 "performance_metrics": performance_data,
-                "analysis_timestamp": datetime.utcnow().isoformat()
-            }
+                "analysis_timestamp": datetime.utcnow().isoformat(),
+            },
         )
 
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get performance metrics: {str(e)}"
+            status_code=500, detail=f"Failed to get performance metrics: {str(e)}"
         )

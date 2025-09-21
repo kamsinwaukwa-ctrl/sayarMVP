@@ -21,7 +21,9 @@ pytestmark = pytest.mark.asyncio
 class TestMetaSyncStatusAPI:
     """Test Meta sync status endpoint"""
 
-    async def test_get_sync_status_success_synced(self, app_client: AsyncClient, test_merchant_jwt: str, test_db: AsyncSession):
+    async def test_get_sync_status_success_synced(
+        self, app_client: AsyncClient, test_merchant_jwt: str, test_db: AsyncSession
+    ):
         """Test successful status retrieval for synced product"""
         # Create test product with synced status
         merchant_id = UUID("550e8400-e29b-41d4-a716-446655440000")
@@ -38,7 +40,7 @@ class TestMetaSyncStatusAPI:
                 meta_sync_status=MetaSyncStatus.SYNCED.value,
                 meta_catalog_visible=True,
                 meta_last_synced_at=datetime.now(),
-                retailer_id="meta_test_prod123"
+                retailer_id="meta_test_prod123",
             )
         )
         await test_db.commit()
@@ -46,7 +48,7 @@ class TestMetaSyncStatusAPI:
         # Get sync status
         response = await app_client.get(
             f"/api/v1/products/{product_id}/meta-sync",
-            headers={"Authorization": f"Bearer {test_merchant_jwt}"}
+            headers={"Authorization": f"Bearer {test_merchant_jwt}"},
         )
 
         # Verify response
@@ -56,7 +58,9 @@ class TestMetaSyncStatusAPI:
         assert data["reason"] is None
         assert data["last_synced_at"] is not None
 
-    async def test_get_sync_status_error_with_reason(self, app_client: AsyncClient, test_merchant_jwt: str, test_db: AsyncSession):
+    async def test_get_sync_status_error_with_reason(
+        self, app_client: AsyncClient, test_merchant_jwt: str, test_db: AsyncSession
+    ):
         """Test status retrieval for product with error and reason"""
         # Create test product with error status and reason
         merchant_id = UUID("550e8400-e29b-41d4-a716-446655440000")
@@ -75,7 +79,7 @@ class TestMetaSyncStatusAPI:
                 meta_catalog_visible=True,
                 meta_sync_errors=["Invalid image_url parameter"],
                 meta_sync_reason=error_reason,
-                retailer_id="meta_test_prod124"
+                retailer_id="meta_test_prod124",
             )
         )
         await test_db.commit()
@@ -83,7 +87,7 @@ class TestMetaSyncStatusAPI:
         # Get sync status
         response = await app_client.get(
             f"/api/v1/products/{product_id}/meta-sync",
-            headers={"Authorization": f"Bearer {test_merchant_jwt}"}
+            headers={"Authorization": f"Bearer {test_merchant_jwt}"},
         )
 
         # Verify response
@@ -93,7 +97,9 @@ class TestMetaSyncStatusAPI:
         assert data["reason"] == error_reason
         assert data["last_synced_at"] is None
 
-    async def test_get_sync_status_pending_no_reason(self, app_client: AsyncClient, test_merchant_jwt: str, test_db: AsyncSession):
+    async def test_get_sync_status_pending_no_reason(
+        self, app_client: AsyncClient, test_merchant_jwt: str, test_db: AsyncSession
+    ):
         """Test status retrieval for pending product"""
         # Create test product with pending status
         merchant_id = UUID("550e8400-e29b-41d4-a716-446655440000")
@@ -109,7 +115,7 @@ class TestMetaSyncStatusAPI:
                 sku="SYNC-TEST-003",
                 meta_sync_status=MetaSyncStatus.PENDING.value,
                 meta_catalog_visible=True,
-                retailer_id="meta_test_prod125"
+                retailer_id="meta_test_prod125",
             )
         )
         await test_db.commit()
@@ -117,7 +123,7 @@ class TestMetaSyncStatusAPI:
         # Get sync status
         response = await app_client.get(
             f"/api/v1/products/{product_id}/meta-sync",
-            headers={"Authorization": f"Bearer {test_merchant_jwt}"}
+            headers={"Authorization": f"Bearer {test_merchant_jwt}"},
         )
 
         # Verify response
@@ -127,19 +133,23 @@ class TestMetaSyncStatusAPI:
         assert data["reason"] is None
         assert data["last_synced_at"] is None
 
-    async def test_get_sync_status_product_not_found(self, app_client: AsyncClient, test_merchant_jwt: str):
+    async def test_get_sync_status_product_not_found(
+        self, app_client: AsyncClient, test_merchant_jwt: str
+    ):
         """Test status retrieval for non-existent product"""
         non_existent_id = UUID("999e8400-e29b-41d4-a716-446655440000")
 
         response = await app_client.get(
             f"/api/v1/products/{non_existent_id}/meta-sync",
-            headers={"Authorization": f"Bearer {test_merchant_jwt}"}
+            headers={"Authorization": f"Bearer {test_merchant_jwt}"},
         )
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    async def test_get_sync_status_cross_tenant_isolation(self, app_client: AsyncClient, test_db: AsyncSession):
+    async def test_get_sync_status_cross_tenant_isolation(
+        self, app_client: AsyncClient, test_db: AsyncSession
+    ):
         """Test that users cannot access other merchants' product status"""
         # Create product for one merchant
         merchant1_id = UUID("550e8400-e29b-41d4-a716-446655440000")
@@ -156,7 +166,7 @@ class TestMetaSyncStatusAPI:
                 sku="CROSS-TENANT-001",
                 meta_sync_status=MetaSyncStatus.SYNCED.value,
                 meta_catalog_visible=True,
-                retailer_id="meta_test_cross"
+                retailer_id="meta_test_cross",
             )
         )
         await test_db.commit()
@@ -167,7 +177,7 @@ class TestMetaSyncStatusAPI:
         # Try to access merchant 1's product with merchant 2's JWT
         response = await app_client.get(
             f"/api/v1/products/{product_id}/meta-sync",
-            headers={"Authorization": f"Bearer {merchant2_jwt}"}
+            headers={"Authorization": f"Bearer {merchant2_jwt}"},
         )
 
         assert response.status_code == 404
@@ -180,7 +190,9 @@ class TestMetaSyncStatusAPI:
 
         assert response.status_code == 401
 
-    async def test_legacy_rows_reason_backfilled_on_read(self, app_client: AsyncClient, test_merchant_jwt: str, test_db: AsyncSession):
+    async def test_legacy_rows_reason_backfilled_on_read(
+        self, app_client: AsyncClient, test_merchant_jwt: str, test_db: AsyncSession
+    ):
         """Test that legacy rows get reason backfilled on first read"""
         # Create test product with error status but no reason (legacy row)
         merchant_id = UUID("550e8400-e29b-41d4-a716-446655440000")
@@ -196,9 +208,12 @@ class TestMetaSyncStatusAPI:
                 sku="LEGACY-TEST-001",
                 meta_sync_status=MetaSyncStatus.ERROR.value,
                 meta_catalog_visible=True,
-                meta_sync_errors=["Invalid image_url parameter", "Authentication failed"],
+                meta_sync_errors=[
+                    "Invalid image_url parameter",
+                    "Authentication failed",
+                ],
                 meta_sync_reason=None,  # Legacy row with no reason
-                retailer_id="meta_legacy_prod"
+                retailer_id="meta_legacy_prod",
             )
         )
         await test_db.commit()
@@ -206,7 +221,7 @@ class TestMetaSyncStatusAPI:
         # Get sync status (should trigger backfill)
         response = await app_client.get(
             f"/api/v1/products/{product_id}/meta-sync",
-            headers={"Authorization": f"Bearer {test_merchant_jwt}"}
+            headers={"Authorization": f"Bearer {test_merchant_jwt}"},
         )
 
         # Verify response has reason
@@ -217,9 +232,7 @@ class TestMetaSyncStatusAPI:
         assert len(data["reason"]) > 0
 
         # Verify database was updated with backfilled reason
-        result = await test_db.execute(
-            select(Product).where(Product.id == product_id)
-        )
+        result = await test_db.execute(select(Product).where(Product.id == product_id))
         product = result.fetchone()
         assert product.meta_sync_reason is not None
 

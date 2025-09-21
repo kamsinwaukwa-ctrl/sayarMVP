@@ -21,7 +21,7 @@ async def upload_merchant_logo_simple(file: UploadFile, merchant_id: str, config
         cloudinary.config(
             cloud_name=config.cloud_name,
             api_key=config.api_key,
-            api_secret=config.api_secret
+            api_secret=config.api_secret,
         )
 
         # Create unique public_id for logo
@@ -34,7 +34,7 @@ async def upload_merchant_logo_simple(file: UploadFile, merchant_id: str, config
             public_id=image_uuid,
             overwrite=True,
             resource_type="image",
-            transformation="c_limit,w_500,h_500,f_auto,q_auto:good"
+            transformation="c_limit,w_500,h_500,f_auto,q_auto:good",
         )
 
         return {
@@ -49,7 +49,4 @@ async def upload_merchant_logo_simple(file: UploadFile, merchant_id: str, config
         }
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to upload logo: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to upload logo: {str(e)}")

@@ -22,7 +22,7 @@ from src.models.cloudinary import (
     PresetTestRequest,
     UploadWithPresetsRequest,
     ImageVariant,
-    ImageDimensions
+    ImageDimensions,
 )
 from src.config.cloudinary_presets import (
     STANDARD_PRESETS,
@@ -31,7 +31,7 @@ from src.config.cloudinary_presets import (
     get_profile_by_id,
     get_eager_presets_for_profile,
     get_all_presets_for_profile,
-    validate_preset_configuration
+    validate_preset_configuration,
 )
 from src.models.errors import APIError, ErrorCode
 
@@ -46,7 +46,7 @@ class TestPresetConfiguration:
             "dashboard_thumb",
             "mobile_optimized",
             "product_list",
-            "detailed_view"
+            "detailed_view",
         ]
 
         for preset_id in expected_presets:
@@ -62,7 +62,7 @@ class TestPresetConfiguration:
             PresetProfile.STANDARD,
             PresetProfile.PREMIUM,
             PresetProfile.MOBILE_FIRST,
-            PresetProfile.CATALOG_FOCUS
+            PresetProfile.CATALOG_FOCUS,
         ]
 
         for profile_id in expected_profiles:
@@ -78,10 +78,12 @@ class TestPresetConfiguration:
             transformation = preset.transformation
 
             # Check required components
-            assert 'c_' in transformation  # Crop mode
-            assert 'f_auto' in transformation  # Format auto
-            assert 'q_auto' in transformation  # Quality auto
-            assert ('w_' in transformation) or ('h_' in transformation)  # Width or height
+            assert "c_" in transformation  # Crop mode
+            assert "f_auto" in transformation  # Format auto
+            assert "q_auto" in transformation  # Quality auto
+            assert ("w_" in transformation) or (
+                "h_" in transformation
+            )  # Width or height
 
     def test_preset_configuration_validation(self):
         """Test preset configuration validation function"""
@@ -91,10 +93,14 @@ class TestPresetConfiguration:
         """Test that all profile preset references are valid"""
         for profile_id, profile in PRESET_PROFILES.items():
             for variant_name, preset_id in profile.presets.items():
-                assert preset_id in STANDARD_PRESETS, f"Profile {profile_id} references unknown preset {preset_id}"
+                assert (
+                    preset_id in STANDARD_PRESETS
+                ), f"Profile {profile_id} references unknown preset {preset_id}"
 
             for variant_name in profile.default_eager_variants:
-                assert variant_name in profile.presets, f"Profile {profile_id} has invalid eager variant {variant_name}"
+                assert (
+                    variant_name in profile.presets
+                ), f"Profile {profile_id} has invalid eager variant {variant_name}"
 
     def test_get_preset_functions(self):
         """Test preset helper functions"""
@@ -130,7 +136,7 @@ class TestCloudinaryClientWithPresets:
         monkeypatch.setenv("CLOUDINARY_API_SECRET", "test-secret")
         return CloudinaryClient()
 
-    @patch('requests.post')
+    @patch("requests.post")
     def test_upload_image_with_presets_standard(self, mock_post, configured_client):
         """Test upload with standard preset profile"""
         # Mock Cloudinary upload response
@@ -150,23 +156,23 @@ class TestCloudinaryClientWithPresets:
                     "secure_url": "https://res.cloudinary.com/cloud/image/upload/c_limit,w_1600,h_1600,f_auto,q_auto:good/v123/test.jpg",
                     "width": 1200,
                     "height": 800,
-                    "bytes": 75000
+                    "bytes": 75000,
                 },
                 {
                     "transformation": "c_fill,w_600,h_600,g_auto,f_auto,q_auto:eco",
                     "secure_url": "https://res.cloudinary.com/cloud/image/upload/c_fill,w_600,h_600,g_auto,f_auto,q_auto:eco/v123/test.jpg",
                     "width": 600,
                     "height": 600,
-                    "bytes": 45000
-                }
-            ]
+                    "bytes": 45000,
+                },
+            ],
         }
         mock_post.return_value = mock_response
 
         # Create test image content
-        img = Image.new('RGB', (1200, 800), color='red')
+        img = Image.new("RGB", (1200, 800), color="red")
         img_bytes = BytesIO()
-        img.save(img_bytes, format='JPEG')
+        img.save(img_bytes, format="JPEG")
         img_content = img_bytes.getvalue()
 
         result = configured_client.upload_image_with_presets(
@@ -174,7 +180,7 @@ class TestCloudinaryClientWithPresets:
             merchant_id="merchant_123",
             product_id="product_456",
             filename="test.jpg",
-            preset_profile=PresetProfile.STANDARD
+            preset_profile=PresetProfile.STANDARD,
         )
 
         assert result["public_id"].startswith("sayar/products/merchant_123/")
@@ -212,7 +218,7 @@ class TestCloudinaryClientWithPresets:
         url = configured_client.generate_variant_url(
             public_id="sayar/products/merchant_id/image_123",
             transformation="c_limit,w_800,h_800,f_auto,q_auto:auto",
-            version=1234567890
+            version=1234567890,
         )
 
         expected = "https://res.cloudinary.com/test-cloud/image/upload/c_limit,w_800,h_800,f_auto,q_auto:auto/v1234567890/sayar/products/merchant_id/image_123"
@@ -222,7 +228,7 @@ class TestCloudinaryClientWithPresets:
         """Test preset transformation testing"""
         result = configured_client.test_preset_transformation(
             preset_id="main_catalog",
-            test_image_url="https://res.cloudinary.com/demo/image/upload/sample.jpg"
+            test_image_url="https://res.cloudinary.com/demo/image/upload/sample.jpg",
         )
 
         assert result.success is True
@@ -234,7 +240,7 @@ class TestCloudinaryClientWithPresets:
 
     def test_verify_variant_url_exists(self, configured_client):
         """Test variant URL existence verification"""
-        with patch('requests.head') as mock_head:
+        with patch("requests.head") as mock_head:
             mock_head.return_value.status_code = 200
 
             result = configured_client.verify_variant_url_exists(
@@ -243,7 +249,7 @@ class TestCloudinaryClientWithPresets:
 
             assert result is True
 
-        with patch('requests.head') as mock_head:
+        with patch("requests.head") as mock_head:
             mock_head.return_value.status_code = 404
 
             result = configured_client.verify_variant_url_exists(
@@ -259,9 +265,7 @@ class TestCloudinaryClientWithPresets:
         version = 1234567890
 
         variants = configured_client.batch_generate_variants(
-            public_id=public_id,
-            preset_ids=preset_ids,
-            version=version
+            public_id=public_id, preset_ids=preset_ids, version=version
         )
 
         assert len(variants) == 3
@@ -282,11 +286,7 @@ class TestCloudinaryServiceWithPresets:
     @pytest.fixture
     def test_merchant(self, db_session):
         """Create test merchant"""
-        merchant = Merchant(
-            id=uuid.uuid4(),
-            name="Test Merchant",
-            currency="NGN"
-        )
+        merchant = Merchant(id=uuid.uuid4(), name="Test Merchant", currency="NGN")
         db_session.add(merchant)
         db_session.commit()
         return merchant
@@ -300,15 +300,17 @@ class TestCloudinaryServiceWithPresets:
             title="Test Product",
             price_kobo=10000,
             stock=100,
-            retailer_id=f"test_merchant_{uuid.uuid4().hex[:8]}_prod_{uuid.uuid4().hex[:8]}"
+            retailer_id=f"test_merchant_{uuid.uuid4().hex[:8]}_prod_{uuid.uuid4().hex[:8]}",
         )
         db_session.add(product)
         db_session.commit()
         return product
 
-    @patch.object(CloudinaryClient, 'upload_image_with_presets')
-    @patch.object(CloudinaryClient, 'verify_variant_url_exists')
-    def test_upload_product_image_with_presets_standard(self, mock_verify, mock_upload, service, test_product):
+    @patch.object(CloudinaryClient, "upload_image_with_presets")
+    @patch.object(CloudinaryClient, "verify_variant_url_exists")
+    def test_upload_product_image_with_presets_standard(
+        self, mock_verify, mock_upload, service, test_product
+    ):
         """Test product image upload with standard preset profile"""
         mock_verify.return_value = True
         mock_upload.return_value = {
@@ -321,7 +323,7 @@ class TestCloudinaryServiceWithPresets:
                     dimensions=ImageDimensions(width=1600, height=1067),
                     format="webp",
                     quality_score=85,
-                    processing_time_ms=850
+                    processing_time_ms=850,
                 ),
                 "thumb": ImageVariant(
                     url="https://example.com/thumb.jpg",
@@ -330,34 +332,32 @@ class TestCloudinaryServiceWithPresets:
                     dimensions=ImageDimensions(width=600, height=600),
                     format="webp",
                     quality_score=75,
-                    processing_time_ms=420
+                    processing_time_ms=420,
                 ),
                 "mobile": ImageVariant(
-                    url="https://example.com/mobile.jpg",
-                    preset_id="mobile_optimized"
+                    url="https://example.com/mobile.jpg", preset_id="mobile_optimized"
                 ),
                 "list": ImageVariant(
-                    url="https://example.com/list.jpg",
-                    preset_id="product_list"
-                )
+                    url="https://example.com/list.jpg", preset_id="product_list"
+                ),
             },
             "width": 1200,
             "height": 800,
             "format": "jpg",
             "bytes": 80000,
-            "version": 1234567890
+            "version": 1234567890,
         }
 
         # Create test image content
-        img = Image.new('RGB', (1200, 800), color='red')
+        img = Image.new("RGB", (1200, 800), color="red")
         img_bytes = BytesIO()
-        img.save(img_bytes, format='JPEG')
+        img.save(img_bytes, format="JPEG")
         img_content = img_bytes.getvalue()
 
         request = UploadWithPresetsRequest(
             is_primary=True,
             alt_text="Test image",
-            preset_profile=PresetProfile.STANDARD
+            preset_profile=PresetProfile.STANDARD,
         )
 
         result = service.upload_product_image_with_presets(
@@ -365,7 +365,7 @@ class TestCloudinaryServiceWithPresets:
             merchant_id=test_product.merchant_id,
             file_content=img_content,
             filename="test.jpg",
-            request=request
+            request=request,
         )
 
         assert isinstance(result.id, uuid.UUID)
@@ -387,9 +387,9 @@ class TestCloudinaryServiceWithPresets:
         assert main_variant.file_size_kb == 245
 
         # Check database record
-        image = service.db.query(ProductImage).filter(
-            ProductImage.id == result.id
-        ).first()
+        image = (
+            service.db.query(ProductImage).filter(ProductImage.id == result.id).first()
+        )
         assert image is not None
         assert image.preset_profile == "standard"
         assert image.variants is not None
@@ -397,44 +397,40 @@ class TestCloudinaryServiceWithPresets:
         assert image.optimization_stats is not None
         assert image.preset_version == 1
 
-    @patch.object(CloudinaryClient, 'upload_image_with_presets')
-    def test_upload_product_image_with_presets_premium(self, mock_upload, service, test_product):
+    @patch.object(CloudinaryClient, "upload_image_with_presets")
+    def test_upload_product_image_with_presets_premium(
+        self, mock_upload, service, test_product
+    ):
         """Test product image upload with premium preset profile"""
         mock_upload.return_value = {
             "public_id": "sayar/products/merchant_id/image_123",
             "variants": {
                 "main": ImageVariant(
-                    url="https://example.com/main.jpg",
-                    preset_id="main_catalog"
+                    url="https://example.com/main.jpg", preset_id="main_catalog"
                 ),
                 "thumb": ImageVariant(
-                    url="https://example.com/thumb.jpg",
-                    preset_id="dashboard_thumb"
+                    url="https://example.com/thumb.jpg", preset_id="dashboard_thumb"
                 ),
                 "mobile": ImageVariant(
-                    url="https://example.com/mobile.jpg",
-                    preset_id="mobile_optimized"
+                    url="https://example.com/mobile.jpg", preset_id="mobile_optimized"
                 ),
                 "list": ImageVariant(
-                    url="https://example.com/list.jpg",
-                    preset_id="product_list"
+                    url="https://example.com/list.jpg", preset_id="product_list"
                 ),
                 "detail": ImageVariant(
-                    url="https://example.com/detail.jpg",
-                    preset_id="detailed_view"
-                )
+                    url="https://example.com/detail.jpg", preset_id="detailed_view"
+                ),
             },
             "width": 2000,
             "height": 1333,
             "format": "jpg",
             "bytes": 120000,
-            "version": 1234567890
+            "version": 1234567890,
         }
 
         img_content = b"fake_image_content"
         request = UploadWithPresetsRequest(
-            is_primary=False,
-            preset_profile=PresetProfile.PREMIUM
+            is_primary=False, preset_profile=PresetProfile.PREMIUM
         )
 
         result = service.upload_product_image_with_presets(
@@ -442,7 +438,7 @@ class TestCloudinaryServiceWithPresets:
             merchant_id=test_product.merchant_id,
             file_content=img_content,
             filename="test.jpg",
-            request=request
+            request=request,
         )
 
         assert result.preset_profile == PresetProfile.PREMIUM
@@ -458,22 +454,31 @@ class TestCloudinaryServiceWithPresets:
             cloudinary_public_id="test_public_id",
             secure_url="https://example.com/original.jpg",
             preset_profile="standard",
-            variants={"main": {"url": "https://example.com/old_main.jpg", "preset_id": "main_catalog"}},
+            variants={
+                "main": {
+                    "url": "https://example.com/old_main.jpg",
+                    "preset_id": "main_catalog",
+                }
+            },
             optimization_stats={"original_profile": "standard"},
             preset_version=1,
             cloudinary_version=1234567890,
-            upload_status="completed"
+            upload_status="completed",
         )
         service.db.add(image)
         service.db.commit()
 
-        with patch.object(service.cloudinary_client, 'generate_variant_url') as mock_generate:
-            mock_generate.side_effect = lambda public_id, transformation, version: f"https://example.com/{transformation[:10]}.jpg"
+        with patch.object(
+            service.cloudinary_client, "generate_variant_url"
+        ) as mock_generate:
+            mock_generate.side_effect = (
+                lambda public_id, transformation, version: f"https://example.com/{transformation[:10]}.jpg"
+            )
 
             result = service.regenerate_variants_for_profile(
                 image_id=image.id,
                 merchant_id=test_product.merchant_id,
-                new_profile=PresetProfile.MOBILE_FIRST
+                new_profile=PresetProfile.MOBILE_FIRST,
             )
 
             assert result.preset_profile == PresetProfile.MOBILE_FIRST
@@ -482,9 +487,11 @@ class TestCloudinaryServiceWithPresets:
             assert "catalog" in result.variants  # Mobile-first profile specific variant
 
             # Check database was updated
-            updated_image = service.db.query(ProductImage).filter(
-                ProductImage.id == image.id
-            ).first()
+            updated_image = (
+                service.db.query(ProductImage)
+                .filter(ProductImage.id == image.id)
+                .first()
+            )
             assert updated_image.preset_profile == "mobile_first"
             assert "previous_profile" in updated_image.optimization_stats
 
@@ -504,15 +511,13 @@ class TestCloudinaryServiceWithPresets:
                 245,
                 850,
                 85.5,
-                datetime.utcnow()
-            )
+                datetime.utcnow(),
+            ),
         )
         service.db.commit()
 
         stats = service.get_preset_statistics(
-            merchant_id=test_merchant.id,
-            preset_id="main_catalog",
-            days=30
+            merchant_id=test_merchant.id, preset_id="main_catalog", days=30
         )
 
         assert len(stats) == 1
@@ -531,29 +536,24 @@ class TestCloudinaryServiceWithPresets:
                 preset_id="main_catalog",
                 file_size_kb=250,
                 processing_time_ms=800,
-                quality_score=88
+                quality_score=88,
             ),
             "thumb": ImageVariant(
                 url="https://example.com/thumb.jpg",
                 preset_id="dashboard_thumb",
                 file_size_kb=75,
                 processing_time_ms=400,
-                quality_score=80
-            )
+                quality_score=80,
+            ),
         }
 
         # Call the private method
         service._update_preset_statistics(
-            merchant_id=test_merchant.id,
-            variants=variants,
-            processing_time_ms=1200
+            merchant_id=test_merchant.id, variants=variants, processing_time_ms=1200
         )
 
         # Check that stats were created
-        stats = service.get_preset_statistics(
-            merchant_id=test_merchant.id,
-            days=1
-        )
+        stats = service.get_preset_statistics(merchant_id=test_merchant.id, days=1)
 
         assert len(stats) == 2
 
@@ -578,10 +578,9 @@ class TestPresetAdminAPI:
 
     def test_list_presets_endpoint(self, client, admin_headers):
         """Test listing all presets"""
-        with patch('src.auth.dependencies.get_current_admin_user'):
+        with patch("src.auth.dependencies.get_current_admin_user"):
             response = client.get(
-                "/api/v1/admin/cloudinary/presets/",
-                headers=admin_headers
+                "/api/v1/admin/cloudinary/presets/", headers=admin_headers
             )
 
             assert response.status_code == 200
@@ -602,10 +601,9 @@ class TestPresetAdminAPI:
 
     def test_list_preset_profiles_endpoint(self, client, admin_headers):
         """Test listing all preset profiles"""
-        with patch('src.auth.dependencies.get_current_admin_user'):
+        with patch("src.auth.dependencies.get_current_admin_user"):
             response = client.get(
-                "/api/v1/admin/cloudinary/presets/profiles",
-                headers=admin_headers
+                "/api/v1/admin/cloudinary/presets/profiles", headers=admin_headers
             )
 
             assert response.status_code == 200
@@ -617,7 +615,9 @@ class TestPresetAdminAPI:
             assert len(profiles) == 4  # 4 standard profiles
 
             # Check profile structure
-            standard_profile = next((p for p in profiles if p["id"] == "standard"), None)
+            standard_profile = next(
+                (p for p in profiles if p["id"] == "standard"), None
+            )
             assert standard_profile is not None
             assert standard_profile["name"] == "Standard Profile"
             assert "presets" in standard_profile
@@ -625,8 +625,9 @@ class TestPresetAdminAPI:
 
     def test_test_preset_endpoint(self, client, admin_headers):
         """Test preset testing endpoint"""
-        with patch('src.auth.dependencies.get_current_admin_user'), \
-             patch.object(CloudinaryClient, 'test_preset_transformation') as mock_test:
+        with patch("src.auth.dependencies.get_current_admin_user"), patch.object(
+            CloudinaryClient, "test_preset_transformation"
+        ) as mock_test:
 
             mock_test.return_value = {
                 "success": True,
@@ -635,7 +636,7 @@ class TestPresetAdminAPI:
                 "dimensions": {"width": 1600, "height": 1067},
                 "format": "webp",
                 "quality_score": 85,
-                "processing_time_ms": 500
+                "processing_time_ms": 500,
             }
 
             response = client.post(
@@ -643,8 +644,8 @@ class TestPresetAdminAPI:
                 headers=admin_headers,
                 json={
                     "preset_id": "main_catalog",
-                    "test_image_url": "https://res.cloudinary.com/demo/image/upload/sample.jpg"
-                }
+                    "test_image_url": "https://res.cloudinary.com/demo/image/upload/sample.jpg",
+                },
             )
 
             assert response.status_code == 200
@@ -665,22 +666,14 @@ class TestPresetAdminAPI:
             (merchant_id, preset_id, usage_count, avg_file_size_kb, avg_processing_time_ms, quality_score_avg, last_used_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """,
-            (
-                str(merchant.id),
-                "main_catalog",
-                15,
-                240,
-                800,
-                87.0,
-                datetime.utcnow()
-            )
+            (str(merchant.id), "main_catalog", 15, 240, 800, 87.0, datetime.utcnow()),
         )
         db_session.commit()
 
-        with patch('src.auth.dependencies.get_current_admin_user'):
+        with patch("src.auth.dependencies.get_current_admin_user"):
             response = client.get(
                 f"/api/v1/admin/cloudinary/presets/stats?merchant_id={merchant.id}&days=7",
-                headers=admin_headers
+                headers=admin_headers,
             )
 
             assert response.status_code == 200
@@ -694,10 +687,9 @@ class TestPresetAdminAPI:
 
     def test_validate_presets_endpoint(self, client, admin_headers):
         """Test preset validation endpoint"""
-        with patch('src.auth.dependencies.get_current_admin_user'):
+        with patch("src.auth.dependencies.get_current_admin_user"):
             response = client.get(
-                "/api/v1/admin/cloudinary/presets/validate",
-                headers=admin_headers
+                "/api/v1/admin/cloudinary/presets/validate", headers=admin_headers
             )
 
             assert response.status_code == 200
@@ -709,18 +701,18 @@ class TestPresetAdminAPI:
 
     def test_health_check_endpoint(self, client, admin_headers):
         """Test preset system health check"""
-        with patch('src.auth.dependencies.get_current_admin_user'), \
-             patch.object(CloudinaryService, 'health_check') as mock_health:
+        with patch("src.auth.dependencies.get_current_admin_user"), patch.object(
+            CloudinaryService, "health_check"
+        ) as mock_health:
 
             mock_health.return_value = {
                 "configured": True,
                 "cloud_name": "test-cloud",
-                "verified_at": datetime.now()
+                "verified_at": datetime.now(),
             }
 
             response = client.get(
-                "/api/v1/admin/cloudinary/presets/health",
-                headers=admin_headers
+                "/api/v1/admin/cloudinary/presets/health", headers=admin_headers
             )
 
             assert response.status_code == 200
@@ -743,22 +735,14 @@ class TestPresetAdminAPI:
             (merchant_id, preset_id, usage_count, avg_file_size_kb, avg_processing_time_ms, quality_score_avg, last_used_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """,
-            (
-                str(merchant.id),
-                "main_catalog",
-                50,
-                248,
-                750,
-                86.5,
-                recent_time
-            )
+            (str(merchant.id), "main_catalog", 50, 248, 750, 86.5, recent_time),
         )
         db_session.commit()
 
-        with patch('src.auth.dependencies.get_current_admin_user'):
+        with patch("src.auth.dependencies.get_current_admin_user"):
             response = client.get(
                 "/api/v1/admin/cloudinary/presets/performance?days=7",
-                headers=admin_headers
+                headers=admin_headers,
             )
 
             assert response.status_code == 200
@@ -788,7 +772,11 @@ class TestPresetErrorHandling:
 
     def test_malformed_transformation(self):
         """Test validation of malformed transformation strings"""
-        from src.models.cloudinary import CloudinaryTransformPreset, PresetConstraints, PresetUseCase
+        from src.models.cloudinary import (
+            CloudinaryTransformPreset,
+            PresetConstraints,
+            PresetUseCase,
+        )
 
         with pytest.raises(ValueError):
             CloudinaryTransformPreset(
@@ -797,7 +785,7 @@ class TestPresetErrorHandling:
                 description="Missing required parameters",
                 transformation="w_800",  # Missing crop, format, quality
                 use_cases=[PresetUseCase.MOBILE_OPTIMIZED],
-                constraints=PresetConstraints(max_width=800, max_height=800)
+                constraints=PresetConstraints(max_width=800, max_height=800),
             )
 
     def test_cloudinary_client_failure_fallback(self, service, monkeypatch):

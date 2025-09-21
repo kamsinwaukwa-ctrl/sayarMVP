@@ -12,6 +12,7 @@ from enum import Enum
 
 class ErrorCode(str, Enum):
     """Standard error codes for consistent error classification"""
+
     VALIDATION_ERROR = "VALIDATION_ERROR"
     AUTHENTICATION_FAILED = "AUTHENTICATION_FAILED"
     AUTHORIZATION_FAILED = "AUTHORIZATION_FAILED"
@@ -37,12 +38,19 @@ class ErrorCode(str, Enum):
 
 class ErrorDetails(BaseModel):
     """Detailed error information with optional context"""
+
     field: Optional[str] = Field(None, description="Field name for validation errors")
     reason: str = Field(..., description="Human-readable reason for the error")
-    value: Optional[Any] = Field(None, description="Invalid value that caused the error")
+    value: Optional[Any] = Field(
+        None, description="Invalid value that caused the error"
+    )
     service: Optional[str] = Field(None, description="External service that failed")
-    retry_after: Optional[float] = Field(None, description="Seconds to wait before retrying")
-    debug_trace: Optional[str] = Field(None, description="Debug traceback (development only)")
+    retry_after: Optional[float] = Field(
+        None, description="Seconds to wait before retrying"
+    )
+    debug_trace: Optional[str] = Field(
+        None, description="Debug traceback (development only)"
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -50,16 +58,14 @@ class ErrorDetails(BaseModel):
                 {
                     "field": "email",
                     "reason": "Invalid email format",
-                    "value": "invalid-email"
+                    "value": "invalid-email",
                 },
-                {
-                    "reason": "Requires admin role"
-                },
+                {"reason": "Requires admin role"},
                 {
                     "service": "paystack",
                     "reason": "Payment gateway unavailable",
-                    "retry_after": 30.0
-                }
+                    "retry_after": 30.0,
+                },
             ]
         }
     }
@@ -67,11 +73,9 @@ class ErrorDetails(BaseModel):
 
 class APIError(Exception):
     """Structured API error exception with code, message, and optional details"""
+
     def __init__(
-        self,
-        code: ErrorCode,
-        message: str,
-        details: Optional[Dict[str, Any]] = None
+        self, code: ErrorCode, message: str, details: Optional[Dict[str, Any]] = None
     ):
         self.code = code
         self.message = message
@@ -85,13 +89,14 @@ class APIError(Exception):
             "error": {
                 "code": self.code.value,
                 "message": self.message,
-                "details": self.details
-            }
+                "details": self.details,
+            },
         }
 
 
 class ErrorInfo(BaseModel):
     """Error information for API responses"""
+
     code: str = Field(..., description="Error code")
     message: str = Field(..., description="Error message")
     details: Dict[str, Any] = Field(default_factory=dict, description="Error details")
@@ -99,9 +104,12 @@ class ErrorInfo(BaseModel):
 
 class ErrorResponse(BaseModel):
     """Standard error response envelope for all API errors"""
+
     ok: bool = Field(False, description="Always false for error responses")
     error: ErrorInfo = Field(..., description="Error information")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Error timestamp")
+    timestamp: datetime = Field(
+        default_factory=datetime.utcnow, description="Error timestamp"
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -110,11 +118,9 @@ class ErrorResponse(BaseModel):
                 "error": {
                     "code": "AUTHORIZATION_FAILED",
                     "message": "Forbidden",
-                    "details": {
-                        "reason": "Requires admin role"
-                    }
+                    "details": {"reason": "Requires admin role"},
                 },
-                "timestamp": "2025-01-27T10:00:00Z"
+                "timestamp": "2025-01-27T10:00:00Z",
             }
         }
     }
@@ -123,6 +129,7 @@ class ErrorResponse(BaseModel):
 # Custom exception classes for structured error handling
 class RetryableError(Exception):
     """Exception for operations that should be retried"""
+
     def __init__(self, message: str, next_run_at: Optional[datetime] = None):
         self.message = message
         self.next_run_at = next_run_at
@@ -131,6 +138,7 @@ class RetryableError(Exception):
 
 class RateLimitedError(RetryableError):
     """Exception for rate-limited operations"""
+
     def __init__(self, message: str, details: Dict[str, Any]):
         self.details = details
         super().__init__(message=message, next_run_at=None)
@@ -138,6 +146,7 @@ class RateLimitedError(RetryableError):
 
 class UpstreamServiceError(Exception):
     """Exception for upstream service failures"""
+
     def __init__(self, service: str, status_code: int, body: str):
         self.service = service
         self.status_code = status_code
@@ -147,6 +156,7 @@ class UpstreamServiceError(Exception):
 
 class AuthzError(Exception):
     """Exception for authorization failures (403)"""
+
     def __init__(self, reason: str):
         self.reason = reason
         super().__init__(f"Authorization failed: {reason}")
@@ -154,6 +164,7 @@ class AuthzError(Exception):
 
 class AuthnError(Exception):
     """Exception for authentication failures (401)"""
+
     def __init__(self, reason: str):
         self.reason = reason
         super().__init__(f"Authentication failed: {reason}")
@@ -161,6 +172,7 @@ class AuthnError(Exception):
 
 class NotFoundError(Exception):
     """Exception for resource not found errors (404)"""
+
     def __init__(self, resource: str, identifier: Any):
         self.resource = resource
         self.identifier = identifier
@@ -169,7 +181,10 @@ class NotFoundError(Exception):
 
 class ValidationError(Exception):
     """Exception for validation errors (400)"""
-    def __init__(self, message: str, field: Optional[str] = None, value: Optional[Any] = None):
+
+    def __init__(
+        self, message: str, field: Optional[str] = None, value: Optional[Any] = None
+    ):
         self.message = message
         self.field = field
         self.value = value

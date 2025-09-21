@@ -11,7 +11,7 @@ from ..models.cloudinary import (
     PresetProfileConfig,
     PresetProfile,
     PresetUseCase,
-    PresetConstraints
+    PresetConstraints,
 )
 
 # Preset version for tracking changes
@@ -27,14 +27,10 @@ STANDARD_PRESETS: Dict[str, CloudinaryTransformPreset] = {
         use_cases=[PresetUseCase.META_CATALOG, PresetUseCase.WHATSAPP_PRODUCT],
         eager=True,
         constraints=PresetConstraints(
-            max_width=1600,
-            max_height=1600,
-            min_quality=80,
-            max_file_size_kb=300
+            max_width=1600, max_height=1600, min_quality=80, max_file_size_kb=300
         ),
-        sort_order=1
+        sort_order=1,
     ),
-
     "dashboard_thumb": CloudinaryTransformPreset(
         id="dashboard_thumb",
         name="Dashboard Thumbnail",
@@ -43,14 +39,10 @@ STANDARD_PRESETS: Dict[str, CloudinaryTransformPreset] = {
         use_cases=[PresetUseCase.DASHBOARD_THUMB],
         eager=True,
         constraints=PresetConstraints(
-            max_width=600,
-            max_height=600,
-            min_quality=70,
-            max_file_size_kb=100
+            max_width=600, max_height=600, min_quality=70, max_file_size_kb=100
         ),
-        sort_order=2
+        sort_order=2,
     ),
-
     "mobile_optimized": CloudinaryTransformPreset(
         id="mobile_optimized",
         name="Mobile Optimized",
@@ -59,14 +51,10 @@ STANDARD_PRESETS: Dict[str, CloudinaryTransformPreset] = {
         use_cases=[PresetUseCase.MOBILE_OPTIMIZED],
         eager=False,  # Generate on-demand for mobile
         constraints=PresetConstraints(
-            max_width=800,
-            max_height=800,
-            min_quality=65,
-            max_file_size_kb=150
+            max_width=800, max_height=800, min_quality=65, max_file_size_kb=150
         ),
-        sort_order=3
+        sort_order=3,
     ),
-
     "product_list": CloudinaryTransformPreset(
         id="product_list",
         name="Product List",
@@ -75,14 +63,10 @@ STANDARD_PRESETS: Dict[str, CloudinaryTransformPreset] = {
         use_cases=[PresetUseCase.PRODUCT_LIST],
         eager=False,
         constraints=PresetConstraints(
-            max_width=400,
-            max_height=300,
-            min_quality=60,
-            max_file_size_kb=50
+            max_width=400, max_height=300, min_quality=60, max_file_size_kb=50
         ),
-        sort_order=4
+        sort_order=4,
     ),
-
     "detailed_view": CloudinaryTransformPreset(
         id="detailed_view",
         name="Detailed View",
@@ -91,13 +75,10 @@ STANDARD_PRESETS: Dict[str, CloudinaryTransformPreset] = {
         use_cases=[PresetUseCase.DETAILED_VIEW],
         eager=False,  # Generate on-demand
         constraints=PresetConstraints(
-            max_width=2000,
-            max_height=2000,
-            min_quality=90,
-            max_file_size_kb=500
+            max_width=2000, max_height=2000, min_quality=90, max_file_size_kb=500
         ),
-        sort_order=5
-    )
+        sort_order=5,
+    ),
 }
 
 # Preset Profile Configurations
@@ -110,12 +91,11 @@ PRESET_PROFILES: Dict[PresetProfile, PresetProfileConfig] = {
             "main": "main_catalog",
             "thumb": "dashboard_thumb",
             "mobile": "mobile_optimized",
-            "list": "product_list"
+            "list": "product_list",
         },
         default_eager_variants=["main", "thumb"],
-        recommended_for=["general_commerce", "mixed_traffic"]
+        recommended_for=["general_commerce", "mixed_traffic"],
     ),
-
     PresetProfile.PREMIUM: PresetProfileConfig(
         profile_id=PresetProfile.PREMIUM,
         name="Premium Profile",
@@ -125,36 +105,31 @@ PRESET_PROFILES: Dict[PresetProfile, PresetProfileConfig] = {
             "thumb": "dashboard_thumb",
             "mobile": "mobile_optimized",
             "list": "product_list",
-            "detail": "detailed_view"
+            "detail": "detailed_view",
         },
         default_eager_variants=["main", "thumb", "detail"],
-        recommended_for=["luxury_brands", "high_quality_products"]
+        recommended_for=["luxury_brands", "high_quality_products"],
     ),
-
     PresetProfile.MOBILE_FIRST: PresetProfileConfig(
         profile_id=PresetProfile.MOBILE_FIRST,
         name="Mobile-First Profile",
         description="Optimized for mobile-heavy traffic with bandwidth consideration",
         presets={
             "main": "mobile_optimized",  # Use mobile as main
-            "thumb": "product_list",     # Smaller thumbs
-            "catalog": "main_catalog"    # Keep catalog quality for WhatsApp
+            "thumb": "product_list",  # Smaller thumbs
+            "catalog": "main_catalog",  # Keep catalog quality for WhatsApp
         },
         default_eager_variants=["main", "catalog"],
-        recommended_for=["mobile_heavy_traffic", "bandwidth_sensitive"]
+        recommended_for=["mobile_heavy_traffic", "bandwidth_sensitive"],
     ),
-
     PresetProfile.CATALOG_FOCUS: PresetProfileConfig(
         profile_id=PresetProfile.CATALOG_FOCUS,
         name="Catalog-Focused Profile",
         description="Optimized primarily for WhatsApp catalog performance",
-        presets={
-            "main": "main_catalog",
-            "thumb": "dashboard_thumb"
-        },
+        presets={"main": "main_catalog", "thumb": "dashboard_thumb"},
         default_eager_variants=["main"],
-        recommended_for=["whatsapp_commerce", "catalog_heavy"]
-    )
+        recommended_for=["whatsapp_commerce", "catalog_heavy"],
+    ),
 }
 
 # Quality thresholds and targets
@@ -164,13 +139,13 @@ QUALITY_TARGETS = {
         "dashboard_thumb": {"target": 80, "max": 100},
         "mobile_optimized": {"target": 120, "max": 150},
         "product_list": {"target": 35, "max": 50},
-        "detailed_view": {"target": 400, "max": 500}
+        "detailed_view": {"target": 400, "max": 500},
     },
     "loading_time_ms": {
         "3g": {"acceptable": 3000, "good": 1500},
         "4g": {"acceptable": 1000, "good": 500},
-        "wifi": {"acceptable": 500, "good": 200}
-    }
+        "wifi": {"acceptable": 500, "good": 200},
+    },
 }
 
 # Performance configuration
@@ -181,7 +156,7 @@ PERFORMANCE_CONFIG = {
     "file_size_threshold_warning": 0.15,  # 15% deviation from target
     "on_demand_cache_size_mb": 1024,
     "eager_retry_attempts": 3,
-    "transformation_timeout_seconds": 30
+    "transformation_timeout_seconds": 30,
 }
 
 
@@ -199,7 +174,9 @@ def get_profile_by_id(profile_id: PresetProfile) -> PresetProfileConfig:
     return PRESET_PROFILES[profile_id]
 
 
-def get_eager_presets_for_profile(profile_id: PresetProfile) -> Dict[str, CloudinaryTransformPreset]:
+def get_eager_presets_for_profile(
+    profile_id: PresetProfile,
+) -> Dict[str, CloudinaryTransformPreset]:
     """Get all eager presets for a given profile"""
     profile = get_profile_by_id(profile_id)
     eager_presets = {}
@@ -214,7 +191,9 @@ def get_eager_presets_for_profile(profile_id: PresetProfile) -> Dict[str, Cloudi
     return eager_presets
 
 
-def get_all_presets_for_profile(profile_id: PresetProfile) -> Dict[str, CloudinaryTransformPreset]:
+def get_all_presets_for_profile(
+    profile_id: PresetProfile,
+) -> Dict[str, CloudinaryTransformPreset]:
     """Get all presets (eager and on-demand) for a given profile"""
     profile = get_profile_by_id(profile_id)
     all_presets = {}
@@ -233,20 +212,26 @@ def validate_preset_configuration() -> bool:
         for preset_id, preset in STANDARD_PRESETS.items():
             # Check transformation syntax
             transformation = preset.transformation
-            if not all(req in transformation for req in ['c_', 'f_auto', 'q_auto']):
-                raise ValueError(f"Invalid transformation for preset {preset_id}: missing required parameters")
+            if not all(req in transformation for req in ["c_", "f_auto", "q_auto"]):
+                raise ValueError(
+                    f"Invalid transformation for preset {preset_id}: missing required parameters"
+                )
 
         # Validate all profiles
         for profile_id, profile in PRESET_PROFILES.items():
             # Check that all referenced presets exist
             for variant_name, preset_id in profile.presets.items():
                 if preset_id not in STANDARD_PRESETS:
-                    raise ValueError(f"Profile {profile_id} references unknown preset: {preset_id}")
+                    raise ValueError(
+                        f"Profile {profile_id} references unknown preset: {preset_id}"
+                    )
 
             # Check that eager variants are valid
             for variant_name in profile.default_eager_variants:
                 if variant_name not in profile.presets:
-                    raise ValueError(f"Profile {profile_id} has invalid eager variant: {variant_name}")
+                    raise ValueError(
+                        f"Profile {profile_id} has invalid eager variant: {variant_name}"
+                    )
 
         return True
     except Exception:

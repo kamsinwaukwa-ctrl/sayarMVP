@@ -10,7 +10,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from uuid import UUID
 
-from ..models.sqlalchemy_models import Product, ProductImage, MetaCatalogSyncLog, Merchant
+from ..models.sqlalchemy_models import (
+    Product,
+    ProductImage,
+    MetaCatalogSyncLog,
+    Merchant,
+)
 from ..models.meta_catalog import (
     MetaCatalogSyncPayload,
     CatalogSyncAction,
@@ -18,7 +23,7 @@ from ..models.meta_catalog import (
     CatalogSyncStatus,
     MetaCatalogImageUpdate,
     IdempotencyCheck,
-    LegacyEventNormalization
+    LegacyEventNormalization,
 )
 from ..models.errors import APIError, ErrorCode, NotFoundError
 from ..utils.outbox import enqueue_job
@@ -38,16 +43,17 @@ class MetaCatalogService:
         product_id: UUID,
         merchant_id: UUID,
         primary_image_url: Optional[str] = None,
-        additional_image_urls: Optional[List[str]] = None
+        additional_image_urls: Optional[List[str]] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Detect if product images have changed and require catalog sync
         Returns change data if sync is needed, None if no changes
         """
-        product = self.db.query(Product).filter(
-            Product.id == product_id,
-            Product.merchant_id == merchant_id
-        ).first()
+        product = (
+            self.db.query(Product)
+            .filter(Product.id == product_id, Product.merchant_id == merchant_id)
+            .first()
+        )
 
         if not product:
             raise NotFoundError("Product", product_id)
@@ -55,9 +61,11 @@ class MetaCatalogService:
         # Get current primary image for comparison
         current_primary = None
         if product.primary_image_id:
-            current_primary = self.db.query(ProductImage).filter(
-                ProductImage.id == product.primary_image_id
-            ).first()
+            current_primary = (
+                self.db.query(ProductImage)
+                .filter(ProductImage.id == product.primary_image_id)
+                .first()
+            )
 
         # Compare URLs to detect changes
         current_primary_url = current_primary.secure_url if current_primary else None
@@ -72,8 +80,8 @@ class MetaCatalogService:
                     "product_id": str(product_id),
                     "merchant_id": str(merchant_id),
                     "current_url": current_primary_url,
-                    "new_url": primary_image_url
-                }
+                    "new_url": primary_image_url,
+                },
             )
             return None
 
@@ -91,8 +99,8 @@ class MetaCatalogService:
                 "product_id": str(product_id),
                 "merchant_id": str(merchant_id),
                 "primary_changed": primary_changed,
-                "changes_count": len(changes)
-            }
+                "changes_count": len(changes),
+            },
         )
 
         return changes
@@ -104,17 +112,18 @@ class MetaCatalogService:
         action: CatalogSyncAction,
         changes: Dict[str, Any],
         triggered_by: CatalogSyncTrigger,
-        meta_catalog_id: Optional[str] = None
+        meta_catalog_id: Optional[str] = None,
     ) -> Optional[UUID]:
         """
         Enqueue catalog sync job with idempotency checking
         Returns job ID if enqueued, None if skipped due to idempotency
         """
         # Get product details
-        product = self.db.query(Product).filter(
-            Product.id == product_id,
-            Product.merchant_id == merchant_id
-        ).first()
+        product = (
+            self.db.query(Product)
+            .filter(Product.id == product_id, Product.merchant_id == merchant_id)
+            .first()
+        )
 
         if not product:
             raise NotFoundError("Product", product_id)
@@ -145,8 +154,8 @@ class MetaCatalogService:
                     "product_id": str(product_id),
                     "merchant_id": str(merchant_id),
                     "idempotency_key": idempotency_key,
-                    "existing_sync_id": str(idempotency_check.existing_sync_id)
-                }
+                    "existing_sync_id": str(idempotency_check.existing_sync_id),
+                },
             )
             return None
 
@@ -158,7 +167,7 @@ class MetaCatalogService:
             meta_catalog_id=meta_catalog_id,
             changes=changes,
             idempotency_key=idempotency_key,
-            triggered_by=triggered_by
+            triggered_by=triggered_by,
         )
 
         # Create sync log entry
@@ -172,7 +181,7 @@ class MetaCatalogService:
             status=CatalogSyncStatus.PENDING.value,
             idempotency_key=idempotency_key,
             created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc)
+            updated_at=datetime.now(timezone.utc),
         )
 
         self.db.add(sync_log)
@@ -182,7 +191,7 @@ class MetaCatalogService:
             merchant_id=merchant_id,
             job_type="catalog_sync",
             payload=payload_data.dict(),
-            max_attempts=8
+            max_attempts=8,
         )
 
         # Update sync log with job ID
@@ -201,10 +210,11 @@ class MetaCatalogService:
                     "action": action.value,
                     "trigger": triggered_by.value,
                     "idempotency_key": idempotency_key,
-                    "image_urls_count": len(changes.get("additional_image_urls", [])) + (1 if "primary_image_url" in changes else 0),
+                    "image_urls_count": len(changes.get("additional_image_urls", []))
+                    + (1 if "primary_image_url" in changes else 0),
                     "job_id": str(job_id),
-                    "sync_log_id": str(sync_log.id)
-                }
+                    "sync_log_id": str(sync_log.id),
+                },
             )
 
             return job_id
@@ -216,8 +226,8 @@ class MetaCatalogService:
                 extra={
                     "product_id": str(product_id),
                     "merchant_id": str(merchant_id),
-                    "idempotency_key": idempotency_key
-                }
+                    "idempotency_key": idempotency_key,
+                },
             )
             return None
 
@@ -226,7 +236,7 @@ class MetaCatalogService:
         product_id: UUID,
         merchant_id: UUID,
         new_primary_url: str,
-        additional_urls: Optional[List[str]] = None
+        additional_urls: Optional[List[str]] = None,
     ) -> Optional[UUID]:
         """
         Handle primary image change event
@@ -236,7 +246,7 @@ class MetaCatalogService:
             product_id=product_id,
             merchant_id=merchant_id,
             primary_image_url=new_primary_url,
-            additional_image_urls=additional_urls
+            additional_image_urls=additional_urls,
         )
 
         if not changes:
@@ -248,7 +258,7 @@ class MetaCatalogService:
             merchant_id=merchant_id,
             action=CatalogSyncAction.UPDATE_IMAGE,
             changes=changes,
-            triggered_by=CatalogSyncTrigger.PRIMARY_CHANGE
+            triggered_by=CatalogSyncTrigger.PRIMARY_CHANGE,
         )
 
     def handle_image_upload(
@@ -256,7 +266,7 @@ class MetaCatalogService:
         product_id: UUID,
         merchant_id: UUID,
         uploaded_image_url: str,
-        is_primary: bool = False
+        is_primary: bool = False,
     ) -> Optional[UUID]:
         """
         Handle new image upload event
@@ -272,14 +282,11 @@ class MetaCatalogService:
             merchant_id=merchant_id,
             action=CatalogSyncAction.UPDATE_IMAGE,
             changes=changes,
-            triggered_by=CatalogSyncTrigger.IMAGE_UPLOAD
+            triggered_by=CatalogSyncTrigger.IMAGE_UPLOAD,
         )
 
     def handle_webhook_update(
-        self,
-        product_id: UUID,
-        merchant_id: UUID,
-        image_metadata: Dict[str, Any]
+        self, product_id: UUID, merchant_id: UUID, image_metadata: Dict[str, Any]
     ) -> Optional[UUID]:
         """
         Handle webhook-triggered image update
@@ -296,7 +303,7 @@ class MetaCatalogService:
             merchant_id=merchant_id,
             action=CatalogSyncAction.UPDATE_IMAGE,
             changes=changes,
-            triggered_by=CatalogSyncTrigger.WEBHOOK_UPDATE
+            triggered_by=CatalogSyncTrigger.WEBHOOK_UPDATE,
         )
 
     def update_sync_status(
@@ -306,14 +313,16 @@ class MetaCatalogService:
         response_data: Optional[Dict[str, Any]] = None,
         error_details: Optional[Dict[str, Any]] = None,
         retry_count: Optional[int] = None,
-        next_retry_at: Optional[datetime] = None
+        next_retry_at: Optional[datetime] = None,
     ) -> None:
         """
         Update sync log status after processing
         """
-        sync_log = self.db.query(MetaCatalogSyncLog).filter(
-            MetaCatalogSyncLog.id == sync_log_id
-        ).first()
+        sync_log = (
+            self.db.query(MetaCatalogSyncLog)
+            .filter(MetaCatalogSyncLog.id == sync_log_id)
+            .first()
+        )
 
         if not sync_log:
             raise NotFoundError("MetaCatalogSyncLog", sync_log_id)
@@ -335,9 +344,9 @@ class MetaCatalogService:
 
         # Update product sync version on success
         if status == CatalogSyncStatus.SUCCESS:
-            product = self.db.query(Product).filter(
-                Product.id == sync_log.product_id
-            ).first()
+            product = (
+                self.db.query(Product).filter(Product.id == sync_log.product_id).first()
+            )
             if product:
                 product.meta_image_sync_version += 1
                 product.meta_last_image_sync_at = datetime.now(timezone.utc)
@@ -349,7 +358,7 @@ class MetaCatalogService:
         merchant_id: UUID,
         product_id: Optional[UUID] = None,
         status: Optional[CatalogSyncStatus] = None,
-        limit: int = 50
+        limit: int = 50,
     ) -> List[MetaCatalogSyncLog]:
         """
         Get sync logs for debugging and monitoring
@@ -367,9 +376,7 @@ class MetaCatalogService:
         return query.order_by(MetaCatalogSyncLog.created_at.desc()).limit(limit).all()
 
     def normalize_legacy_payload(
-        self,
-        payload: Dict[str, Any],
-        merchant_id: UUID
+        self, payload: Dict[str, Any], merchant_id: UUID
     ) -> Dict[str, Any]:
         """
         Normalize legacy event payload formats
@@ -384,9 +391,13 @@ class MetaCatalogService:
                 normalization = LegacyEventNormalization(
                     merchant_id=merchant_id,
                     product_id=sync_payload.product_id,
-                    legacy_shape="image_url" if "image_url" in payload.get("changes", {}) else "unknown",
+                    legacy_shape=(
+                        "image_url"
+                        if "image_url" in payload.get("changes", {})
+                        else "unknown"
+                    ),
                     canonical_shape="changes.primary_image_url",
-                    producer_hint="cloudinary_service_v1"  # Based on source analysis
+                    producer_hint="cloudinary_service_v1",  # Based on source analysis
                 )
 
                 logger.info(
@@ -397,8 +408,8 @@ class MetaCatalogService:
                         "product_id": str(sync_payload.product_id),
                         "legacy_shape": normalization.legacy_shape,
                         "canonical_shape": normalization.canonical_shape,
-                        "producer_hint": normalization.producer_hint
-                    }
+                        "producer_hint": normalization.producer_hint,
+                    },
                 )
 
             return normalized_payload.dict()
@@ -409,34 +420,38 @@ class MetaCatalogService:
                 extra={
                     "merchant_id": str(merchant_id),
                     "payload": payload,
-                    "error": str(e)
-                }
+                    "error": str(e),
+                },
             )
             return payload
 
     def _check_idempotency(
-        self,
-        idempotency_key: str,
-        merchant_id: UUID
+        self, idempotency_key: str, merchant_id: UUID
     ) -> IdempotencyCheck:
         """
         Check if sync request is duplicate within TTL window
         """
         # Look for existing sync log with same idempotency key in last 24 hours
-        cutoff_time = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        cutoff_time = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
         cutoff_time = cutoff_time.replace(day=cutoff_time.day - 1)  # 24 hours ago
 
-        existing_sync = self.db.query(MetaCatalogSyncLog).filter(
-            MetaCatalogSyncLog.idempotency_key == idempotency_key,
-            MetaCatalogSyncLog.merchant_id == merchant_id,
-            MetaCatalogSyncLog.created_at >= cutoff_time
-        ).first()
+        existing_sync = (
+            self.db.query(MetaCatalogSyncLog)
+            .filter(
+                MetaCatalogSyncLog.idempotency_key == idempotency_key,
+                MetaCatalogSyncLog.merchant_id == merchant_id,
+                MetaCatalogSyncLog.created_at >= cutoff_time,
+            )
+            .first()
+        )
 
         return IdempotencyCheck(
             is_duplicate=existing_sync is not None,
             existing_sync_id=existing_sync.id if existing_sync else None,
             ttl_hours=24,
-            key_generated_at=existing_sync.created_at if existing_sync else None
+            key_generated_at=existing_sync.created_at if existing_sync else None,
         )
 
     def _get_catalog_config(self, merchant_id: UUID) -> Optional[str]:
@@ -466,7 +481,7 @@ class MetaSyncReasonNormalizer:
         "permission": "Your WhatsApp Business account doesn't have catalog access. Please check your Meta setup.",
         "catalog_not_found": "Your Meta catalog is not properly configured. Please check your WhatsApp integration.",
         "retailer_id_exists": "This product is already in your catalog. No action needed.",
-        "unknown": "Sync failed due to an unexpected issue. Please try again or contact support."
+        "unknown": "Sync failed due to an unexpected issue. Please try again or contact support.",
     }
 
     @staticmethod
@@ -482,7 +497,7 @@ class MetaSyncReasonNormalizer:
             Human-readable reason string or None for non-error statuses
         """
         # No reason needed for successful or in-progress states
-        if status in ('synced', 'pending', 'syncing'):
+        if status in ("synced", "pending", "syncing"):
             return None
 
         # Handle empty or missing errors
@@ -496,11 +511,15 @@ class MetaSyncReasonNormalizer:
             # Deterministic matching heuristics (per specification)
 
             # Auth errors - check for OAuth code 190 or invalid oauth message
-            if ("code" in error_text and "190" in error_text) or "invalid oauth" in error_text:
+            if (
+                "code" in error_text and "190" in error_text
+            ) or "invalid oauth" in error_text:
                 return MetaSyncReasonNormalizer.ERROR_REASON_MAP["auth"]
 
             # Missing image errors
-            if ("missing" in error_text and "image_link" in error_text) or "image_link" in error_text:
+            if (
+                "missing" in error_text and "image_link" in error_text
+            ) or "image_link" in error_text:
                 return MetaSyncReasonNormalizer.ERROR_REASON_MAP["missing_image"]
 
             # Price format errors
@@ -508,15 +527,24 @@ class MetaSyncReasonNormalizer:
                 return MetaSyncReasonNormalizer.ERROR_REASON_MAP["price_format"]
 
             # Policy block errors - check for code 368 or blocked message
-            if ("code" in error_text and "368" in error_text) or "blocked" in error_text:
+            if (
+                "code" in error_text and "368" in error_text
+            ) or "blocked" in error_text:
                 return MetaSyncReasonNormalizer.ERROR_REASON_MAP["policy_block"]
 
             # Image URL issues
-            if "image_url" in error_text or ("image" in error_text and ("invalid" in error_text or "missing" in error_text)):
+            if "image_url" in error_text or (
+                "image" in error_text
+                and ("invalid" in error_text or "missing" in error_text)
+            ):
                 return MetaSyncReasonNormalizer.ERROR_REASON_MAP["image_url"]
 
             # Authentication issues (general)
-            if "authentication" in error_text or "unauthorized" in error_text or "auth" in error_text:
+            if (
+                "authentication" in error_text
+                or "unauthorized" in error_text
+                or "auth" in error_text
+            ):
                 return MetaSyncReasonNormalizer.ERROR_REASON_MAP["authentication"]
 
             # Rate limiting
@@ -524,7 +552,11 @@ class MetaSyncReasonNormalizer:
                 return MetaSyncReasonNormalizer.ERROR_REASON_MAP["rate_limit"]
 
             # Network issues
-            if "network" in error_text or "connection" in error_text or "timeout" in error_text:
+            if (
+                "network" in error_text
+                or "connection" in error_text
+                or "timeout" in error_text
+            ):
                 return MetaSyncReasonNormalizer.ERROR_REASON_MAP["network"]
 
             # Validation errors
@@ -532,15 +564,23 @@ class MetaSyncReasonNormalizer:
                 return MetaSyncReasonNormalizer.ERROR_REASON_MAP["validation"]
 
             # Permission errors
-            if "permission" in error_text or "access" in error_text and "denied" in error_text:
+            if (
+                "permission" in error_text
+                or "access" in error_text
+                and "denied" in error_text
+            ):
                 return MetaSyncReasonNormalizer.ERROR_REASON_MAP["permission"]
 
             # Catalog not found
-            if "catalog" in error_text and ("not found" in error_text or "missing" in error_text):
+            if "catalog" in error_text and (
+                "not found" in error_text or "missing" in error_text
+            ):
                 return MetaSyncReasonNormalizer.ERROR_REASON_MAP["catalog_not_found"]
 
             # Retailer ID exists (duplicate product)
-            if "retailer_id" in error_text and ("exists" in error_text or "duplicate" in error_text):
+            if "retailer_id" in error_text and (
+                "exists" in error_text or "duplicate" in error_text
+            ):
                 return MetaSyncReasonNormalizer.ERROR_REASON_MAP["retailer_id_exists"]
 
             # Fallback to unknown error
@@ -554,11 +594,10 @@ class MetaSyncReasonNormalizer:
 
         except Exception as e:
             # If normalization fails, log and return generic message
-            logger.error(f"Failed to normalize Meta sync errors: {str(e)}", extra={
-                "error": str(e),
-                "original_errors": errors,
-                "status": status
-            })
+            logger.error(
+                f"Failed to normalize Meta sync errors: {str(e)}",
+                extra={"error": str(e), "original_errors": errors, "status": status},
+            )
             return MetaSyncReasonNormalizer.ERROR_REASON_MAP["unknown"]
 
     @staticmethod

@@ -7,10 +7,10 @@ from .korapay import KorapayIntegration, get_korapay_integration
 from .whatsapp import WhatsAppIntegration, get_whatsapp_integration
 
 __all__ = [
-    'PaystackIntegration',
-    'get_paystack_integration',
-    'KorapayIntegration',
-    'get_korapay_integration',
-    'WhatsAppIntegration',
-    'get_whatsapp_integration'
+    "PaystackIntegration",
+    "get_paystack_integration",
+    "KorapayIntegration",
+    "get_korapay_integration",
+    "WhatsAppIntegration",
+    "get_whatsapp_integration",
 ]

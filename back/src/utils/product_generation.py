@@ -17,6 +17,7 @@ from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class ProductFieldGenerator:
     """Utility class for auto-generating product fields"""
 
@@ -30,8 +31,8 @@ class ProductFieldGenerator:
             raise ValueError("Brand cannot be empty")
 
         # Remove control characters and normalize spaces
-        cleaned = ''.join(char for char in brand if ord(char) >= 32)
-        cleaned = re.sub(r'\s+', ' ', cleaned.strip())
+        cleaned = "".join(char for char in brand if ord(char) >= 32)
+        cleaned = re.sub(r"\s+", " ", cleaned.strip())
 
         if len(cleaned) < 1 or len(cleaned) > 70:
             raise ValueError("Brand must be 1-70 characters after trimming")
@@ -57,13 +58,15 @@ class ProductFieldGenerator:
         return mpn
 
     @staticmethod
-    def default_brand_from_merchant(merchant_name: str, request_brand: Optional[str]) -> str:
+    def default_brand_from_merchant(
+        merchant_name: str, request_brand: Optional[str]
+    ) -> str:
         """Default brand from merchant business name if not provided."""
         if request_brand and request_brand.strip():
             return ProductFieldGenerator.validate_brand(request_brand.strip())
 
         # Collapse spaces and trim
-        default_brand = re.sub(r'\s+', ' ', merchant_name.strip())
+        default_brand = re.sub(r"\s+", " ", merchant_name.strip())
 
         # Ensure max 70 chars for Meta compliance
         if len(default_brand) > 70:
@@ -71,14 +74,16 @@ class ProductFieldGenerator:
 
         return ProductFieldGenerator.validate_brand(default_brand)
 
-    async def generate_unique_sku(self, merchant_id: UUID, merchant_slug: str, max_attempts: int = 5) -> str:
+    async def generate_unique_sku(
+        self, merchant_id: UUID, merchant_slug: str, max_attempts: int = 5
+    ) -> str:
         """Generate unique SKU with collision retry."""
         # Define base36 alphabet (lowercase + digits)
         ALPH = string.ascii_lowercase + string.digits
 
         def shortid(n=7) -> str:
             """Generate n-character base36 ID."""
-            return ''.join(secrets.choice(ALPH) for _ in range(n))
+            return "".join(secrets.choice(ALPH) for _ in range(n))
 
         for attempt in range(max_attempts):
             # Generate 7-character base36 short ID
@@ -93,8 +98,8 @@ class ProductFieldGenerator:
                             "event_type": "sku_generated",
                             "merchant_id": str(merchant_id),
                             "sku": sku,
-                            "attempt": attempt + 1
-                        }
+                            "attempt": attempt + 1,
+                        },
                     )
                     return sku
             except Exception as e:
@@ -105,14 +110,14 @@ class ProductFieldGenerator:
                         "event_type": "sku_generation_collision",
                         "merchant_id": str(merchant_id),
                         "attempt": attempt + 1,
-                        "error": str(e)
-                    }
+                        "error": str(e),
+                    },
                 )
                 continue
 
         raise APIError(
             code=ErrorCode.INTERNAL_ERROR,
-            message="Failed to generate unique SKU after maximum attempts"
+            message="Failed to generate unique SKU after maximum attempts",
         )
 
     @staticmethod
@@ -132,8 +137,7 @@ class ProductFieldGenerator:
     async def _sku_exists(self, merchant_id: UUID, sku: str) -> bool:
         """Check if SKU already exists for the merchant."""
         stmt = select(Product).where(
-            Product.merchant_id == merchant_id,
-            Product.sku == sku
+            Product.merchant_id == merchant_id, Product.sku == sku
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none() is not None
@@ -146,6 +150,6 @@ class ProductFieldGenerator:
         if not merchant:
             raise APIError(
                 code=ErrorCode.MERCHANT_NOT_FOUND,
-                message=f"Merchant not found: {merchant_id}"
+                message=f"Merchant not found: {merchant_id}",
             )
         return merchant

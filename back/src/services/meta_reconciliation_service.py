@@ -25,7 +25,7 @@ from ..models.meta_reconciliation import (
     MetaDriftLog,
     format_price,
     format_availability,
-    normalize_image_url
+    normalize_image_url,
 )
 from ..models.sqlalchemy_models import Product, Merchant
 from ..models.meta_catalog import MetaCatalogConfig
@@ -50,9 +50,7 @@ class MetaReconciliationService:
         self.meta_integration_service = MetaIntegrationService(db)
 
     async def start_reconciliation_run(
-        self,
-        merchant_id: UUID,
-        run_type: ReconciliationRunType
+        self, merchant_id: UUID, run_type: ReconciliationRunType
     ) -> UUID:
         """Start a new reconciliation run"""
 
@@ -60,10 +58,7 @@ class MetaReconciliationService:
         if await self._has_recent_run(merchant_id, run_type):
             logger.info(
                 "Skipping reconciliation run due to recent run",
-                extra={
-                    "merchant_id": str(merchant_id),
-                    "run_type": run_type.value
-                }
+                extra={"merchant_id": str(merchant_id), "run_type": run_type.value},
             )
             return None
 
@@ -78,7 +73,7 @@ class MetaReconciliationService:
             products_total=total_products,
             started_at=datetime.utcnow(),
             created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            updated_at=datetime.utcnow(),
         )
 
         self.db.add(run)
@@ -92,17 +87,15 @@ class MetaReconciliationService:
                 "merchant_id": str(merchant_id),
                 "run_id": str(run.id),
                 "run_type": run_type.value,
-                "products_total": total_products
-            }
+                "products_total": total_products,
+            },
         )
 
         increment_counter("meta_reconciliation_runs_total", {"status": "started"})
         return run.id
 
     async def run_reconciliation(
-        self,
-        merchant_id: UUID,
-        run_type: ReconciliationRunType
+        self, merchant_id: UUID, run_type: ReconciliationRunType
     ) -> Optional[ReconciliationRun]:
         """Execute complete reconciliation for a merchant"""
 
@@ -117,8 +110,7 @@ class MetaReconciliationService:
             meta_config = await self._load_meta_credentials(merchant_id)
             if not meta_config:
                 await self._mark_run_failed(
-                    run_id,
-                    "No verified Meta credentials found for merchant"
+                    run_id, "No verified Meta credentials found for merchant"
                 )
                 return await self._get_run(run_id)
 
@@ -130,7 +122,7 @@ class MetaReconciliationService:
             batch_size = 50  # Configurable batch size
 
             for i in range(0, len(products), batch_size):
-                batch = products[i:i + batch_size]
+                batch = products[i : i + batch_size]
                 batch_results = await self._reconcile_product_batch(
                     run_id, batch, meta_config
                 )
@@ -164,8 +156,8 @@ class MetaReconciliationService:
                     "products_checked": stats.products_checked,
                     "drift_detected": stats.drift_detected,
                     "syncs_triggered": stats.syncs_triggered,
-                    "errors_count": stats.errors_count
-                }
+                    "errors_count": stats.errors_count,
+                },
             )
 
             # Record metrics
@@ -184,18 +176,15 @@ class MetaReconciliationService:
                 extra={
                     "merchant_id": str(merchant_id),
                     "run_id": str(run_id),
-                    "error": str(e)
+                    "error": str(e),
                 },
-                exc_info=True
+                exc_info=True,
             )
             increment_counter("meta_reconciliation_runs_total", {"status": "failed"})
             return await self._get_run(run_id)
 
     async def _reconcile_product_batch(
-        self,
-        run_id: UUID,
-        products: List[Product],
-        meta_config: MetaCatalogConfig
+        self, run_id: UUID, products: List[Product], meta_config: MetaCatalogConfig
     ) -> List[ProductReconciliationResult]:
         """Reconcile a batch of products with Meta Catalog"""
 
@@ -228,8 +217,8 @@ class MetaReconciliationService:
                 extra={
                     "run_id": str(run_id),
                     "product_count": len(products),
-                    "error": str(e)
-                }
+                    "error": str(e),
+                },
             )
 
             # Return error results for all products in batch
@@ -238,7 +227,7 @@ class MetaReconciliationService:
                     product_id=product.id,
                     retailer_id=f"sayar_product_{product.id}",
                     has_drift=False,
-                    error=f"Batch reconciliation failed: {str(e)}"
+                    error=f"Batch reconciliation failed: {str(e)}",
                 )
                 for product in products
             ]
@@ -248,7 +237,7 @@ class MetaReconciliationService:
         run_id: UUID,
         product: Product,
         meta_item: Optional[MetaItem],
-        retailer_id: str
+        retailer_id: str,
     ) -> ProductReconciliationResult:
         """Reconcile a single product with its Meta Catalog representation"""
 
@@ -256,12 +245,14 @@ class MetaReconciliationService:
 
         # Handle missing remote item
         if meta_item is None:
-            drift_fields.append(ProductFieldDrift(
-                field_name="missing_remote",
-                local_value="exists",
-                meta_value="missing",
-                action_taken=DriftAction.SYNC_TRIGGERED
-            ))
+            drift_fields.append(
+                ProductFieldDrift(
+                    field_name="missing_remote",
+                    local_value="exists",
+                    meta_value="missing",
+                    action_taken=DriftAction.SYNC_TRIGGERED,
+                )
+            )
         else:
             # Compare individual fields
             drift_fields.extend(await self._compare_product_fields(product, meta_item))
@@ -290,18 +281,15 @@ class MetaReconciliationService:
                         "product_id": str(product.id),
                         "retailer_id": retailer_id,
                         "drift_fields": [d.field_name for d in drift_fields],
-                        "sync_triggered": True
-                    }
+                        "sync_triggered": True,
+                    },
                 )
 
             except Exception as e:
                 error = f"Failed to trigger sync: {str(e)}"
                 logger.error(
                     "Failed to trigger product sync after drift detection",
-                    extra={
-                        "product_id": str(product.id),
-                        "error": str(e)
-                    }
+                    extra={"product_id": str(product.id), "error": str(e)},
                 )
 
                 # Update drift actions to failed
@@ -315,13 +303,11 @@ class MetaReconciliationService:
             has_drift=has_drift,
             drift_fields=drift_fields,
             sync_triggered=sync_triggered,
-            error=error
+            error=error,
         )
 
     async def _compare_product_fields(
-        self,
-        product: Product,
-        meta_item: MetaItem
+        self, product: Product, meta_item: MetaItem
     ) -> List[ProductFieldDrift]:
         """Compare product fields and detect drift"""
 
@@ -331,55 +317,60 @@ class MetaReconciliationService:
         local_price = format_price(product.price_kobo)
         meta_price = meta_item.get("price")
         if local_price != meta_price:
-            drift_fields.append(ProductFieldDrift(
-                field_name="price_kobo",
-                local_value=local_price,
-                meta_value=meta_price,
-                action_taken=DriftAction.SYNC_TRIGGERED
-            ))
+            drift_fields.append(
+                ProductFieldDrift(
+                    field_name="price_kobo",
+                    local_value=local_price,
+                    meta_value=meta_price,
+                    action_taken=DriftAction.SYNC_TRIGGERED,
+                )
+            )
 
         # Compare availability/stock
         local_availability = format_availability(product.stock)
         meta_availability = meta_item.get("availability")
         if local_availability != meta_availability:
-            drift_fields.append(ProductFieldDrift(
-                field_name="stock",
-                local_value=local_availability,
-                meta_value=meta_availability,
-                action_taken=DriftAction.SYNC_TRIGGERED
-            ))
+            drift_fields.append(
+                ProductFieldDrift(
+                    field_name="stock",
+                    local_value=local_availability,
+                    meta_value=meta_availability,
+                    action_taken=DriftAction.SYNC_TRIGGERED,
+                )
+            )
 
         # Compare title
         local_title = product.title
         meta_title = meta_item.get("title")
         if local_title != meta_title:
-            drift_fields.append(ProductFieldDrift(
-                field_name="title",
-                local_value=local_title,
-                meta_value=meta_title,
-                action_taken=DriftAction.SYNC_TRIGGERED
-            ))
+            drift_fields.append(
+                ProductFieldDrift(
+                    field_name="title",
+                    local_value=local_title,
+                    meta_value=meta_title,
+                    action_taken=DriftAction.SYNC_TRIGGERED,
+                )
+            )
 
         # Compare primary image URL
-        if hasattr(product, 'primary_image_url') and product.primary_image_url:
+        if hasattr(product, "primary_image_url") and product.primary_image_url:
             local_image = normalize_image_url(product.primary_image_url)
             meta_image = normalize_image_url(meta_item.get("image_link", ""))
             if local_image != meta_image:
-                drift_fields.append(ProductFieldDrift(
-                    field_name="image_url",
-                    local_value=local_image,
-                    meta_value=meta_image,
-                    action_taken=DriftAction.SYNC_TRIGGERED
-                ))
+                drift_fields.append(
+                    ProductFieldDrift(
+                        field_name="image_url",
+                        local_value=local_image,
+                        meta_value=meta_image,
+                        action_taken=DriftAction.SYNC_TRIGGERED,
+                    )
+                )
 
         return drift_fields
 
     @retryable(config=RetryConfig(max_attempts=3, exponential_base=2.0))
     async def _fetch_meta_catalog_data(
-        self,
-        catalog_id: str,
-        retailer_ids: List[str],
-        config: MetaCatalogConfig
+        self, catalog_id: str, retailer_ids: List[str], config: MetaCatalogConfig
     ) -> Dict[str, MetaItem]:
         """Fetch product data from Meta Catalog API"""
 
@@ -387,9 +378,7 @@ class MetaReconciliationService:
             # Use the Meta catalog client to fetch items
             # This is a simplified implementation - in practice would use batch endpoint
             result = await self.meta_catalog_client.get_catalog_items(
-                catalog_id=catalog_id,
-                retailer_ids=retailer_ids,
-                config=config
+                catalog_id=catalog_id, retailer_ids=retailer_ids, config=config
             )
 
             return result.get("items", {})
@@ -400,8 +389,8 @@ class MetaReconciliationService:
                 extra={
                     "catalog_id": catalog_id,
                     "error_code": e.error_code,
-                    "error_message": e.message
-                }
+                    "error_message": e.message,
+                },
             )
             raise
 
@@ -416,17 +405,14 @@ class MetaReconciliationService:
                 "merchant_id": str(merchant_id),
                 "trigger": "reconciliation",
                 "action": "update",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             },
             deduplication_key=f"reconciliation_sync:{merchant_id}:{product_id}",
-            merchant_id=merchant_id
+            merchant_id=merchant_id,
         )
 
     async def _log_drift(
-        self,
-        run_id: UUID,
-        product: Product,
-        drift: ProductFieldDrift
+        self, run_id: UUID, product: Product, drift: ProductFieldDrift
     ):
         """Log detected drift to database"""
 
@@ -438,23 +424,24 @@ class MetaReconciliationService:
             local_value=drift.local_value,
             meta_value=drift.meta_value,
             action_taken=drift.action_taken.value,
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
 
         self.db.add(drift_log)
         await self.db.commit()
 
-    async def _load_meta_credentials(self, merchant_id: UUID) -> Optional[MetaCatalogConfig]:
+    async def _load_meta_credentials(
+        self, merchant_id: UUID
+    ) -> Optional[MetaCatalogConfig]:
         """Load Meta credentials for merchant"""
         try:
-            return await self.meta_integration_service.get_credentials_for_worker(merchant_id)
+            return await self.meta_integration_service.get_credentials_for_worker(
+                merchant_id
+            )
         except Exception as e:
             logger.warning(
                 "Failed to load Meta credentials for reconciliation",
-                extra={
-                    "merchant_id": str(merchant_id),
-                    "error": str(e)
-                }
+                extra={"merchant_id": str(merchant_id), "error": str(e)},
             )
             return None
 
@@ -466,7 +453,7 @@ class MetaReconciliationService:
                 Product.merchant_id == merchant_id,
                 Product.status == "active",
                 Product.meta_sync_status == "synced",
-                Product.retailer_id.isnot(None)
+                Product.retailer_id.isnot(None),
             )
         )
 
@@ -481,7 +468,7 @@ class MetaReconciliationService:
                 Product.merchant_id == merchant_id,
                 Product.status == "active",
                 Product.meta_sync_status == "synced",
-                Product.retailer_id.isnot(None)
+                Product.retailer_id.isnot(None),
             )
         )
 
@@ -492,7 +479,7 @@ class MetaReconciliationService:
         self,
         merchant_id: UUID,
         run_type: ReconciliationRunType,
-        window_minutes: int = 60
+        window_minutes: int = 60,
     ) -> bool:
         """Check if there's a recent run within the specified window"""
 
@@ -502,7 +489,7 @@ class MetaReconciliationService:
             and_(
                 MetaReconciliationRun.merchant_id == merchant_id,
                 MetaReconciliationRun.run_type == run_type.value,
-                MetaReconciliationRun.started_at > cutoff
+                MetaReconciliationRun.started_at > cutoff,
             )
         )
 
@@ -575,7 +562,7 @@ class MetaReconciliationService:
             drift_detected=run_db.drift_detected,
             syncs_triggered=run_db.syncs_triggered,
             errors_count=run_db.errors_count,
-            duration_ms=run_db.duration_ms
+            duration_ms=run_db.duration_ms,
         )
 
         return ReconciliationRun(
@@ -586,16 +573,13 @@ class MetaReconciliationService:
             stats=stats,
             started_at=run_db.started_at,
             completed_at=run_db.completed_at,
-            last_error=run_db.last_error
+            last_error=run_db.last_error,
         )
 
     # Public API methods for endpoints
 
     async def get_reconciliation_history(
-        self,
-        merchant_id: Optional[UUID] = None,
-        limit: int = 10,
-        offset: int = 0
+        self, merchant_id: Optional[UUID] = None, limit: int = 10, offset: int = 0
     ) -> Tuple[List[ReconciliationRun], int]:
         """Get reconciliation run history"""
 
@@ -605,9 +589,15 @@ class MetaReconciliationService:
 
         if merchant_id:
             query = query.where(MetaReconciliationRun.merchant_id == merchant_id)
-            count_query = count_query.where(MetaReconciliationRun.merchant_id == merchant_id)
+            count_query = count_query.where(
+                MetaReconciliationRun.merchant_id == merchant_id
+            )
 
-        query = query.order_by(desc(MetaReconciliationRun.started_at)).limit(limit).offset(offset)
+        query = (
+            query.order_by(desc(MetaReconciliationRun.started_at))
+            .limit(limit)
+            .offset(offset)
+        )
 
         # Execute queries
         result = await self.db.execute(query)
@@ -625,31 +615,35 @@ class MetaReconciliationService:
                 drift_detected=run_db.drift_detected,
                 syncs_triggered=run_db.syncs_triggered,
                 errors_count=run_db.errors_count,
-                duration_ms=run_db.duration_ms
+                duration_ms=run_db.duration_ms,
             )
 
-            runs.append(ReconciliationRun(
-                id=run_db.id,
-                merchant_id=run_db.merchant_id,
-                run_type=ReconciliationRunType(run_db.run_type),
-                status=ReconciliationStatus(run_db.status),
-                stats=stats,
-                started_at=run_db.started_at,
-                completed_at=run_db.completed_at,
-                last_error=run_db.last_error
-            ))
+            runs.append(
+                ReconciliationRun(
+                    id=run_db.id,
+                    merchant_id=run_db.merchant_id,
+                    run_type=ReconciliationRunType(run_db.run_type),
+                    status=ReconciliationStatus(run_db.status),
+                    stats=stats,
+                    started_at=run_db.started_at,
+                    completed_at=run_db.completed_at,
+                    last_error=run_db.last_error,
+                )
+            )
 
         return runs, total
 
     async def get_latest_reconciliation_status(
-        self,
-        merchant_id: UUID
+        self, merchant_id: UUID
     ) -> Optional[ReconciliationRun]:
         """Get the latest reconciliation run for a merchant"""
 
-        query = select(MetaReconciliationRun).where(
-            MetaReconciliationRun.merchant_id == merchant_id
-        ).order_by(desc(MetaReconciliationRun.started_at)).limit(1)
+        query = (
+            select(MetaReconciliationRun)
+            .where(MetaReconciliationRun.merchant_id == merchant_id)
+            .order_by(desc(MetaReconciliationRun.started_at))
+            .limit(1)
+        )
 
         result = await self.db.execute(query)
         run_db = result.scalar_one_or_none()

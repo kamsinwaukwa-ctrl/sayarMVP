@@ -11,13 +11,17 @@ from sqlalchemy.exc import IntegrityError
 from uuid import UUID
 
 from ..models.sqlalchemy_models import ProductImage, Product
-from ..models.api import ProductImageResponse, CloudinaryWebhookPayload, SetPrimaryImageResponse
+from ..models.api import (
+    ProductImageResponse,
+    CloudinaryWebhookPayload,
+    SetPrimaryImageResponse,
+)
 from ..models.cloudinary import (
     PresetProfile,
     ProductImageWithVariantsResponse,
     ImageVariant,
     ImageDimensions,
-    UploadWithPresetsRequest
+    UploadWithPresetsRequest,
 )
 from ..models.errors import APIError, ErrorCode, NotFoundError
 from ..integrations.cloudinary_client import CloudinaryClient, CloudinaryConfig
@@ -27,7 +31,7 @@ from ..models.meta_catalog import CatalogSyncTrigger
 from ..config.cloudinary_presets import (
     get_profile_by_id,
     get_all_presets_for_profile,
-    PRESETS_VERSION
+    PRESETS_VERSION,
 )
 
 
@@ -50,15 +54,11 @@ class CloudinaryService:
             return {
                 "configured": health_data["configured"],
                 "cloud_name": health_data["cloud_name"],
-                "verified_at": datetime.fromtimestamp(health_data["verified_at"])
+                "verified_at": datetime.fromtimestamp(health_data["verified_at"]),
             }
         except APIError as e:
             if e.code == ErrorCode.CLOUDINARY_NOT_CONFIGURED:
-                return {
-                    "configured": False,
-                    "cloud_name": None,
-                    "verified_at": None
-                }
+                return {"configured": False, "cloud_name": None, "verified_at": None}
             raise
 
     def upload_product_image_with_presets(
@@ -68,17 +68,18 @@ class CloudinaryService:
         file_content: bytes,
         filename: str,
         request: UploadWithPresetsRequest,
-        webhook_url: Optional[str] = None
+        webhook_url: Optional[str] = None,
     ) -> ProductImageWithVariantsResponse:
         """
         Upload product image with preset-based transformations
         Returns enhanced response with all variants
         """
         # Verify product exists and belongs to merchant
-        product = self.db.query(Product).filter(
-            Product.id == product_id,
-            Product.merchant_id == merchant_id
-        ).first()
+        product = (
+            self.db.query(Product)
+            .filter(Product.id == product_id, Product.merchant_id == merchant_id)
+            .first()
+        )
 
         if not product:
             raise NotFoundError("Product", product_id)
@@ -91,7 +92,7 @@ class CloudinaryService:
                 product_id=str(product_id),
                 filename=filename,
                 preset_profile=request.preset_profile,
-                webhook_url=webhook_url
+                webhook_url=webhook_url,
             )
 
             # Create database record with preset information
@@ -104,22 +105,34 @@ class CloudinaryService:
                     "url": variant.url,
                     "preset_id": variant.preset_id,
                     "file_size_kb": variant.file_size_kb,
-                    "dimensions": {
-                        "width": variant.dimensions.width,
-                        "height": variant.dimensions.height
-                    } if variant.dimensions else None,
+                    "dimensions": (
+                        {
+                            "width": variant.dimensions.width,
+                            "height": variant.dimensions.height,
+                        }
+                        if variant.dimensions
+                        else None
+                    ),
                     "format": variant.format,
                     "quality_score": variant.quality_score,
-                    "processing_time_ms": variant.processing_time_ms
+                    "processing_time_ms": variant.processing_time_ms,
                 }
 
             # Create optimization stats
             optimization_stats = {
                 "preset_profile": request.preset_profile.value,
                 "preset_version": PRESETS_VERSION,
-                "eager_variants_count": len([v for v in upload_result["variants"].values() if v.file_size_kb]),
-                "on_demand_variants_count": len([v for v in upload_result["variants"].values() if not v.file_size_kb]),
-                "upload_timestamp": datetime.utcnow().isoformat()
+                "eager_variants_count": len(
+                    [v for v in upload_result["variants"].values() if v.file_size_kb]
+                ),
+                "on_demand_variants_count": len(
+                    [
+                        v
+                        for v in upload_result["variants"].values()
+                        if not v.file_size_kb
+                    ]
+                ),
+                "upload_timestamp": datetime.utcnow().isoformat(),
             }
 
             # Get main variant URL for backward compatibility
@@ -148,7 +161,7 @@ class CloudinaryService:
                 preset_profile=request.preset_profile.value,
                 variants=variants_json,
                 optimization_stats=optimization_stats,
-                preset_version=PRESETS_VERSION
+                preset_version=PRESETS_VERSION,
             )
 
             self.db.add(product_image)
@@ -159,7 +172,7 @@ class CloudinaryService:
                 self.db.query(ProductImage).filter(
                     ProductImage.product_id == product_id,
                     ProductImage.is_primary == True,
-                    ProductImage.id != image_id
+                    ProductImage.id != image_id,
                 ).update({"is_primary": False})
 
                 # Update product primary_image_id
@@ -177,7 +190,7 @@ class CloudinaryService:
                             product_id=product_id,
                             merchant_id=merchant_id,
                             uploaded_image_url=main_url,
-                            is_primary=True
+                            is_primary=True,
                         )
                         catalog_sync_triggered = job_id is not None
                     else:
@@ -188,9 +201,9 @@ class CloudinaryService:
                                 "product_id": str(product_id),
                                 "merchant_id": str(merchant_id),
                                 "image_url": main_url,
-                                "retry_count": 0
+                                "retry_count": 0,
                             },
-                            delay_seconds=30
+                            delay_seconds=30,
                         )
                 except Exception:
                     # Don't fail upload if catalog sync queueing fails
@@ -201,7 +214,9 @@ class CloudinaryService:
                 self._update_preset_statistics(
                     merchant_id=merchant_id,
                     variants=upload_result["variants"],
-                    processing_time_ms=optimization_stats.get("total_processing_time_ms", 0)
+                    processing_time_ms=optimization_stats.get(
+                        "total_processing_time_ms", 0
+                    ),
                 )
             except Exception:
                 # Don't fail upload if stats update fails
@@ -219,14 +234,14 @@ class CloudinaryService:
                 preset_version=PRESETS_VERSION,
                 optimization_stats=optimization_stats,
                 created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                updated_at=datetime.utcnow(),
             )
 
         except IntegrityError:
             self.db.rollback()
             raise APIError(
                 code=ErrorCode.DUPLICATE_RESOURCE,
-                message="Image with this public_id already exists"
+                message="Image with this public_id already exists",
             )
         except Exception:
             self.db.rollback()
@@ -240,16 +255,17 @@ class CloudinaryService:
         filename: str,
         is_primary: bool = False,
         alt_text: Optional[str] = None,
-        webhook_url: Optional[str] = None
+        webhook_url: Optional[str] = None,
     ) -> ProductImageResponse:
         """
         Upload product image to Cloudinary and save metadata to database
         """
         # Verify product exists and belongs to merchant
-        product = self.db.query(Product).filter(
-            Product.id == product_id,
-            Product.merchant_id == merchant_id
-        ).first()
+        product = (
+            self.db.query(Product)
+            .filter(Product.id == product_id, Product.merchant_id == merchant_id)
+            .first()
+        )
 
         if not product:
             raise NotFoundError("Product", product_id)
@@ -261,7 +277,7 @@ class CloudinaryService:
                 merchant_id=str(merchant_id),
                 product_id=str(product_id),
                 filename=filename,
-                webhook_url=webhook_url
+                webhook_url=webhook_url,
             )
 
             # Create database record
@@ -280,7 +296,7 @@ class CloudinaryService:
                 is_primary=is_primary,
                 alt_text=alt_text,
                 upload_status="uploading",  # Will be updated by webhook
-                cloudinary_version=upload_result.get("version")
+                cloudinary_version=upload_result.get("version"),
             )
 
             self.db.add(product_image)
@@ -291,7 +307,7 @@ class CloudinaryService:
                 self.db.query(ProductImage).filter(
                     ProductImage.product_id == product_id,
                     ProductImage.is_primary == True,
-                    ProductImage.id != image_id
+                    ProductImage.id != image_id,
                 ).update({"is_primary": False})
 
                 # Update product primary_image_id
@@ -307,7 +323,7 @@ class CloudinaryService:
                         product_id=product_id,
                         merchant_id=merchant_id,
                         uploaded_image_url=upload_result["secure_url"],
-                        is_primary=True
+                        is_primary=True,
                     )
                     catalog_sync_triggered = job_id is not None
                 except Exception:
@@ -328,32 +344,31 @@ class CloudinaryService:
                 alt_text=alt_text,
                 upload_status="uploading",
                 created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                updated_at=datetime.utcnow(),
             )
 
         except IntegrityError:
             self.db.rollback()
             raise APIError(
                 code=ErrorCode.DUPLICATE_RESOURCE,
-                message="Image with this public_id already exists"
+                message="Image with this public_id already exists",
             )
         except Exception:
             self.db.rollback()
             raise
 
-    def delete_product_image(
-        self,
-        image_id: UUID,
-        merchant_id: UUID
-    ) -> bool:
+    def delete_product_image(self, image_id: UUID, merchant_id: UUID) -> bool:
         """
         Delete product image from both database and Cloudinary
         """
         # Find image and verify ownership
-        image = self.db.query(ProductImage).filter(
-            ProductImage.id == image_id,
-            ProductImage.merchant_id == merchant_id
-        ).first()
+        image = (
+            self.db.query(ProductImage)
+            .filter(
+                ProductImage.id == image_id, ProductImage.merchant_id == merchant_id
+            )
+            .first()
+        )
 
         if not image:
             raise NotFoundError("ProductImage", image_id)
@@ -371,7 +386,9 @@ class CloudinaryService:
 
             # If this was the primary image, clear product primary_image_id
             if was_primary:
-                product = self.db.query(Product).filter(Product.id == product_id).first()
+                product = (
+                    self.db.query(Product).filter(Product.id == product_id).first()
+                )
                 if product:
                     product.primary_image_id = None
 
@@ -381,14 +398,22 @@ class CloudinaryService:
             if was_primary:
                 try:
                     # Find next available image to set as primary, or None if no images
-                    next_image = self.db.query(ProductImage).filter(
-                        ProductImage.product_id == product_id,
-                        ProductImage.upload_status == "completed"
-                    ).first()
+                    next_image = (
+                        self.db.query(ProductImage)
+                        .filter(
+                            ProductImage.product_id == product_id,
+                            ProductImage.upload_status == "completed",
+                        )
+                        .first()
+                    )
 
                     if next_image:
                         next_image.is_primary = True
-                        product = self.db.query(Product).filter(Product.id == product_id).first()
+                        product = (
+                            self.db.query(Product)
+                            .filter(Product.id == product_id)
+                            .first()
+                        )
                         if product:
                             product.primary_image_id = next_image.id
                         self.db.commit()
@@ -397,14 +422,14 @@ class CloudinaryService:
                         self.catalog_service.handle_primary_image_change(
                             product_id=product_id,
                             merchant_id=merchant_id,
-                            new_primary_url=next_image.secure_url
+                            new_primary_url=next_image.secure_url,
                         )
                     else:
                         # No images left, sync with empty image
                         self.catalog_service.handle_primary_image_change(
                             product_id=product_id,
                             merchant_id=merchant_id,
-                            new_primary_url=""  # Empty URL indicates no image
+                            new_primary_url="",  # Empty URL indicates no image
                         )
                 except Exception:
                     # Don't fail deletion if catalog sync queueing fails
@@ -417,21 +442,22 @@ class CloudinaryService:
             raise
 
     def set_primary_image(
-        self,
-        image_id: UUID,
-        product_id: UUID,
-        merchant_id: UUID
+        self, image_id: UUID, product_id: UUID, merchant_id: UUID
     ) -> SetPrimaryImageResponse:
         """
         Set an image as the primary image for a product
         """
         # Verify image exists and belongs to merchant/product
-        image = self.db.query(ProductImage).filter(
-            ProductImage.id == image_id,
-            ProductImage.product_id == product_id,
-            ProductImage.merchant_id == merchant_id,
-            ProductImage.upload_status == "completed"
-        ).first()
+        image = (
+            self.db.query(ProductImage)
+            .filter(
+                ProductImage.id == image_id,
+                ProductImage.product_id == product_id,
+                ProductImage.merchant_id == merchant_id,
+                ProductImage.upload_status == "completed",
+            )
+            .first()
+        )
 
         if not image:
             raise NotFoundError("ProductImage", image_id)
@@ -441,7 +467,7 @@ class CloudinaryService:
             self.db.query(ProductImage).filter(
                 ProductImage.product_id == product_id,
                 ProductImage.is_primary == True,
-                ProductImage.id != image_id
+                ProductImage.id != image_id,
             ).update({"is_primary": False})
 
             # Set this image as primary
@@ -460,7 +486,7 @@ class CloudinaryService:
                 job_id = self.catalog_service.handle_primary_image_change(
                     product_id=product_id,
                     merchant_id=merchant_id,
-                    new_primary_url=image.secure_url
+                    new_primary_url=image.secure_url,
                 )
                 catalog_sync_triggered = job_id is not None
             except Exception:
@@ -470,7 +496,7 @@ class CloudinaryService:
             return SetPrimaryImageResponse(
                 id=image_id,
                 is_primary=True,
-                catalog_sync_triggered=catalog_sync_triggered
+                catalog_sync_triggered=catalog_sync_triggered,
             )
 
         except Exception:
@@ -482,23 +508,27 @@ class CloudinaryService:
         payload: CloudinaryWebhookPayload,
         signature: str,
         timestamp: str,
-        raw_body: bytes
+        raw_body: bytes,
     ) -> Dict[str, str]:
         """
         Process Cloudinary webhook callback
         Verify signature and update image metadata
         """
         # Verify webhook signature
-        if not self.cloudinary_client.verify_webhook_signature(raw_body, signature, timestamp):
+        if not self.cloudinary_client.verify_webhook_signature(
+            raw_body, signature, timestamp
+        ):
             raise APIError(
                 code=ErrorCode.WEBHOOK_SIGNATURE_INVALID,
-                message="Invalid webhook signature or timestamp"
+                message="Invalid webhook signature or timestamp",
             )
 
         # Find image by public_id
-        image = self.db.query(ProductImage).filter(
-            ProductImage.cloudinary_public_id == payload.public_id
-        ).first()
+        image = (
+            self.db.query(ProductImage)
+            .filter(ProductImage.cloudinary_public_id == payload.public_id)
+            .first()
+        )
 
         if not image:
             # Image not found - might be a different notification or test
@@ -536,8 +566,8 @@ class CloudinaryService:
                                 "height": payload.height,
                                 "format": payload.format,
                                 "bytes": payload.bytes,
-                                "version": payload.version
-                            }
+                                "version": payload.version,
+                            },
                         )
                     except Exception:
                         # Don't fail webhook processing if catalog sync queueing fails
@@ -556,18 +586,21 @@ class CloudinaryService:
             raise
 
     def get_product_images(
-        self,
-        product_id: UUID,
-        merchant_id: UUID
+        self, product_id: UUID, merchant_id: UUID
     ) -> List[ProductImageResponse]:
         """
         Get all images for a product
         """
-        images = self.db.query(ProductImage).filter(
-            ProductImage.product_id == product_id,
-            ProductImage.merchant_id == merchant_id,
-            ProductImage.upload_status != "deleted"
-        ).order_by(ProductImage.is_primary.desc(), ProductImage.created_at.desc()).all()
+        images = (
+            self.db.query(ProductImage)
+            .filter(
+                ProductImage.product_id == product_id,
+                ProductImage.merchant_id == merchant_id,
+                ProductImage.upload_status != "deleted",
+            )
+            .order_by(ProductImage.is_primary.desc(), ProductImage.created_at.desc())
+            .all()
+        )
 
         return [
             ProductImageResponse(
@@ -584,7 +617,7 @@ class CloudinaryService:
                 alt_text=img.alt_text,
                 upload_status=img.upload_status,
                 created_at=img.created_at,
-                updated_at=img.updated_at
+                updated_at=img.updated_at,
             )
             for img in images
         ]
@@ -593,7 +626,7 @@ class CloudinaryService:
         self,
         merchant_id: UUID,
         variants: Dict[str, ImageVariant],
-        processing_time_ms: int = 0
+        processing_time_ms: int = 0,
     ) -> None:
         """
         Update preset usage statistics in the database
@@ -608,9 +641,10 @@ class CloudinaryService:
                             str(merchant_id),
                             variant.preset_id,
                             variant.file_size_kb,
-                            variant.processing_time_ms or 500,  # Default if not provided
-                            variant.quality_score or 75  # Default if not provided
-                        )
+                            variant.processing_time_ms
+                            or 500,  # Default if not provided
+                            variant.quality_score or 75,  # Default if not provided
+                        ),
                     )
             self.db.commit()
         except Exception:
@@ -618,10 +652,7 @@ class CloudinaryService:
             self.db.rollback()
 
     def get_preset_statistics(
-        self,
-        merchant_id: UUID,
-        preset_id: Optional[str] = None,
-        days: int = 30
+        self, merchant_id: UUID, preset_id: Optional[str] = None, days: int = 30
     ) -> List[Dict[str, Any]]:
         """
         Get preset usage statistics for a merchant
@@ -660,25 +691,25 @@ class CloudinaryService:
                 "avg_file_size_kb": row[2],
                 "avg_processing_time_ms": row[3],
                 "quality_score_avg": float(row[4]) if row[4] else None,
-                "last_used_at": row[5].isoformat() if row[5] else None
+                "last_used_at": row[5].isoformat() if row[5] else None,
             }
             for row in result
         ]
 
     def regenerate_variants_for_profile(
-        self,
-        image_id: UUID,
-        merchant_id: UUID,
-        new_profile: PresetProfile
+        self, image_id: UUID, merchant_id: UUID, new_profile: PresetProfile
     ) -> ProductImageWithVariantsResponse:
         """
         Regenerate variants for an existing image with a new preset profile
         """
         # Find the image
-        image = self.db.query(ProductImage).filter(
-            ProductImage.id == image_id,
-            ProductImage.merchant_id == merchant_id
-        ).first()
+        image = (
+            self.db.query(ProductImage)
+            .filter(
+                ProductImage.id == image_id, ProductImage.merchant_id == merchant_id
+            )
+            .first()
+        )
 
         if not image:
             raise NotFoundError("ProductImage", image_id)
@@ -692,12 +723,11 @@ class CloudinaryService:
                 variant_url = self.cloudinary_client.generate_variant_url(
                     public_id=image.cloudinary_public_id,
                     transformation=preset.transformation,
-                    version=image.cloudinary_version
+                    version=image.cloudinary_version,
                 )
 
                 new_variants[variant_name] = ImageVariant(
-                    url=variant_url,
-                    preset_id=preset.id
+                    url=variant_url, preset_id=preset.id
                 )
 
             # Convert to JSON for database storage
@@ -707,22 +737,28 @@ class CloudinaryService:
                     "url": variant.url,
                     "preset_id": variant.preset_id,
                     "file_size_kb": variant.file_size_kb,
-                    "dimensions": {
-                        "width": variant.dimensions.width,
-                        "height": variant.dimensions.height
-                    } if variant.dimensions else None,
+                    "dimensions": (
+                        {
+                            "width": variant.dimensions.width,
+                            "height": variant.dimensions.height,
+                        }
+                        if variant.dimensions
+                        else None
+                    ),
                     "format": variant.format,
                     "quality_score": variant.quality_score,
-                    "processing_time_ms": variant.processing_time_ms
+                    "processing_time_ms": variant.processing_time_ms,
                 }
 
             # Update database record
             optimization_stats = image.optimization_stats or {}
-            optimization_stats.update({
-                "profile_updated_at": datetime.utcnow().isoformat(),
-                "previous_profile": image.preset_profile,
-                "regeneration_reason": "profile_change"
-            })
+            optimization_stats.update(
+                {
+                    "profile_updated_at": datetime.utcnow().isoformat(),
+                    "previous_profile": image.preset_profile,
+                    "regeneration_reason": "profile_change",
+                }
+            )
 
             image.preset_profile = new_profile.value
             image.variants = variants_json
@@ -743,7 +779,7 @@ class CloudinaryService:
                     self.catalog_service.handle_primary_image_change(
                         product_id=image.product_id,
                         merchant_id=merchant_id,
-                        new_primary_url=new_variants["main"].url
+                        new_primary_url=new_variants["main"].url,
                     )
                 except Exception:
                     # Don't fail if catalog sync fails
@@ -761,10 +797,9 @@ class CloudinaryService:
                 preset_version=PRESETS_VERSION,
                 optimization_stats=optimization_stats,
                 created_at=image.created_at,
-                updated_at=datetime.utcnow()
+                updated_at=datetime.utcnow(),
             )
 
         except Exception:
             self.db.rollback()
             raise
-

@@ -22,13 +22,13 @@ from ..models.cloudinary import (
     PresetProfile,
     ImageVariant,
     ImageDimensions,
-    PresetTestResult
+    PresetTestResult,
 )
 from ..config.cloudinary_presets import (
     get_preset_by_id,
     get_profile_by_id,
     get_eager_presets_for_profile,
-    get_all_presets_for_profile
+    get_all_presets_for_profile,
 )
 
 
@@ -42,7 +42,9 @@ class CloudinaryConfig:
         self.upload_timeout = int(os.getenv("CLOUDINARY_UPLOAD_TIMEOUT", "30"))
         self.webhook_timeout = int(os.getenv("CLOUDINARY_WEBHOOK_TIMEOUT", "5"))
         self.max_image_size_mb = int(os.getenv("MAX_IMAGE_SIZE_MB", "5"))
-        self.supported_formats = os.getenv("SUPPORTED_IMAGE_FORMATS", "png,jpg,jpeg,webp").split(",")
+        self.supported_formats = os.getenv(
+            "SUPPORTED_IMAGE_FORMATS", "png,jpg,jpeg,webp"
+        ).split(",")
 
     def is_configured(self) -> bool:
         """Check if all required environment variables are set"""
@@ -61,7 +63,7 @@ class CloudinaryClient:
         if not self.config.is_configured():
             raise APIError(
                 code=ErrorCode.CLOUDINARY_NOT_CONFIGURED,
-                message="Cloudinary credentials not configured in environment variables"
+                message="Cloudinary credentials not configured in environment variables",
             )
 
     def verify_health(self) -> Dict[str, Any]:
@@ -74,28 +76,30 @@ class CloudinaryClient:
             response = requests.get(
                 url,
                 auth=(self.config.api_key, self.config.api_secret),
-                timeout=self.config.webhook_timeout
+                timeout=self.config.webhook_timeout,
             )
 
             if response.status_code == 200:
                 return {
                     "configured": True,
                     "cloud_name": self.config.cloud_name,
-                    "verified_at": time.time()
+                    "verified_at": time.time(),
                 }
             else:
                 raise APIError(
                     code=ErrorCode.CLOUDINARY_HEALTHCHECK_FAILED,
-                    message=f"Cloudinary API returned status {response.status_code}"
+                    message=f"Cloudinary API returned status {response.status_code}",
                 )
 
         except requests.RequestException as e:
             raise APIError(
                 code=ErrorCode.CLOUDINARY_HEALTHCHECK_FAILED,
-                message=f"Failed to connect to Cloudinary: {str(e)}"
+                message=f"Failed to connect to Cloudinary: {str(e)}",
             )
 
-    def validate_image_file(self, file_content: bytes, filename: str) -> Tuple[int, int, str]:
+    def validate_image_file(
+        self, file_content: bytes, filename: str
+    ) -> Tuple[int, int, str]:
         """
         Validate image file size, format, and dimensions
         Returns (width, height, format) if valid
@@ -107,7 +111,7 @@ class CloudinaryClient:
         if file_size > max_bytes:
             raise APIError(
                 code=ErrorCode.IMAGE_TOO_LARGE,
-                message=f"Image file too large: {file_size} bytes, max {max_bytes} bytes"
+                message=f"Image file too large: {file_size} bytes, max {max_bytes} bytes",
             )
 
         # Check file format by examining actual image data
@@ -119,7 +123,7 @@ class CloudinaryClient:
             if format_lower not in self.config.supported_formats:
                 raise APIError(
                     code=ErrorCode.UNSUPPORTED_IMAGE_TYPE,
-                    message=f"Unsupported image format: {format_lower}. Supported: {self.config.supported_formats}"
+                    message=f"Unsupported image format: {format_lower}. Supported: {self.config.supported_formats}",
                 )
 
             # Check minimum dimensions (Meta Catalog requirement)
@@ -128,7 +132,7 @@ class CloudinaryClient:
             if min(width, height) < min_dimension:
                 raise APIError(
                     code=ErrorCode.IMAGE_DIMENSIONS_TOO_SMALL,
-                    message=f"Image too small: {width}x{height}. Minimum: {min_dimension}px short edge"
+                    message=f"Image too small: {width}x{height}. Minimum: {min_dimension}px short edge",
                 )
 
             return width, height, format_lower
@@ -138,7 +142,7 @@ class CloudinaryClient:
                 raise
             raise APIError(
                 code=ErrorCode.UNSUPPORTED_IMAGE_TYPE,
-                message=f"Invalid image file: {str(e)}"
+                message=f"Invalid image file: {str(e)}",
             )
 
     def upload_image_with_presets(
@@ -148,7 +152,7 @@ class CloudinaryClient:
         product_id: str,
         filename: str,
         preset_profile: PresetProfile = PresetProfile.STANDARD,
-        webhook_url: Optional[str] = None
+        webhook_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Upload image to Cloudinary with preset-based transformations
@@ -163,7 +167,9 @@ class CloudinaryClient:
 
         # Get eager presets for the profile
         eager_presets = get_eager_presets_for_profile(preset_profile)
-        eager_transformations = [preset.transformation for preset in eager_presets.values()]
+        eager_transformations = [
+            preset.transformation for preset in eager_presets.values()
+        ]
 
         # Prepare upload parameters
         upload_params = {
@@ -194,16 +200,13 @@ class CloudinaryClient:
             # Upload to Cloudinary
             url = f"{self.config.get_base_url()}/image/upload"
             response = requests.post(
-                url,
-                data=upload_params,
-                files=files,
-                timeout=self.config.upload_timeout
+                url, data=upload_params, files=files, timeout=self.config.upload_timeout
             )
 
             if response.status_code != 200:
                 raise APIError(
                     code=ErrorCode.CLOUDINARY_UPLOAD_FAILED,
-                    message=f"Cloudinary upload failed: {response.text}"
+                    message=f"Cloudinary upload failed: {response.text}",
                 )
 
             result = response.json()
@@ -227,23 +230,30 @@ class CloudinaryClient:
                     variants[variant_name] = ImageVariant(
                         url=eager_data.get("secure_url", ""),
                         preset_id=preset.id,
-                        file_size_kb=eager_data.get("bytes", 0) // 1024 if eager_data.get("bytes") else None,
-                        dimensions=ImageDimensions(
-                            width=eager_data.get("width", 0),
-                            height=eager_data.get("height", 0)
-                        ) if eager_data.get("width") and eager_data.get("height") else None,
-                        format=eager_data.get("format")
+                        file_size_kb=(
+                            eager_data.get("bytes", 0) // 1024
+                            if eager_data.get("bytes")
+                            else None
+                        ),
+                        dimensions=(
+                            ImageDimensions(
+                                width=eager_data.get("width", 0),
+                                height=eager_data.get("height", 0),
+                            )
+                            if eager_data.get("width") and eager_data.get("height")
+                            else None
+                        ),
+                        format=eager_data.get("format"),
                     )
                 else:
                     # Generate on-demand URL
                     on_demand_url = self.generate_variant_url(
                         public_id=result["public_id"],
                         transformation=preset.transformation,
-                        version=result.get("version")
+                        version=result.get("version"),
                     )
                     variants[variant_name] = ImageVariant(
-                        url=on_demand_url,
-                        preset_id=preset.id
+                        url=on_demand_url, preset_id=preset.id
                     )
 
             return {
@@ -255,13 +265,13 @@ class CloudinaryClient:
                 "format": result.get("format"),
                 "bytes": result.get("bytes"),
                 "version": result.get("version"),
-                "created_at": result.get("created_at")
+                "created_at": result.get("created_at"),
             }
 
         except requests.RequestException as e:
             raise APIError(
                 code=ErrorCode.CLOUDINARY_UPLOAD_FAILED,
-                message=f"Failed to upload to Cloudinary: {str(e)}"
+                message=f"Failed to upload to Cloudinary: {str(e)}",
             )
 
     def upload_image(
@@ -270,7 +280,7 @@ class CloudinaryClient:
         merchant_id: str,
         product_id: str,
         filename: str,
-        webhook_url: Optional[str] = None
+        webhook_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Upload image to Cloudinary with transformation presets
@@ -292,7 +302,7 @@ class CloudinaryClient:
             "type": "upload",
             "eager": [
                 "c_limit,w_1600,h_1600,f_auto,q_auto:good",  # main preset
-                "c_fill,w_600,h_600,g_auto,f_auto,q_auto:eco"  # thumb preset
+                "c_fill,w_600,h_600,g_auto,f_auto,q_auto:eco",  # thumb preset
             ],
             "eager_async": True,
         }
@@ -315,16 +325,13 @@ class CloudinaryClient:
             # Upload to Cloudinary
             url = f"{self.config.get_base_url()}/image/upload"
             response = requests.post(
-                url,
-                data=upload_params,
-                files=files,
-                timeout=self.config.upload_timeout
+                url, data=upload_params, files=files, timeout=self.config.upload_timeout
             )
 
             if response.status_code != 200:
                 raise APIError(
                     code=ErrorCode.CLOUDINARY_UPLOAD_FAILED,
-                    message=f"Cloudinary upload failed: {response.text}"
+                    message=f"Cloudinary upload failed: {response.text}",
                 )
 
             result = response.json()
@@ -351,13 +358,13 @@ class CloudinaryClient:
                 "format": result.get("format"),
                 "bytes": result.get("bytes"),
                 "version": result.get("version"),
-                "created_at": result.get("created_at")
+                "created_at": result.get("created_at"),
             }
 
         except requests.RequestException as e:
             raise APIError(
                 code=ErrorCode.CLOUDINARY_UPLOAD_FAILED,
-                message=f"Failed to upload to Cloudinary: {str(e)}"
+                message=f"Failed to upload to Cloudinary: {str(e)}",
             )
 
     def delete_image(self, public_id: str) -> bool:
@@ -367,10 +374,7 @@ class CloudinaryClient:
         """
         try:
             timestamp = int(time.time())
-            params = {
-                "public_id": public_id,
-                "timestamp": timestamp
-            }
+            params = {"public_id": public_id, "timestamp": timestamp}
 
             signature = self._generate_signature(params)
             params["signature"] = signature
@@ -378,9 +382,7 @@ class CloudinaryClient:
 
             url = f"{self.config.get_base_url()}/image/destroy"
             response = requests.post(
-                url,
-                data=params,
-                timeout=self.config.upload_timeout
+                url, data=params, timeout=self.config.upload_timeout
             )
 
             if response.status_code == 200:
@@ -389,20 +391,17 @@ class CloudinaryClient:
             else:
                 raise APIError(
                     code=ErrorCode.CLOUDINARY_DELETE_FAILED,
-                    message=f"Cloudinary delete failed: {response.text}"
+                    message=f"Cloudinary delete failed: {response.text}",
                 )
 
         except requests.RequestException as e:
             raise APIError(
                 code=ErrorCode.CLOUDINARY_DELETE_FAILED,
-                message=f"Failed to delete from Cloudinary: {str(e)}"
+                message=f"Failed to delete from Cloudinary: {str(e)}",
             )
 
     def verify_webhook_signature(
-        self,
-        payload_body: bytes,
-        signature: str,
-        timestamp: str
+        self, payload_body: bytes, signature: str, timestamp: str
     ) -> bool:
         """
         Verify Cloudinary webhook signature
@@ -426,10 +425,7 @@ class CloudinaryClient:
             return False
 
     def generate_variant_url(
-        self,
-        public_id: str,
-        transformation: str,
-        version: Optional[int] = None
+        self, public_id: str, transformation: str, version: Optional[int] = None
     ) -> str:
         """
         Generate Cloudinary URL with transformation for on-demand variants
@@ -442,9 +438,7 @@ class CloudinaryClient:
             return f"{base_url}/{transformation}/{public_id}"
 
     def test_preset_transformation(
-        self,
-        preset_id: str,
-        test_image_url: str
+        self, preset_id: str, test_image_url: str
     ) -> PresetTestResult:
         """
         Test a preset transformation with a sample image URL
@@ -468,8 +462,7 @@ class CloudinaryClient:
 
             # Generate transformed URL
             transformed_url = self.generate_variant_url(
-                public_id=public_id,
-                transformation=preset.transformation
+                public_id=public_id, transformation=preset.transformation
             )
 
             # Estimate file size based on constraints
@@ -478,7 +471,7 @@ class CloudinaryClient:
                 # Use target size from constraints
                 estimated_size = min(
                     preset.constraints.max_file_size_kb,
-                    int(preset.constraints.max_file_size_kb * 0.8)  # 80% of max
+                    int(preset.constraints.max_file_size_kb * 0.8),  # 80% of max
                 )
 
             return PresetTestResult(
@@ -487,18 +480,15 @@ class CloudinaryClient:
                 estimated_file_size_kb=estimated_size,
                 dimensions=ImageDimensions(
                     width=preset.constraints.max_width,
-                    height=preset.constraints.max_height
+                    height=preset.constraints.max_height,
                 ),
                 format="webp",  # f_auto typically chooses webp
                 quality_score=preset.constraints.min_quality,
-                processing_time_ms=500  # Estimated
+                processing_time_ms=500,  # Estimated
             )
 
         except Exception as e:
-            return PresetTestResult(
-                success=False,
-                error_message=str(e)
-            )
+            return PresetTestResult(success=False, error_message=str(e))
 
     def verify_variant_url_exists(self, url: str) -> bool:
         """
@@ -524,10 +514,7 @@ class CloudinaryClient:
             return None
 
     def batch_generate_variants(
-        self,
-        public_id: str,
-        preset_ids: List[str],
-        version: Optional[int] = None
+        self, public_id: str, preset_ids: List[str], version: Optional[int] = None
     ) -> Dict[str, str]:
         """
         Generate multiple variant URLs for a single image
@@ -539,7 +526,7 @@ class CloudinaryClient:
                 url = self.generate_variant_url(
                     public_id=public_id,
                     transformation=preset.transformation,
-                    version=version
+                    version=version,
                 )
                 variants[preset_id] = url
             except Exception:
@@ -554,7 +541,8 @@ class CloudinaryClient:
         """
         # Sort parameters and create query string
         sorted_params = sorted(
-            (k, v) for k, v in params.items()
+            (k, v)
+            for k, v in params.items()
             if k not in ["api_key", "signature", "file"]
         )
 

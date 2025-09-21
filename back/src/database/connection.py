@@ -28,22 +28,20 @@ engine = create_async_engine(
     poolclass=NullPool,  # Use NullPool for serverless environments
     future=True,
     connect_args={
-        "ssl": "prefer",             # TLS preferred, more permissive for development
-        "statement_cache_size": 0,   # Disable statement caching to avoid pgbouncer issues
+        "ssl": "prefer",  # TLS preferred, more permissive for development
+        "statement_cache_size": 0,  # Disable statement caching to avoid pgbouncer issues
     },
     pool_recycle=3600,
 )
 
 # Create async session factory
 AsyncSessionLocal = sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False
+    engine, class_=AsyncSession, expire_on_commit=False, autoflush=False
 )
 
 # Base class for all models
 Base = declarative_base()
+
 
 async def get_db() -> AsyncSession:
     """
@@ -56,6 +54,7 @@ async def get_db() -> AsyncSession:
         finally:
             await session.close()
 
+
 async def init_db():
     """
     Initialize database by creating all tables.
@@ -66,6 +65,7 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
         print("Database tables created successfully")
 
+
 async def close_db():
     """
     Close database connections.
@@ -73,6 +73,7 @@ async def close_db():
     """
     await engine.dispose()
     print("Database connections closed")
+
 
 # Test database connection
 async def test_connection():

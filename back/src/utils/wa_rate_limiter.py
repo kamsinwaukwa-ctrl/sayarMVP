@@ -1,6 +1,7 @@
 """
 WhatsApp-specific rate limiting utilities.
 """
+
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -11,6 +12,7 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 async def check_wa_rate_limit(merchant_id: str, wa_rate_limit_per_hour: int) -> None:
     """
     Check WhatsApp rate limit for a merchant.
@@ -20,25 +22,19 @@ async def check_wa_rate_limit(merchant_id: str, wa_rate_limit_per_hour: int) -> 
     config = RateLimitConfig(
         requests_per_minute=wa_rate_limit_per_hour / 60,  # Convert hourly to per-minute
         burst_limit=wa_rate_limit_per_hour // 4,  # Allow 25% burst
-        window_size=3600  # 1 hour window
+        window_size=3600,  # 1 hour window
     )
-    
+
     try:
         info = await get_rate_limiter().check_and_consume(key, config)
         logger.debug(
             "wa_rate_limit_checked",
-            extra={
-                "merchant_id": merchant_id,
-                "remaining": info.remaining
-            }
+            extra={"merchant_id": merchant_id, "remaining": info.remaining},
         )
     except RateLimitedError as e:
         logger.info(
             "wa_rate_limit_exceeded",
-            extra={
-                "merchant_id": merchant_id,
-                "retry_after": e.details["retry_after"]
-            }
+            extra={"merchant_id": merchant_id, "retry_after": e.details["retry_after"]},
         )
         # Add jitter to prevent thundering herd
         retry_after = e.details["retry_after"]
@@ -52,6 +48,6 @@ async def check_wa_rate_limit(merchant_id: str, wa_rate_limit_per_hour: int) -> 
                 "limit": config.requests_per_minute,
                 "remaining": 0,
                 "reset_time": next_run_at.isoformat(),
-                "retry_after": int(retry_after + jitter)
-            }
+                "retry_after": int(retry_after + jitter),
+            },
         )

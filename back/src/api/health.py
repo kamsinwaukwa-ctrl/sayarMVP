@@ -21,15 +21,15 @@ router = APIRouter(tags=["Observability"])
 @router.get(
     "/healthz",
     summary="Liveness probe",
-    description="Fast liveness check that doesn't depend on external services"
+    description="Fast liveness check that doesn't depend on external services",
 )
 async def healthz() -> Dict[str, Any]:
     """
     Liveness probe - indicates if the application is running
-    
+
     This endpoint should be fast and not depend on external services.
     Used by Kubernetes/Docker for liveness probes.
-    
+
     Returns:
         Dict with status, timestamp, and version
     """
@@ -37,28 +37,28 @@ async def healthz() -> Dict[str, Any]:
         "status": "healthy",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "version": os.getenv("APP_VERSION", "0.1.0"),
-        "service": "sayar-backend"
+        "service": "sayar-backend",
     }
 
 
 @router.get(
     "/readyz",
-    summary="Readiness probe", 
-    description="Readiness check that verifies critical dependencies"
+    summary="Readiness probe",
+    description="Readiness check that verifies critical dependencies",
 )
 async def readyz(response: Response) -> Dict[str, Any]:
     """
     Readiness probe - indicates if the application can serve traffic
-    
+
     This endpoint checks critical dependencies like database connectivity.
     Used by Kubernetes/Docker for readiness probes.
-    
+
     Returns:
         Dict with status, timestamp, and dependency check results
     """
     checks = {}
     overall_healthy = True
-    
+
     # Database connectivity check
     try:
         # Use dependency injection to get DB session
@@ -74,13 +74,13 @@ async def readyz(response: Response) -> Dict[str, Any]:
                     return False
                 finally:
                     await db_session.close()
-        
+
         # Run DB check with timeout
         db_healthy = await asyncio.wait_for(check_db(), timeout=2.0)
         checks["database"] = "healthy" if db_healthy else "unhealthy"
         if not db_healthy:
             overall_healthy = False
-            
+
     except asyncio.TimeoutError:
         checks["database"] = "timeout"
         overall_healthy = False
@@ -89,35 +89,35 @@ async def readyz(response: Response) -> Dict[str, Any]:
         checks["database"] = "unhealthy"
         overall_healthy = False
         log.error(f"Database health check error: {e}")
-    
+
     # Add more dependency checks here as needed
     # Example: Redis, external APIs, etc.
-    
+
     result = {
         "status": "healthy" if overall_healthy else "unhealthy",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "checks": checks
+        "checks": checks,
     }
-    
+
     # Return 503 if any critical dependency is unhealthy
     if not overall_healthy:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-    
+
     return result
 
 
 @router.get(
     "/metrics",
     summary="Prometheus metrics",
-    description="Prometheus metrics endpoint for monitoring and alerting"
+    description="Prometheus metrics endpoint for monitoring and alerting",
 )
 def metrics():
     """
     Prometheus metrics endpoint
-    
+
     Returns metrics in Prometheus text format for scraping by monitoring systems.
     Can be disabled via METRICS_ENABLED environment variable.
-    
+
     Returns:
         Response with Prometheus metrics or 404 if disabled
     """
@@ -127,15 +127,15 @@ def metrics():
 @router.get(
     "/info",
     summary="Application information",
-    description="General application information and build details"
+    description="General application information and build details",
 )
 async def info() -> Dict[str, Any]:
     """
     Application information endpoint
-    
+
     Provides general application metadata, version info, and configuration.
     Useful for debugging and operational visibility.
-    
+
     Returns:
         Dict with application information
     """
@@ -152,8 +152,8 @@ async def info() -> Dict[str, Any]:
         },
         "endpoints": {
             "health_liveness": "/healthz",
-            "health_readiness": "/readyz", 
+            "health_readiness": "/readyz",
             "metrics": "/metrics",
-            "openapi": "/docs"
-        }
+            "openapi": "/docs",
+        },
     }

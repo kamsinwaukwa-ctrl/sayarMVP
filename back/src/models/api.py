@@ -12,16 +12,20 @@ from .database import UserRole, ProductStatus, DiscountStatus, DiscountType
 from .errors import ErrorCode, ErrorDetails, ErrorInfo
 
 # Type variable for generic API responses
-T = TypeVar('T')
+T = TypeVar("T")
+
 
 class ApiResponse(BaseModel, Generic[T]):
     """Standard API response envelope for success"""
+
     ok: bool = True
     id: Optional[UUID] = Field(None, description="Unique identifier for the operation")
     data: Optional[T] = Field(None, description="Response data payload")
     message: Optional[str] = Field(None, description="Human-readable success message")
-    timestamp: datetime = Field(default_factory=datetime.now, description="Response timestamp")
-    
+    timestamp: datetime = Field(
+        default_factory=datetime.now, description="Response timestamp"
+    )
+
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
         json_schema_extra = {
@@ -30,17 +34,20 @@ class ApiResponse(BaseModel, Generic[T]):
                 "id": "7c8de9a5-7e2b-4e7e-9c0a-9b7b0d2b0e1a",
                 "data": {"result": "success"},
                 "message": "Operation completed successfully",
-                "timestamp": "2025-01-27T10:00:00Z"
+                "timestamp": "2025-01-27T10:00:00Z",
             }
         }
 
 
 class ApiErrorResponse(BaseModel):
     """Standard API response envelope for errors"""
+
     ok: bool = False
     error: ErrorInfo
-    timestamp: datetime = Field(default_factory=datetime.now, description="Error timestamp")
-    
+    timestamp: datetime = Field(
+        default_factory=datetime.now, description="Error timestamp"
+    )
+
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
         json_schema_extra = {
@@ -50,9 +57,9 @@ class ApiErrorResponse(BaseModel):
                     "code": "VALIDATION_ERROR",
                     "message": "Invalid input data",
                     "details": {"field": "email", "reason": "Invalid email format"},
-                    "trace_id": "trace_abc123"
+                    "trace_id": "trace_abc123",
                 },
-                "timestamp": "2025-01-27T10:00:00Z"
+                "timestamp": "2025-01-27T10:00:00Z",
             }
         }
 
@@ -60,12 +67,17 @@ class ApiErrorResponse(BaseModel):
 # Auth Models
 class RegisterRequest(BaseModel):
     """User registration request"""
+
     name: str = Field(..., min_length=1, max_length=100, description="User full name")
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., min_length=8, description="User password")
-    business_name: str = Field(..., min_length=1, max_length=100, description="Business name")
-    whatsapp_phone_e164: Optional[str] = Field(None, description="WhatsApp phone number in E.164 format (optional)")
-    
+    business_name: str = Field(
+        ..., min_length=1, max_length=100, description="Business name"
+    )
+    whatsapp_phone_e164: Optional[str] = Field(
+        None, description="WhatsApp phone number in E.164 format (optional)"
+    )
+
     class Config:
         json_schema_extra = {
             "examples": {
@@ -75,8 +87,8 @@ class RegisterRequest(BaseModel):
                         "name": "John Doe",
                         "email": "john@example.com",
                         "password": "secure_password",
-                        "business_name": "My Store"
-                    }
+                        "business_name": "My Store",
+                    },
                 },
                 "withWhatsApp": {
                     "summary": "Registration with WhatsApp phone (optional)",
@@ -85,32 +97,31 @@ class RegisterRequest(BaseModel):
                         "email": "john@example.com",
                         "password": "secure_password",
                         "business_name": "My Store",
-                        "whatsapp_phone_e164": "+2348012345678"
-                    }
-                }
+                        "whatsapp_phone_e164": "+2348012345678",
+                    },
+                },
             }
         }
 
 
 class AuthRequest(BaseModel):
     """Authentication request"""
+
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., min_length=8, description="User password")
-    
+
     class Config:
         json_schema_extra = {
-            "example": {
-                "email": "user@example.com",
-                "password": "securepassword123"
-            }
+            "example": {"email": "user@example.com", "password": "securepassword123"}
         }
 
 
 class AuthResponse(BaseModel):
     """Authentication response"""
+
     token: str = Field(..., description="JWT access token")
     user: Dict[str, Any] = Field(..., description="User information")
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -120,8 +131,8 @@ class AuthResponse(BaseModel):
                     "email": "user@example.com",
                     "name": "John Doe",
                     "role": "owner",
-                    "merchant_id": "660e8400-e29b-41d4-a716-446655440001"
-                }
+                    "merchant_id": "660e8400-e29b-41d4-a716-446655440001",
+                },
             }
         }
 
@@ -129,20 +140,24 @@ class AuthResponse(BaseModel):
 # Merchant Models
 class CreateMerchantRequest(BaseModel):
     """Create merchant request"""
+
     name: str = Field(..., min_length=1, max_length=100, description="Merchant name")
-    whatsapp_phone_e164: str = Field(..., description="WhatsApp phone number in E.164 format")
-    
+    whatsapp_phone_e164: str = Field(
+        ..., description="WhatsApp phone number in E.164 format"
+    )
+
     class Config:
         json_schema_extra = {
             "example": {
                 "name": "Awesome Beauty Store",
-                "whatsapp_phone_e164": "+2341234567890"
+                "whatsapp_phone_e164": "+2341234567890",
             }
         }
 
 
 class MerchantResponse(BaseModel):
     """Merchant response"""
+
     id: UUID
     name: str
     slug: Optional[str]
@@ -150,7 +165,7 @@ class MerchantResponse(BaseModel):
     currency: str
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
         json_schema_extra = {
@@ -161,7 +176,7 @@ class MerchantResponse(BaseModel):
                 "whatsapp_phone_e164": "+2341234567890",
                 "currency": "NGN",
                 "created_at": "2025-01-27T10:00:00Z",
-                "updated_at": "2025-01-27T10:00:00Z"
+                "updated_at": "2025-01-27T10:00:00Z",
             }
         }
 
@@ -169,18 +184,38 @@ class MerchantResponse(BaseModel):
 # Product Models
 class CreateProductRequest(BaseModel):
     """Create product request with Meta catalog support"""
+
     title: str = Field(..., min_length=1, max_length=200, description="Product title")
-    description: Optional[str] = Field(None, max_length=1000, description="Product description")
+    description: Optional[str] = Field(
+        None, max_length=1000, description="Product description"
+    )
     price_kobo: int = Field(..., ge=0, description="Price in kobo (1 NGN = 100 kobo)")
     stock: int = Field(..., ge=0, description="Initial stock quantity")
-    sku: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9-_]{1,64}$", description="Stock keeping unit (auto-generated if missing)")
-    brand: Optional[str] = Field(None, min_length=1, max_length=70, description="Product brand (auto-defaults from merchant name)")
-    mpn: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9-._]{1,70}$", description="Manufacturer Part Number (auto-generated if missing)")
+    sku: Optional[str] = Field(
+        None,
+        pattern=r"^[A-Za-z0-9-_]{1,64}$",
+        description="Stock keeping unit (auto-generated if missing)",
+    )
+    brand: Optional[str] = Field(
+        None,
+        min_length=1,
+        max_length=70,
+        description="Product brand (auto-defaults from merchant name)",
+    )
+    mpn: Optional[str] = Field(
+        None,
+        pattern=r"^[A-Za-z0-9-._]{1,70}$",
+        description="Manufacturer Part Number (auto-generated if missing)",
+    )
     category_path: Optional[str] = Field(None, description="Category path")
     tags: Optional[List[str]] = Field(None, description="Product tags")
-    meta_catalog_visible: bool = Field(default=True, description="Whether to sync to Meta catalog")
-    image_file_id: Optional[str] = Field(None, description="Reference to uploaded image file")
-    
+    meta_catalog_visible: bool = Field(
+        default=True, description="Whether to sync to Meta catalog"
+    )
+    image_file_id: Optional[str] = Field(
+        None, description="Reference to uploaded image file"
+    )
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -194,25 +229,44 @@ class CreateProductRequest(BaseModel):
                 "category_path": "skincare/face/creams",
                 "tags": ["premium", "anti-aging", "natural"],
                 "meta_catalog_visible": True,
-                "image_file_id": "img_123456"
+                "image_file_id": "img_123456",
             }
         }
 
+
 class UpdateProductRequest(BaseModel):
     """Update product request with partial fields"""
-    title: Optional[str] = Field(None, min_length=1, max_length=200, description="Product title")
-    description: Optional[str] = Field(None, max_length=1000, description="Product description")
+
+    title: Optional[str] = Field(
+        None, min_length=1, max_length=200, description="Product title"
+    )
+    description: Optional[str] = Field(
+        None, max_length=1000, description="Product description"
+    )
     price_kobo: Optional[int] = Field(None, ge=0, description="Price in kobo")
     stock: Optional[int] = Field(None, ge=0, description="Stock quantity")
-    sku: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9-_]{1,64}$", description="Stock keeping unit")
-    brand: Optional[str] = Field(None, min_length=1, max_length=70, description="Product brand (preserves existing if not provided)")
-    mpn: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9-._]{1,70}$", description="Manufacturer Part Number")
+    sku: Optional[str] = Field(
+        None, pattern=r"^[A-Za-z0-9-_]{1,64}$", description="Stock keeping unit"
+    )
+    brand: Optional[str] = Field(
+        None,
+        min_length=1,
+        max_length=70,
+        description="Product brand (preserves existing if not provided)",
+    )
+    mpn: Optional[str] = Field(
+        None, pattern=r"^[A-Za-z0-9-._]{1,70}$", description="Manufacturer Part Number"
+    )
     category_path: Optional[str] = Field(None, description="Category path")
     tags: Optional[List[str]] = Field(None, description="Product tags")
-    meta_catalog_visible: Optional[bool] = Field(None, description="Meta catalog visibility")
+    meta_catalog_visible: Optional[bool] = Field(
+        None, description="Meta catalog visibility"
+    )
     status: Optional[str] = Field(None, description="Product status (active/inactive)")
-    image_file_id: Optional[str] = Field(None, description="Reference to uploaded image file")
-    
+    image_file_id: Optional[str] = Field(
+        None, description="Reference to uploaded image file"
+    )
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -221,13 +275,14 @@ class UpdateProductRequest(BaseModel):
                 "stock": 150,
                 "brand": "Updated Brand Name",
                 "mpn": "amari-updated-sku-123",
-                "meta_catalog_visible": True
+                "meta_catalog_visible": True,
             }
         }
 
 
 class ProductResponse(BaseModel):
     """Product response with Meta catalog fields"""
+
     id: UUID
     merchant_id: UUID
     title: str
@@ -250,7 +305,7 @@ class ProductResponse(BaseModel):
     meta_last_synced_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
         json_schema_extra = {
@@ -276,7 +331,7 @@ class ProductResponse(BaseModel):
                 "meta_sync_errors": None,
                 "meta_last_synced_at": "2025-01-27T10:05:00Z",
                 "created_at": "2025-01-27T10:00:00Z",
-                "updated_at": "2025-01-27T10:00:00Z"
+                "updated_at": "2025-01-27T10:00:00Z",
             }
         }
 
@@ -284,30 +339,42 @@ class ProductResponse(BaseModel):
 # Delivery Rate Models
 class CreateDeliveryRateRequest(BaseModel):
     """Create delivery rate request"""
-    name: str = Field(..., min_length=1, max_length=100, description="Delivery rate name")
+
+    name: str = Field(
+        ..., min_length=1, max_length=100, description="Delivery rate name"
+    )
     areas_text: str = Field(..., description="Coverage areas as text")
     price_kobo: int = Field(..., ge=0, description="Delivery price in kobo")
-    description: Optional[str] = Field(None, max_length=500, description="Delivery rate description")
-    
+    description: Optional[str] = Field(
+        None, max_length=500, description="Delivery rate description"
+    )
+
     class Config:
         json_schema_extra = {
             "example": {
                 "name": "Lagos Mainland Delivery",
                 "areas_text": "Ikeja, Surulere, Yaba, Mushin",
                 "price_kobo": 1500,
-                "description": "Next day delivery within Lagos Mainland"
+                "description": "Next day delivery within Lagos Mainland",
             }
         }
 
 
 class UpdateDeliveryRateRequest(BaseModel):
     """Update delivery rate request"""
-    name: Optional[str] = Field(None, min_length=1, max_length=100, description="Delivery rate name")
-    areas_text: Optional[str] = Field(None, min_length=1, description="Coverage areas as text")
+
+    name: Optional[str] = Field(
+        None, min_length=1, max_length=100, description="Delivery rate name"
+    )
+    areas_text: Optional[str] = Field(
+        None, min_length=1, description="Coverage areas as text"
+    )
     price_kobo: Optional[int] = Field(None, ge=0, description="Delivery price in kobo")
-    description: Optional[str] = Field(None, max_length=500, description="Delivery rate description")
+    description: Optional[str] = Field(
+        None, max_length=500, description="Delivery rate description"
+    )
     active: Optional[bool] = Field(None, description="Whether delivery rate is active")
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -315,13 +382,14 @@ class UpdateDeliveryRateRequest(BaseModel):
                 "areas_text": "Ikeja, Surulere, Yaba, Mushin, Maryland",
                 "price_kobo": 2000,
                 "description": "Same day delivery within Lagos Mainland",
-                "active": True
+                "active": True,
             }
         }
 
 
 class DeliveryRateResponse(BaseModel):
     """Delivery rate response"""
+
     id: UUID
     merchant_id: UUID
     name: str
@@ -331,7 +399,7 @@ class DeliveryRateResponse(BaseModel):
     active: bool
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
         json_schema_extra = {
@@ -344,7 +412,7 @@ class DeliveryRateResponse(BaseModel):
                 "description": "Next day delivery within Lagos Mainland",
                 "active": True,
                 "created_at": "2025-01-27T10:00:00Z",
-                "updated_at": "2025-01-27T10:00:00Z"
+                "updated_at": "2025-01-27T10:00:00Z",
             }
         }
 
@@ -352,48 +420,71 @@ class DeliveryRateResponse(BaseModel):
 # Discount Models
 class ValidateDiscountRequest(BaseModel):
     """Validate discount request"""
+
     code: str = Field(..., min_length=1, max_length=50, description="Discount code")
     subtotal_kobo: int = Field(..., ge=0, description="Order subtotal in kobo")
-    customer_id: Optional[UUID] = Field(None, description="Customer ID for per-customer limits")
-    
+    customer_id: Optional[UUID] = Field(
+        None, description="Customer ID for per-customer limits"
+    )
+
     class Config:
         json_schema_extra = {
             "example": {
                 "code": "SUMMER20",
                 "subtotal_kobo": 10000,
-                "customer_id": "990e8400-e29b-41d4-a716-446655440004"
+                "customer_id": "990e8400-e29b-41d4-a716-446655440004",
             }
         }
 
 
 class DiscountValidationResponse(BaseModel):
     """Discount validation response"""
+
     valid: bool = Field(..., description="Whether discount is valid")
-    discount_kobo: Optional[int] = Field(None, ge=0, description="Discount amount in kobo")
+    discount_kobo: Optional[int] = Field(
+        None, ge=0, description="Discount amount in kobo"
+    )
     reason: Optional[str] = Field(None, description="Reason if invalid")
 
     class Config:
         json_schema_extra = {
-            "example": {
-                "valid": True,
-                "discount_kobo": 2000,
-                "reason": None
-            }
+            "example": {"valid": True, "discount_kobo": 2000, "reason": None}
         }
 
 
 class CreateDiscountRequest(BaseModel):
     """Create discount request"""
-    code: str = Field(..., min_length=1, max_length=50, description="Discount code (uppercase alphanumeric)")
+
+    code: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Discount code (uppercase alphanumeric)",
+    )
     type: str = Field(..., description="Discount type", pattern="^(percent|fixed)$")
-    value_bp: Optional[int] = Field(None, ge=0, le=10000, description="Percentage in basis points (0-10000 = 0-100%)")
-    amount_kobo: Optional[int] = Field(None, ge=0, description="Fixed discount amount in kobo")
-    max_discount_kobo: Optional[int] = Field(None, ge=0, description="Maximum discount cap in kobo")
-    min_subtotal_kobo: int = Field(0, ge=0, description="Minimum order subtotal required in kobo")
+    value_bp: Optional[int] = Field(
+        None,
+        ge=0,
+        le=10000,
+        description="Percentage in basis points (0-10000 = 0-100%)",
+    )
+    amount_kobo: Optional[int] = Field(
+        None, ge=0, description="Fixed discount amount in kobo"
+    )
+    max_discount_kobo: Optional[int] = Field(
+        None, ge=0, description="Maximum discount cap in kobo"
+    )
+    min_subtotal_kobo: int = Field(
+        0, ge=0, description="Minimum order subtotal required in kobo"
+    )
     starts_at: Optional[datetime] = Field(None, description="Discount start time")
     expires_at: Optional[datetime] = Field(None, description="Discount expiry time")
-    usage_limit_total: Optional[int] = Field(None, ge=1, description="Total usage limit across all customers")
-    usage_limit_per_customer: Optional[int] = Field(None, ge=1, description="Usage limit per customer")
+    usage_limit_total: Optional[int] = Field(
+        None, ge=1, description="Total usage limit across all customers"
+    )
+    usage_limit_per_customer: Optional[int] = Field(
+        None, ge=1, description="Usage limit per customer"
+    )
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
@@ -409,8 +500,8 @@ class CreateDiscountRequest(BaseModel):
                         "min_subtotal_kobo": 10000,
                         "expires_at": "2025-12-31T23:59:59Z",
                         "usage_limit_total": 100,
-                        "usage_limit_per_customer": 1
-                    }
+                        "usage_limit_per_customer": 1,
+                    },
                 },
                 {
                     "summary": "Fixed ₦20 off discount",
@@ -419,49 +510,47 @@ class CreateDiscountRequest(BaseModel):
                         "type": "fixed",
                         "amount_kobo": 2000,
                         "min_subtotal_kobo": 5000,
-                        "usage_limit_total": 50
-                    }
-                }
+                        "usage_limit_total": 50,
+                    },
+                },
             ]
         }
 
 
 class UpdateDiscountRequest(BaseModel):
     """Update discount request"""
-    status: Optional[str] = Field(None, description="Discount status", pattern="^(active|paused)$")
+
+    status: Optional[str] = Field(
+        None, description="Discount status", pattern="^(active|paused)$"
+    )
     expires_at: Optional[datetime] = Field(None, description="Update expiry time")
-    usage_limit_total: Optional[int] = Field(None, ge=1, description="Update total usage limit")
-    usage_limit_per_customer: Optional[int] = Field(None, ge=1, description="Update per-customer usage limit")
+    usage_limit_total: Optional[int] = Field(
+        None, ge=1, description="Update total usage limit"
+    )
+    usage_limit_per_customer: Optional[int] = Field(
+        None, ge=1, description="Update per-customer usage limit"
+    )
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
         json_schema_extra = {
             "examples": [
-                {
-                    "summary": "Pause an active discount",
-                    "value": {
-                        "status": "paused"
-                    }
-                },
+                {"summary": "Pause an active discount", "value": {"status": "paused"}},
                 {
                     "summary": "Extend discount expiry date",
-                    "value": {
-                        "expires_at": "2025-12-31T23:59:59Z"
-                    }
+                    "value": {"expires_at": "2025-12-31T23:59:59Z"},
                 },
                 {
                     "summary": "Increase usage limits",
-                    "value": {
-                        "usage_limit_total": 200,
-                        "usage_limit_per_customer": 2
-                    }
-                }
+                    "value": {"usage_limit_total": 200, "usage_limit_per_customer": 2},
+                },
             ]
         }
 
 
 class DiscountResponse(BaseModel):
     """Discount response"""
+
     id: UUID
     merchant_id: UUID
     code: str
@@ -501,7 +590,7 @@ class DiscountResponse(BaseModel):
                 "status": "active",
                 "stackable": False,
                 "created_at": "2025-01-27T10:00:00Z",
-                "updated_at": "2025-01-27T10:00:00Z"
+                "updated_at": "2025-01-27T10:00:00Z",
             }
         }
 
@@ -509,18 +598,22 @@ class DiscountResponse(BaseModel):
 # Pagination Models
 class PaginationParams(BaseModel):
     """Pagination query parameters"""
+
     page: int = Field(1, ge=1, description="Page number")
     page_size: int = Field(20, ge=1, le=100, description="Items per page")
-    sort: Optional[str] = Field(None, description="Sort field and direction (e.g., 'created_at:desc')")
+    sort: Optional[str] = Field(
+        None, description="Sort field and direction (e.g., 'created_at:desc')"
+    )
 
 
 class PaginatedResponse(BaseModel):
     """Paginated response envelope"""
+
     ok: bool = True
     data: List[Any]
     pagination: Dict[str, Any]
     timestamp: datetime = Field(default_factory=datetime.now)
-    
+
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
         json_schema_extra = {
@@ -533,9 +626,9 @@ class PaginatedResponse(BaseModel):
                     "total_items": 100,
                     "total_pages": 5,
                     "has_next": True,
-                    "has_prev": False
+                    "has_prev": False,
                 },
-                "timestamp": "2025-01-27T10:00:00Z"
+                "timestamp": "2025-01-27T10:00:00Z",
             }
         }
 
@@ -544,14 +637,17 @@ class PaginatedResponse(BaseModel):
 # WhatsApp Integration Models
 # =============================================================================
 
+
 class WAEnvironment(str, Enum):
     """WhatsApp environment enumeration"""
+
     TEST = "test"
     PROD = "prod"
 
 
 class WAConnectionStatus(str, Enum):
     """WhatsApp connection status enumeration"""
+
     NOT_CONNECTED = "not_connected"
     VERIFIED_TEST = "verified_test"
     VERIFIED_PROD = "verified_prod"
@@ -559,11 +655,22 @@ class WAConnectionStatus(str, Enum):
 
 class WhatsAppCredentialsRequest(BaseModel):
     """Request model for saving/updating WhatsApp credentials"""
-    waba_id: str = Field(..., description="WhatsApp Business Account ID", min_length=15, max_length=17)
-    phone_number_id: str = Field(..., description="Phone Number ID from Meta", min_length=15, max_length=17)
-    app_id: str = Field(..., description="Facebook App ID", min_length=15, max_length=17)
-    system_user_token: str = Field(..., description="System User access token", min_length=100)
-    environment: WAEnvironment = Field(WAEnvironment.TEST, description="Test or production environment")
+
+    waba_id: str = Field(
+        ..., description="WhatsApp Business Account ID", min_length=15, max_length=17
+    )
+    phone_number_id: str = Field(
+        ..., description="Phone Number ID from Meta", min_length=15, max_length=17
+    )
+    app_id: str = Field(
+        ..., description="Facebook App ID", min_length=15, max_length=17
+    )
+    system_user_token: str = Field(
+        ..., description="System User access token", min_length=100
+    )
+    environment: WAEnvironment = Field(
+        WAEnvironment.TEST, description="Test or production environment"
+    )
 
     class Config:
         json_schema_extra = {
@@ -572,16 +679,19 @@ class WhatsAppCredentialsRequest(BaseModel):
                 "phone_number_id": "987654321098765",
                 "app_id": "456789123456789",
                 "system_user_token": "EAAxxxxxxxxxxxxxx",
-                "environment": "test"
+                "environment": "test",
             }
         }
 
 
 class WhatsAppStatusResponse(BaseModel):
     """Response model for WhatsApp connection status"""
+
     connection_status: WAConnectionStatus
     environment: WAEnvironment
-    phone_number_id: Optional[str] = Field(None, description="Phone number ID (last 4 digits shown, rest masked)")
+    phone_number_id: Optional[str] = Field(
+        None, description="Phone number ID (last 4 digits shown, rest masked)"
+    )
     verified_at: Optional[datetime] = None
     last_error: Optional[str] = None
 
@@ -593,15 +703,20 @@ class WhatsAppStatusResponse(BaseModel):
                 "environment": "test",
                 "phone_number_id": "***********8765",
                 "verified_at": None,
-                "last_error": None
+                "last_error": None,
             }
         }
 
 
 class WhatsAppVerifyResponse(WhatsAppStatusResponse):
     """Response model for WhatsApp verification with additional info"""
-    phone_number_display: Optional[str] = Field(None, description="Formatted phone number")
-    business_name: Optional[str] = Field(None, description="Business name from WhatsApp")
+
+    phone_number_display: Optional[str] = Field(
+        None, description="Formatted phone number"
+    )
+    business_name: Optional[str] = Field(
+        None, description="Business name from WhatsApp"
+    )
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
@@ -613,7 +728,7 @@ class WhatsAppVerifyResponse(WhatsAppStatusResponse):
                 "verified_at": "2025-01-14T10:00:00Z",
                 "last_error": None,
                 "phone_number_display": "+234XXXXXXXXX",
-                "business_name": "Beauty Store Lagos"
+                "business_name": "Beauty Store Lagos",
             }
         }
 
@@ -622,11 +737,17 @@ class WhatsAppVerifyResponse(WhatsAppStatusResponse):
 # Cloudinary Integration Models
 # =============================================================================
 
+
 class CloudinaryHealthResponse(BaseModel):
     """Cloudinary platform health check response"""
-    configured: bool = Field(..., description="Whether Cloudinary is properly configured")
+
+    configured: bool = Field(
+        ..., description="Whether Cloudinary is properly configured"
+    )
     cloud_name: Optional[str] = Field(None, description="Cloudinary cloud name")
-    verified_at: Optional[datetime] = Field(None, description="Last verification timestamp")
+    verified_at: Optional[datetime] = Field(
+        None, description="Last verification timestamp"
+    )
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
@@ -634,27 +755,33 @@ class CloudinaryHealthResponse(BaseModel):
             "example": {
                 "configured": True,
                 "cloud_name": "platform-cloud",
-                "verified_at": "2025-01-16T10:30:00Z"
+                "verified_at": "2025-01-16T10:30:00Z",
             }
         }
 
 
 class ProductImageUploadRequest(BaseModel):
     """Product image upload request"""
-    is_primary: bool = Field(False, description="Whether this should be the primary image")
-    alt_text: Optional[str] = Field(None, max_length=255, description="Alternative text for accessibility")
+
+    is_primary: bool = Field(
+        False, description="Whether this should be the primary image"
+    )
+    alt_text: Optional[str] = Field(
+        None, max_length=255, description="Alternative text for accessibility"
+    )
 
     class Config:
         json_schema_extra = {
             "example": {
                 "is_primary": True,
-                "alt_text": "Premium face cream product shot"
+                "alt_text": "Premium face cream product shot",
             }
         }
 
 
 class ProductImageResponse(BaseModel):
     """Product image response"""
+
     id: UUID = Field(..., description="Image unique identifier")
     product_id: UUID = Field(..., description="Associated product ID")
     cloudinary_public_id: str = Field(..., description="Cloudinary public ID")
@@ -664,9 +791,13 @@ class ProductImageResponse(BaseModel):
     height: Optional[int] = Field(None, description="Image height in pixels")
     format: Optional[str] = Field(None, description="Image format (jpg, png, webp)")
     bytes: Optional[int] = Field(None, description="File size in bytes")
-    is_primary: bool = Field(..., description="Whether this is the primary product image")
+    is_primary: bool = Field(
+        ..., description="Whether this is the primary product image"
+    )
     alt_text: Optional[str] = Field(None, description="Alternative text")
-    upload_status: str = Field(..., description="Upload status (uploading, completed, failed, deleted)")
+    upload_status: str = Field(
+        ..., description="Upload status (uploading, completed, failed, deleted)"
+    )
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
@@ -687,14 +818,17 @@ class ProductImageResponse(BaseModel):
                 "alt_text": "Product description",
                 "upload_status": "completed",
                 "created_at": "2025-01-16T10:30:00Z",
-                "updated_at": "2025-01-16T10:30:00Z"
+                "updated_at": "2025-01-16T10:30:00Z",
             }
         }
 
 
 class CloudinaryWebhookPayload(BaseModel):
     """Cloudinary webhook payload"""
-    notification_type: str = Field(..., description="Type of notification (upload, destroy, etc.)")
+
+    notification_type: str = Field(
+        ..., description="Type of notification (upload, destroy, etc.)"
+    )
     timestamp: int = Field(..., description="Unix timestamp")
     public_id: str = Field(..., description="Cloudinary public ID")
     version: int = Field(..., description="Version number")
@@ -705,7 +839,9 @@ class CloudinaryWebhookPayload(BaseModel):
     bytes: Optional[int] = Field(None, description="File size in bytes")
     url: str = Field(..., description="Public URL")
     secure_url: str = Field(..., description="HTTPS URL")
-    eager: Optional[List[Dict[str, Any]]] = Field([], description="Eager transformation results")
+    eager: Optional[List[Dict[str, Any]]] = Field(
+        [], description="Eager transformation results"
+    )
 
     class Config:
         json_schema_extra = {
@@ -727,25 +863,28 @@ class CloudinaryWebhookPayload(BaseModel):
                         "width": 1600,
                         "height": 1066,
                         "url": "http://res.cloudinary.com/cloud/image/upload/c_limit,w_1600,h_1600,f_auto,q_auto:good/v1642341234/sayar/products/merchant_id/image_uuid.jpg",
-                        "secure_url": "https://res.cloudinary.com/cloud/image/upload/c_limit,w_1600,h_1600,f_auto,q_auto:good/v1642341234/sayar/products/merchant_id/image_uuid.jpg"
+                        "secure_url": "https://res.cloudinary.com/cloud/image/upload/c_limit,w_1600,h_1600,f_auto,q_auto:good/v1642341234/sayar/products/merchant_id/image_uuid.jpg",
                     }
-                ]
+                ],
             }
         }
 
 
 class SetPrimaryImageResponse(BaseModel):
     """Response for setting primary image"""
+
     id: UUID = Field(..., description="Image ID")
     is_primary: bool = Field(..., description="Confirmation that image is now primary")
-    catalog_sync_triggered: bool = Field(..., description="Whether Meta catalog sync was triggered")
+    catalog_sync_triggered: bool = Field(
+        ..., description="Whether Meta catalog sync was triggered"
+    )
 
     class Config:
         json_schema_extra = {
             "example": {
                 "id": "img_uuid",
                 "is_primary": True,
-                "catalog_sync_triggered": True
+                "catalog_sync_triggered": True,
             }
         }
 
@@ -754,8 +893,10 @@ class SetPrimaryImageResponse(BaseModel):
 # Meta Catalog Sync Models
 # =============================================================================
 
+
 class MetaSyncResponse(BaseModel):
     """Response for manual Meta Catalog sync trigger"""
+
     product_id: UUID = Field(..., description="Product ID that was synced")
     sync_status: str = Field(..., description="Current sync status")
     job_id: str = Field(..., description="Outbox job ID for tracking")
@@ -765,18 +906,23 @@ class MetaSyncResponse(BaseModel):
             "example": {
                 "product_id": "550e8400-e29b-41d4-a716-446655440000",
                 "sync_status": "pending",
-                "job_id": "catalog_sync:merchant_123:product_456:2025-01-17T10:30:00Z"
+                "job_id": "catalog_sync:merchant_123:product_456:2025-01-17T10:30:00Z",
             }
         }
 
 
 class MetaSyncStatusResponse(BaseModel):
     """Response for Meta sync status endpoint"""
+
     status: str = Field(..., description="Current Meta sync status")
     reason: Optional[str] = Field(None, description="Human-readable sync status reason")
-    last_synced_at: Optional[datetime] = Field(None, description="Last successful sync timestamp")
+    last_synced_at: Optional[datetime] = Field(
+        None, description="Last successful sync timestamp"
+    )
     retry_count: Optional[int] = Field(None, description="Number of retry attempts")
-    next_retry_at: Optional[datetime] = Field(None, description="Next retry timestamp if applicable")
+    next_retry_at: Optional[datetime] = Field(
+        None, description="Next retry timestamp if applicable"
+    )
 
     class Config:
         json_schema_extra = {
@@ -785,15 +931,18 @@ class MetaSyncStatusResponse(BaseModel):
                 "reason": "Product image is invalid or missing. Please upload a valid image and try again.",
                 "last_synced_at": "2025-09-17T10:30:00Z",
                 "retry_count": 3,
-                "next_retry_at": "2025-09-17T11:00:00Z"
+                "next_retry_at": "2025-09-17T11:00:00Z",
             }
         }
 
 
 class MetaUnpublishResponse(BaseModel):
     """Response model for force unpublish endpoint (envelope wrapper applies)"""
+
     product_id: UUID = Field(..., description="Product ID that was unpublished")
-    action: str = Field(..., description="Action performed (force_unpublish or status_change)")
+    action: str = Field(
+        ..., description="Action performed (force_unpublish or status_change)"
+    )
     job_id: str = Field(..., description="Outbox job ID for tracking")
 
     class Config:
@@ -801,7 +950,7 @@ class MetaUnpublishResponse(BaseModel):
             "example": {
                 "product_id": "550e8400-e29b-41d4-a716-446655440000",
                 "action": "force_unpublish",
-                "job_id": "catalog_unpublish:merchant:product:1705500000"
+                "job_id": "catalog_unpublish:merchant:product:1705500000",
             }
         }
 
@@ -809,6 +958,7 @@ class MetaUnpublishResponse(BaseModel):
 # Onboarding Progress Models
 class OnboardingProgressResponse(BaseModel):
     """Response model for onboarding progress"""
+
     brand_basics: bool = Field(..., description="Brand basics step completed")
     meta_catalog: bool = Field(..., description="Meta catalog step completed")
     products: bool = Field(..., description="Products step completed")
@@ -822,22 +972,25 @@ class OnboardingProgressResponse(BaseModel):
                 "meta_catalog": False,
                 "products": True,
                 "delivery_rates": False,
-                "payments": False
+                "payments": False,
             }
         }
 
 
 class UpdateOnboardingProgressRequest(BaseModel):
     """Request to update onboarding progress"""
-    brand_basics: Optional[bool] = Field(None, description="Mark brand basics as completed")
-    meta_catalog: Optional[bool] = Field(None, description="Mark meta catalog as completed")
+
+    brand_basics: Optional[bool] = Field(
+        None, description="Mark brand basics as completed"
+    )
+    meta_catalog: Optional[bool] = Field(
+        None, description="Mark meta catalog as completed"
+    )
     products: Optional[bool] = Field(None, description="Mark products as completed")
-    delivery_rates: Optional[bool] = Field(None, description="Mark delivery rates as completed")
+    delivery_rates: Optional[bool] = Field(
+        None, description="Mark delivery rates as completed"
+    )
     payments: Optional[bool] = Field(None, description="Mark payments as completed")
 
     class Config:
-        json_schema_extra = {
-            "example": {
-                "brand_basics": True
-            }
-        }
+        json_schema_extra = {"example": {"brand_basics": True}}

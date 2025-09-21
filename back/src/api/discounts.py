@@ -14,7 +14,7 @@ from ..models.api import (
     ValidateDiscountRequest,
     DiscountValidationResponse,
     ApiResponse,
-    ApiErrorResponse
+    ApiErrorResponse,
 )
 from ..models.errors import ErrorCode
 from ..database.connection import get_db
@@ -28,17 +28,17 @@ router = APIRouter(prefix="/discounts", tags=["Discounts"])
 @router.get(
     "",
     response_model=ApiResponse[List[DiscountResponse]],
-    responses={
-        401: {"model": ApiErrorResponse, "description": "Unauthorized"}
-    },
+    responses={401: {"model": ApiErrorResponse, "description": "Unauthorized"}},
     summary="List discounts",
-    description="Get list of discounts for the current merchant with optional filtering"
+    description="Get list of discounts for the current merchant with optional filtering",
 )
 async def list_discounts(
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
-    status: Optional[str] = Query(None, description="Filter by status (active, paused, expired)"),
-    active: Optional[bool] = Query(None, description="Filter by active status")
+    status: Optional[str] = Query(
+        None, description="Filter by status (active, paused, expired)"
+    ),
+    active: Optional[bool] = Query(None, description="Filter by active status"),
 ):
     """
     Get list of discounts for the authenticated merchant.
@@ -54,37 +54,39 @@ async def list_discounts(
     try:
         service = DiscountsService(db)
         discounts = await service.list_discounts(
-            merchant_id=current_user.merchant_id,
-            status=status,
-            active_only=active
+            merchant_id=current_user.merchant_id, status=status, active_only=active
         )
 
         return ApiResponse(
-            ok=True,
-            data=discounts,
-            message=f"Retrieved {len(discounts)} discounts"
+            ok=True, data=discounts, message=f"Retrieved {len(discounts)} discounts"
         )
 
     except DiscountError as e:
-        log.error("Failed to list discounts", extra={
-            "merchant_id": str(current_user.merchant_id),
-            "error": str(e),
-            "event_type": "api_discounts_list_error"
-        })
+        log.error(
+            "Failed to list discounts",
+            extra={
+                "merchant_id": str(current_user.merchant_id),
+                "error": str(e),
+                "event_type": "api_discounts_list_error",
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve discounts"
+            detail="Failed to retrieve discounts",
         )
 
     except Exception as e:
-        log.error("Unexpected error listing discounts", extra={
-            "merchant_id": str(current_user.merchant_id),
-            "error": str(e),
-            "event_type": "api_discounts_list_unexpected_error"
-        })
+        log.error(
+            "Unexpected error listing discounts",
+            extra={
+                "merchant_id": str(current_user.merchant_id),
+                "error": str(e),
+                "event_type": "api_discounts_list_unexpected_error",
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred"
+            detail="An unexpected error occurred",
         )
 
 
@@ -96,16 +98,16 @@ async def list_discounts(
         400: {"model": ApiErrorResponse, "description": "Validation error"},
         401: {"model": ApiErrorResponse, "description": "Unauthorized"},
         403: {"model": ApiErrorResponse, "description": "Forbidden - admin required"},
-        409: {"model": ApiErrorResponse, "description": "Duplicate discount code"}
+        409: {"model": ApiErrorResponse, "description": "Duplicate discount code"},
     },
     summary="Create discount",
-    description="Create a new discount code for the current merchant"
+    description="Create a new discount code for the current merchant",
 )
 async def create_discount(
     discount_data: CreateDiscountRequest,
     current_admin: CurrentAdmin,
     db: Annotated[AsyncSession, Depends(get_db)],
-    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     """
     Create a new discount code.
@@ -133,45 +135,47 @@ async def create_discount(
         discount = await service.create_discount(
             merchant_id=current_admin.merchant_id,
             discount_data=discount_data,
-            idempotency_key=idempotency_key
+            idempotency_key=idempotency_key,
         )
 
         return ApiResponse(
             ok=True,
             id=discount.id,
             data=discount,
-            message=f"Discount '{discount.code}' created successfully"
+            message=f"Discount '{discount.code}' created successfully",
         )
 
     except DiscountError as e:
         error_msg = str(e)
 
         if "already exists" in error_msg:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=error_msg)
+        elif any(
+            word in error_msg.lower()
+            for word in ["required", "invalid", "must be", "cannot"]
+        ):
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=error_msg
-            )
-        elif any(word in error_msg.lower() for word in ["required", "invalid", "must be", "cannot"]):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=error_msg
+                status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg
             )
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create discount"
+                detail="Failed to create discount",
             )
 
     except Exception as e:
-        log.error("Unexpected error creating discount", extra={
-            "merchant_id": str(current_admin.merchant_id),
-            "code": discount_data.code,
-            "error": str(e),
-            "event_type": "api_discount_create_unexpected_error"
-        })
+        log.error(
+            "Unexpected error creating discount",
+            extra={
+                "merchant_id": str(current_admin.merchant_id),
+                "code": discount_data.code,
+                "error": str(e),
+                "event_type": "api_discount_create_unexpected_error",
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred"
+            detail="An unexpected error occurred",
         )
 
 
@@ -182,16 +186,16 @@ async def create_discount(
         400: {"model": ApiErrorResponse, "description": "Validation error"},
         401: {"model": ApiErrorResponse, "description": "Unauthorized"},
         403: {"model": ApiErrorResponse, "description": "Forbidden - admin required"},
-        404: {"model": ApiErrorResponse, "description": "Discount not found"}
+        404: {"model": ApiErrorResponse, "description": "Discount not found"},
     },
     summary="Update discount",
-    description="Update an existing discount (status, expiry, usage limits)"
+    description="Update an existing discount (status, expiry, usage limits)",
 )
 async def update_discount(
     discount_id: UUID,
     update_data: UpdateDiscountRequest,
     current_admin: CurrentAdmin,
-    db: Annotated[AsyncSession, Depends(get_db)]
+    db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """
     Update an existing discount.
@@ -214,44 +218,45 @@ async def update_discount(
         discount = await service.update_discount(
             merchant_id=current_admin.merchant_id,
             discount_id=discount_id,
-            update_data=update_data
+            update_data=update_data,
         )
 
         return ApiResponse(
             ok=True,
             data=discount,
-            message=f"Discount '{discount.code}' updated successfully"
+            message=f"Discount '{discount.code}' updated successfully",
         )
 
     except DiscountError as e:
         error_msg = str(e)
 
         if "not found" in error_msg:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=error_msg)
+        elif any(
+            word in error_msg.lower() for word in ["invalid", "must be", "cannot"]
+        ):
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_msg
-            )
-        elif any(word in error_msg.lower() for word in ["invalid", "must be", "cannot"]):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=error_msg
+                status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg
             )
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to update discount"
+                detail="Failed to update discount",
             )
 
     except Exception as e:
-        log.error("Unexpected error updating discount", extra={
-            "merchant_id": str(current_admin.merchant_id),
-            "discount_id": str(discount_id),
-            "error": str(e),
-            "event_type": "api_discount_update_unexpected_error"
-        })
+        log.error(
+            "Unexpected error updating discount",
+            extra={
+                "merchant_id": str(current_admin.merchant_id),
+                "discount_id": str(discount_id),
+                "error": str(e),
+                "event_type": "api_discount_update_unexpected_error",
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred"
+            detail="An unexpected error occurred",
         )
 
 
@@ -261,15 +266,15 @@ async def update_discount(
     responses={
         401: {"model": ApiErrorResponse, "description": "Unauthorized"},
         403: {"model": ApiErrorResponse, "description": "Forbidden - admin required"},
-        404: {"model": ApiErrorResponse, "description": "Discount not found"}
+        404: {"model": ApiErrorResponse, "description": "Discount not found"},
     },
     summary="Delete discount",
-    description="Delete a discount permanently"
+    description="Delete a discount permanently",
 )
 async def delete_discount(
     discount_id: UUID,
     current_admin: CurrentAdmin,
-    db: Annotated[AsyncSession, Depends(get_db)]
+    db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """
     Delete a discount permanently.
@@ -284,14 +289,13 @@ async def delete_discount(
     try:
         service = DiscountsService(db)
         deleted = await service.delete_discount(
-            merchant_id=current_admin.merchant_id,
-            discount_id=discount_id
+            merchant_id=current_admin.merchant_id, discount_id=discount_id
         )
 
         if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Discount with ID {discount_id} not found"
+                detail=f"Discount with ID {discount_id} not found",
             )
 
         # Return 204 No Content (no response body)
@@ -301,18 +305,21 @@ async def delete_discount(
     except DiscountError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete discount"
+            detail="Failed to delete discount",
         )
     except Exception as e:
-        log.error("Unexpected error deleting discount", extra={
-            "merchant_id": str(current_admin.merchant_id),
-            "discount_id": str(discount_id),
-            "error": str(e),
-            "event_type": "api_discount_delete_unexpected_error"
-        })
+        log.error(
+            "Unexpected error deleting discount",
+            extra={
+                "merchant_id": str(current_admin.merchant_id),
+                "discount_id": str(discount_id),
+                "error": str(e),
+                "event_type": "api_discount_delete_unexpected_error",
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred"
+            detail="An unexpected error occurred",
         )
 
 
@@ -321,15 +328,15 @@ async def delete_discount(
     response_model=ApiResponse[DiscountValidationResponse],
     responses={
         400: {"model": ApiErrorResponse, "description": "Validation error"},
-        401: {"model": ApiErrorResponse, "description": "Unauthorized"}
+        401: {"model": ApiErrorResponse, "description": "Unauthorized"},
     },
     summary="Validate discount",
-    description="Validate a discount code for checkout"
+    description="Validate a discount code for checkout",
 )
 async def validate_discount(
     validation_request: ValidateDiscountRequest,
     current_user: CurrentUser,
-    db: Annotated[AsyncSession, Depends(get_db)]
+    db: Annotated[AsyncSession, Depends(get_db)],
 ):
     """
     Validate a discount code for an order.
@@ -346,30 +353,30 @@ async def validate_discount(
     try:
         service = DiscountsService(db)
         result = await service.validate_discount(
-            merchant_id=current_user.merchant_id,
-            validation_request=validation_request
+            merchant_id=current_user.merchant_id, validation_request=validation_request
         )
 
         return ApiResponse(
-            ok=True,
-            data=result,
-            message="Discount validation completed"
+            ok=True, data=result, message="Discount validation completed"
         )
 
     except DiscountError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Validation service error"
+            detail="Validation service error",
         )
 
     except Exception as e:
-        log.error("Unexpected error validating discount", extra={
-            "merchant_id": str(current_user.merchant_id),
-            "code": validation_request.code,
-            "error": str(e),
-            "event_type": "api_discount_validate_unexpected_error"
-        })
+        log.error(
+            "Unexpected error validating discount",
+            extra={
+                "merchant_id": str(current_user.merchant_id),
+                "code": validation_request.code,
+                "error": str(e),
+                "event_type": "api_discount_validate_unexpected_error",
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred"
+            detail="An unexpected error occurred",
         )

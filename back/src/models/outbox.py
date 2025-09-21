@@ -12,6 +12,7 @@ from enum import Enum
 
 class JobType(str, Enum):
     """Supported job types for outbox processing"""
+
     WA_SEND = "wa_send"
     CATALOG_SYNC = "catalog_sync"
     RELEASE_RESERVATION = "release_reservation"
@@ -20,6 +21,7 @@ class JobType(str, Enum):
 
 class JobStatus(str, Enum):
     """Job processing status"""
+
     PENDING = "pending"
     PROCESSING = "processing"
     DONE = "done"
@@ -28,6 +30,7 @@ class JobStatus(str, Enum):
 
 class OutboxEvent(BaseModel):
     """Outbox event model for job processing"""
+
     id: UUID
     merchant_id: UUID
     job_type: JobType
@@ -46,6 +49,7 @@ class OutboxEvent(BaseModel):
 
 class CreateOutboxEvent(BaseModel):
     """Create outbox event request model"""
+
     merchant_id: UUID
     job_type: JobType
     payload: Dict[str, Any]
@@ -55,6 +59,7 @@ class CreateOutboxEvent(BaseModel):
 
 class DLQEvent(BaseModel):
     """Dead Letter Queue event model"""
+
     id: UUID
     merchant_id: Optional[UUID] = None
     source: str
@@ -69,6 +74,7 @@ class DLQEvent(BaseModel):
 
 class WorkerHeartbeat(BaseModel):
     """Worker heartbeat model for leader election and monitoring"""
+
     instance_id: str
     seen_at: datetime
     details: Dict[str, Any] = Field(default_factory=dict)
@@ -79,6 +85,7 @@ class WorkerHeartbeat(BaseModel):
 
 class JobResult(BaseModel):
     """Job execution result"""
+
     success: bool
     error: Optional[str] = None
     should_retry: bool = True
@@ -87,6 +94,7 @@ class JobResult(BaseModel):
 
 class RetryableError(Exception):
     """Exception that should trigger a retry"""
+
     def __init__(self, message: str, retry_after: Optional[float] = None):
         super().__init__(message)
         self.retry_after = retry_after
@@ -94,6 +102,7 @@ class RetryableError(Exception):
 
 class FatalError(Exception):
     """Exception that should move job to DLQ immediately"""
+
     pass
 
 
@@ -103,6 +112,7 @@ JobFunc = Callable[[OutboxEvent], Awaitable[JobResult]]
 
 class JobHandler(BaseModel):
     """Job handler configuration"""
+
     job_type: JobType
     handler_func: JobFunc
     max_attempts: int = 8
@@ -115,16 +125,18 @@ class JobHandler(BaseModel):
 
 class WorkerConfig(BaseModel):
     """Worker configuration"""
+
     enabled: bool = True
     heartbeat_interval: int = 10  # seconds
     batch_size: int = 50
     max_concurrent: int = 10
     lock_key: int = 7543219876543210
     poll_interval: int = 5  # seconds
-    
-    
+
+
 class WorkerStats(BaseModel):
     """Worker statistics"""
+
     instance_id: str
     is_leader: bool
     jobs_processed: int = 0

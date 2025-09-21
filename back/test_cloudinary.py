@@ -9,16 +9,19 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+
 def test_cloudinary_import():
     """Test if cloudinary library can be imported and configured"""
     try:
         import cloudinary
         import cloudinary.uploader
+
         print("✅ Cloudinary library imported successfully")
         return True
     except ImportError as e:
         print(f"❌ Failed to import cloudinary library: {e}")
         return False
+
 
 def test_cloudinary_config():
     """Test cloudinary configuration"""
@@ -33,11 +36,7 @@ def test_cloudinary_config():
             print("❌ Missing cloudinary environment variables")
             return False
 
-        cloudinary.config(
-            cloud_name=cloud_name,
-            api_key=api_key,
-            api_secret=api_secret
-        )
+        cloudinary.config(cloud_name=cloud_name, api_key=api_key, api_secret=api_secret)
 
         print("✅ Cloudinary configured successfully")
         print(f"   Cloud name: {cloud_name}")
@@ -46,6 +45,7 @@ def test_cloudinary_config():
     except Exception as e:
         print(f"❌ Failed to configure cloudinary: {e}")
         return False
+
 
 def test_simple_upload():
     """Test a simple text upload to cloudinary"""
@@ -58,11 +58,7 @@ def test_simple_upload():
         api_key = os.getenv("CLOUDINARY_API_KEY")
         api_secret = os.getenv("CLOUDINARY_API_SECRET")
 
-        cloudinary.config(
-            cloud_name=cloud_name,
-            api_key=api_key,
-            api_secret=api_secret
-        )
+        cloudinary.config(cloud_name=cloud_name, api_key=api_key, api_secret=api_secret)
 
         # Test upload with simple text content
         test_content = b"test cloudinary upload"
@@ -72,7 +68,7 @@ def test_simple_upload():
             folder="sayar/test",
             public_id="test_upload",
             overwrite=True,
-            resource_type="raw"  # Use raw for text content
+            resource_type="raw",  # Use raw for text content
         )
 
         print("✅ Cloudinary upload test successful")
@@ -83,8 +79,10 @@ def test_simple_upload():
     except Exception as e:
         print(f"❌ Cloudinary upload test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 if __name__ == "__main__":
     print("🧪 Testing Cloudinary Integration...")

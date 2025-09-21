@@ -27,10 +27,16 @@ class ReconciliationWorker:
     """Scheduled worker for Meta Catalog reconciliation"""
 
     def __init__(self):
-        self.enabled = os.getenv("META_RECONCILIATION_ENABLED", "true").lower() == "true"
-        self.schedule = os.getenv("META_RECONCILIATION_SCHEDULE", "0 2 * * *")  # Daily at 2 AM UTC
+        self.enabled = (
+            os.getenv("META_RECONCILIATION_ENABLED", "true").lower() == "true"
+        )
+        self.schedule = os.getenv(
+            "META_RECONCILIATION_SCHEDULE", "0 2 * * *"
+        )  # Daily at 2 AM UTC
         self.batch_size = int(os.getenv("META_RECONCILIATION_BATCH_SIZE", "50"))
-        self.timeout_minutes = int(os.getenv("META_RECONCILIATION_TIMEOUT_MINUTES", "30"))
+        self.timeout_minutes = int(
+            os.getenv("META_RECONCILIATION_TIMEOUT_MINUTES", "30")
+        )
         self.max_concurrent = int(os.getenv("META_RECONCILIATION_MAX_CONCURRENT", "3"))
         self.scheduler = None
 
@@ -49,8 +55,8 @@ class ReconciliationWorker:
             id="meta_reconciliation_cron",
             name="Meta Catalog Reconciliation",
             max_instances=1,  # Prevent overlapping runs
-            coalesce=True,    # If multiple runs are scheduled, only run the latest
-            misfire_grace_time=300  # Allow 5 minutes grace for missed runs
+            coalesce=True,  # If multiple runs are scheduled, only run the latest
+            misfire_grace_time=300,  # Allow 5 minutes grace for missed runs
         )
 
         logger.info(
@@ -59,8 +65,8 @@ class ReconciliationWorker:
                 "schedule": self.schedule,
                 "batch_size": self.batch_size,
                 "timeout_minutes": self.timeout_minutes,
-                "max_concurrent": self.max_concurrent
-            }
+                "max_concurrent": self.max_concurrent,
+            },
         )
 
     async def _run_scheduled_reconciliation(self):
@@ -84,7 +90,7 @@ class ReconciliationWorker:
 
             logger.info(
                 "Found eligible merchants for reconciliation",
-                extra={"merchant_count": len(merchants)}
+                extra={"merchant_count": len(merchants)},
             )
 
             # Process merchants in batches to control concurrency
@@ -101,8 +107,7 @@ class ReconciliationWorker:
             # Execute tasks with timeout
             timeout_seconds = self.timeout_minutes * 60
             results = await asyncio.wait_for(
-                asyncio.gather(*tasks, return_exceptions=True),
-                timeout=timeout_seconds
+                asyncio.gather(*tasks, return_exceptions=True), timeout=timeout_seconds
             )
 
             # Process results
@@ -112,8 +117,8 @@ class ReconciliationWorker:
                         "Merchant reconciliation failed",
                         extra={
                             "merchant_id": str(merchants[i].id),
-                            "error": str(result)
-                        }
+                            "error": str(result),
+                        },
                     )
                     merchants_failed += 1
                 elif isinstance(result, tuple):
@@ -136,29 +141,35 @@ class ReconciliationWorker:
                     "merchants_processed": merchants_processed,
                     "merchants_failed": merchants_failed,
                     "total_drift_detected": total_drift_detected,
-                    "total_syncs_triggered": total_syncs_triggered
-                }
+                    "total_syncs_triggered": total_syncs_triggered,
+                },
             )
 
             # Record metrics
-            increment_counter("meta_reconciliation_scheduled_runs_total", {"status": "completed"})
+            increment_counter(
+                "meta_reconciliation_scheduled_runs_total", {"status": "completed"}
+            )
             set_gauge("meta_reconciliation_merchants_processed", merchants_processed)
             set_gauge("meta_reconciliation_merchants_failed", merchants_failed)
 
         except asyncio.TimeoutError:
             logger.error(
                 "Scheduled reconciliation timed out",
-                extra={"timeout_minutes": self.timeout_minutes}
+                extra={"timeout_minutes": self.timeout_minutes},
             )
-            increment_counter("meta_reconciliation_scheduled_runs_total", {"status": "timeout"})
+            increment_counter(
+                "meta_reconciliation_scheduled_runs_total", {"status": "timeout"}
+            )
 
         except Exception as e:
             logger.error(
                 "Scheduled reconciliation failed",
                 extra={"error": str(e)},
-                exc_info=True
+                exc_info=True,
             )
-            increment_counter("meta_reconciliation_scheduled_runs_total", {"status": "failed"})
+            increment_counter(
+                "meta_reconciliation_scheduled_runs_total", {"status": "failed"}
+            )
 
     async def _reconcile_merchant(self, merchant_id: UUID) -> tuple[bool, int, int]:
         """Reconcile a single merchant"""
@@ -168,8 +179,7 @@ class ReconciliationWorker:
 
                 # Run reconciliation
                 run = await reconciliation_service.run_reconciliation(
-                    merchant_id=merchant_id,
-                    run_type=ReconciliationRunType.SCHEDULED
+                    merchant_id=merchant_id, run_type=ReconciliationRunType.SCHEDULED
                 )
 
                 if run and run.status.value == "completed":
@@ -180,10 +190,7 @@ class ReconciliationWorker:
         except Exception as e:
             logger.error(
                 "Failed to reconcile merchant",
-                extra={
-                    "merchant_id": str(merchant_id),
-                    "error": str(e)
-                }
+                extra={"merchant_id": str(merchant_id), "error": str(e)},
             )
             return False, 0, 0
 
@@ -192,11 +199,13 @@ class ReconciliationWorker:
 
         # Query merchants who have verified Meta integrations
         # This assumes we have a meta_integrations table from BE-019
-        query = select(Merchant).join(
-            text("meta_integrations"),
-            text("merchants.id = meta_integrations.merchant_id")
-        ).where(
-            text("meta_integrations.status = 'verified'")
+        query = (
+            select(Merchant)
+            .join(
+                text("meta_integrations"),
+                text("merchants.id = meta_integrations.merchant_id"),
+            )
+            .where(text("meta_integrations.status = 'verified'"))
         )
 
         result = await db.execute(query)
@@ -206,16 +215,14 @@ class ReconciliationWorker:
         """Trigger manual reconciliation for a specific merchant"""
 
         logger.info(
-            "Triggering manual reconciliation",
-            extra={"merchant_id": str(merchant_id)}
+            "Triggering manual reconciliation", extra={"merchant_id": str(merchant_id)}
         )
 
         async with AsyncSessionLocal() as db:
             reconciliation_service = MetaReconciliationService(db)
 
             run = await reconciliation_service.run_reconciliation(
-                merchant_id=merchant_id,
-                run_type=ReconciliationRunType.MANUAL
+                merchant_id=merchant_id, run_type=ReconciliationRunType.MANUAL
             )
 
             if run:
@@ -224,8 +231,8 @@ class ReconciliationWorker:
                     extra={
                         "merchant_id": str(merchant_id),
                         "run_id": str(run.id),
-                        "status": run.status.value
-                    }
+                        "status": run.status.value,
+                    },
                 )
                 return run.id
             else:

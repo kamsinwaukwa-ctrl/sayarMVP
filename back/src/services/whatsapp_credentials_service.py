@@ -19,7 +19,7 @@ from ..models.api import (
     WhatsAppStatusResponse,
     WhatsAppVerifyResponse,
     WAEnvironment,
-    WAConnectionStatus
+    WAConnectionStatus,
 )
 from ..models.errors import APIError, ErrorCode
 from ..utils.encryption import get_encryption_service
@@ -38,9 +38,7 @@ class WhatsAppCredentialsService:
         self.graph_api_base_url = f"https://graph.facebook.com/{self.graph_api_version}"
 
     async def save_credentials(
-        self,
-        merchant_id: UUID,
-        request: WhatsAppCredentialsRequest
+        self, merchant_id: UUID, request: WhatsAppCredentialsRequest
     ) -> WhatsAppStatusResponse:
         """
         Save and encrypt WhatsApp credentials for a merchant
@@ -60,8 +58,8 @@ class WhatsAppCredentialsService:
             extra={
                 "event": "whatsapp_credentials_save_started",
                 "merchant_id": str(merchant_id),
-                "environment": request.environment.value
-            }
+                "environment": request.environment.value,
+            },
         )
 
         # Get merchant
@@ -74,16 +72,22 @@ class WhatsAppCredentialsService:
             raise APIError(
                 code=ErrorCode.MERCHANT_NOT_FOUND,
                 message="Merchant not found",
-                details={"merchant_id": str(merchant_id)}
+                details={"merchant_id": str(merchant_id)},
             )
 
         try:
             # Encrypt credentials
             encryption_service = get_encryption_service()
-            waba_id_enc = encryption_service.encrypt_data(request.waba_id).encrypted_data
-            phone_number_id_enc = encryption_service.encrypt_data(request.phone_number_id).encrypted_data
+            waba_id_enc = encryption_service.encrypt_data(
+                request.waba_id
+            ).encrypted_data
+            phone_number_id_enc = encryption_service.encrypt_data(
+                request.phone_number_id
+            ).encrypted_data
             app_id_enc = encryption_service.encrypt_data(request.app_id).encrypted_data
-            system_user_token_enc = encryption_service.encrypt_data(request.system_user_token).encrypted_data
+            system_user_token_enc = encryption_service.encrypt_data(
+                request.system_user_token
+            ).encrypted_data
 
             # Update merchant with encrypted credentials
             await self.db.execute(
@@ -98,7 +102,7 @@ class WhatsAppCredentialsService:
                     wa_connection_status="not_connected",
                     wa_verified_at=None,
                     wa_last_error=None,
-                    updated_at=datetime.utcnow()
+                    updated_at=datetime.utcnow(),
                 )
             )
             await self.db.commit()
@@ -108,8 +112,8 @@ class WhatsAppCredentialsService:
                 extra={
                     "event": "whatsapp_credentials_saved",
                     "merchant_id": str(merchant_id),
-                    "environment": request.environment.value
-                }
+                    "environment": request.environment.value,
+                },
             )
 
             return WhatsAppStatusResponse(
@@ -117,7 +121,7 @@ class WhatsAppCredentialsService:
                 environment=request.environment,
                 phone_number_id=self._mask_phone_number_id(request.phone_number_id),
                 verified_at=None,
-                last_error=None
+                last_error=None,
             )
 
         except Exception as e:
@@ -127,13 +131,13 @@ class WhatsAppCredentialsService:
                 extra={
                     "event": "whatsapp_credentials_save_failed",
                     "merchant_id": str(merchant_id),
-                    "error": str(e)
-                }
+                    "error": str(e),
+                },
             )
             raise APIError(
                 code=ErrorCode.INTERNAL_ERROR,
                 message="Failed to save credentials",
-                details={"error": str(e)}
+                details={"error": str(e)},
             )
 
     async def verify_connection(self, merchant_id: UUID) -> WhatsAppVerifyResponse:
@@ -153,8 +157,8 @@ class WhatsAppCredentialsService:
             "Starting WhatsApp verification",
             extra={
                 "event": "whatsapp_verification_started",
-                "merchant_id": str(merchant_id)
-            }
+                "merchant_id": str(merchant_id),
+            },
         )
 
         # Get merchant credentials
@@ -165,26 +169,28 @@ class WhatsAppCredentialsService:
 
         if not merchant:
             raise APIError(
-                code=ErrorCode.MERCHANT_NOT_FOUND,
-                message="Merchant not found"
+                code=ErrorCode.MERCHANT_NOT_FOUND, message="Merchant not found"
             )
 
         if not merchant.system_user_token_enc:
             raise APIError(
                 code=ErrorCode.WHATSAPP_CREDENTIALS_NOT_FOUND,
-                message="WhatsApp credentials not configured"
+                message="WhatsApp credentials not configured",
             )
 
         try:
             # Decrypt credentials
             encryption_service = get_encryption_service()
-            phone_number_id = encryption_service.decrypt_data(merchant.phone_number_id_enc)
-            system_user_token = encryption_service.decrypt_data(merchant.system_user_token_enc)
+            phone_number_id = encryption_service.decrypt_data(
+                merchant.phone_number_id_enc
+            )
+            system_user_token = encryption_service.decrypt_data(
+                merchant.system_user_token_enc
+            )
 
             # Call Graph API to verify
             verification_result = await self._call_graph_api(
-                phone_number_id,
-                system_user_token
+                phone_number_id, system_user_token
             )
 
             # Determine connection status based on environment
@@ -202,7 +208,7 @@ class WhatsAppCredentialsService:
                     wa_connection_status=connection_status.value,
                     wa_verified_at=datetime.utcnow(),
                     wa_last_error=None,
-                    updated_at=datetime.utcnow()
+                    updated_at=datetime.utcnow(),
                 )
             )
             await self.db.commit()
@@ -213,8 +219,8 @@ class WhatsAppCredentialsService:
                     "event": "whatsapp_verification_success",
                     "merchant_id": str(merchant_id),
                     "environment": merchant.wa_environment,
-                    "business_name": verification_result.get("verified_name")
-                }
+                    "business_name": verification_result.get("verified_name"),
+                },
             )
 
             return WhatsAppVerifyResponse(
@@ -224,7 +230,7 @@ class WhatsAppCredentialsService:
                 verified_at=datetime.utcnow(),
                 last_error=None,
                 phone_number_display=verification_result.get("display_phone_number"),
-                business_name=verification_result.get("verified_name")
+                business_name=verification_result.get("verified_name"),
             )
 
         except APIError:
@@ -240,7 +246,7 @@ class WhatsAppCredentialsService:
                 .values(
                     wa_connection_status="not_connected",
                     wa_last_error=error_msg,
-                    updated_at=datetime.utcnow()
+                    updated_at=datetime.utcnow(),
                 )
             )
             await self.db.commit()
@@ -250,14 +256,14 @@ class WhatsAppCredentialsService:
                 extra={
                     "event": "whatsapp_verification_failed",
                     "merchant_id": str(merchant_id),
-                    "error": str(e)
-                }
+                    "error": str(e),
+                },
             )
 
             raise APIError(
                 code=ErrorCode.WHATSAPP_VERIFICATION_FAILED,
                 message="WhatsApp verification failed",
-                details={"error": str(e)}
+                details={"error": str(e)},
             )
 
     async def get_status(self, merchant_id: UUID) -> WhatsAppStatusResponse:
@@ -280,8 +286,7 @@ class WhatsAppCredentialsService:
 
         if not merchant:
             raise APIError(
-                code=ErrorCode.MERCHANT_NOT_FOUND,
-                message="Merchant not found"
+                code=ErrorCode.MERCHANT_NOT_FOUND, message="Merchant not found"
             )
 
         # Decrypt phone number ID for masking if available
@@ -289,7 +294,9 @@ class WhatsAppCredentialsService:
         if merchant.phone_number_id_enc:
             try:
                 encryption_service = get_encryption_service()
-                phone_number_id = encryption_service.decrypt_data(merchant.phone_number_id_enc)
+                phone_number_id = encryption_service.decrypt_data(
+                    merchant.phone_number_id_enc
+                )
                 phone_number_id_masked = self._mask_phone_number_id(phone_number_id)
             except Exception:
                 # If decryption fails, just return None
@@ -302,14 +309,12 @@ class WhatsAppCredentialsService:
             environment=WAEnvironment(merchant.wa_environment or "test"),
             phone_number_id=phone_number_id_masked,
             verified_at=merchant.wa_verified_at,
-            last_error=merchant.wa_last_error
+            last_error=merchant.wa_last_error,
         )
 
     @retryable(config=RetryConfig(max_attempts=3, base_delay=1.0))
     async def _call_graph_api(
-        self,
-        phone_number_id: str,
-        system_user_token: str
+        self, phone_number_id: str, system_user_token: str
     ) -> Dict[str, Any]:
         """
         Make Graph API call to verify credentials
@@ -337,8 +342,12 @@ class WhatsAppCredentialsService:
 
                 # Handle Graph API errors
                 error_data = response.json() if response.content else {}
-                error_code = error_data.get("error", {}).get("code", response.status_code)
-                error_message = error_data.get("error", {}).get("message", "Unknown error")
+                error_code = error_data.get("error", {}).get(
+                    "code", response.status_code
+                )
+                error_message = error_data.get("error", {}).get(
+                    "message", "Unknown error"
+                )
                 error_subcode = error_data.get("error", {}).get("error_subcode")
 
                 logger.error(
@@ -350,8 +359,8 @@ class WhatsAppCredentialsService:
                         "error_message": error_message,
                         "error_subcode": error_subcode,
                         # Never log the actual token
-                        "phone_number_id": self._mask_phone_number_id(phone_number_id)
-                    }
+                        "phone_number_id": self._mask_phone_number_id(phone_number_id),
+                    },
                 )
 
                 raise APIError(
@@ -360,27 +369,26 @@ class WhatsAppCredentialsService:
                     details={
                         "graph_error": error_message,
                         "error_code": error_code,
-                        "error_subcode": error_subcode
-                    }
+                        "error_subcode": error_subcode,
+                    },
                 )
 
             except httpx.TimeoutException:
                 logger.error(
-                    "Graph API request timeout",
-                    extra={"event": "graph_api_timeout"}
+                    "Graph API request timeout", extra={"event": "graph_api_timeout"}
                 )
                 raise APIError(
                     code=ErrorCode.WHATSAPP_VERIFICATION_FAILED,
-                    message="WhatsApp verification timeout"
+                    message="WhatsApp verification timeout",
                 )
             except httpx.RequestError as e:
                 logger.error(
                     "Graph API request failed",
-                    extra={"event": "graph_api_request_failed", "error": str(e)}
+                    extra={"event": "graph_api_request_failed", "error": str(e)},
                 )
                 raise APIError(
                     code=ErrorCode.WHATSAPP_VERIFICATION_FAILED,
-                    message="WhatsApp verification network error"
+                    message="WhatsApp verification network error",
                 )
 
     def _mask_phone_number_id(self, phone_number_id: str) -> str:

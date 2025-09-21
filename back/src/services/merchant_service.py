@@ -35,6 +35,7 @@ class MerchantService:
         except Exception as e:
             print(f"❌ MerchantService.get_by_id error: {type(e).__name__}: {str(e)}")
             import traceback
+
             print(f"❌ Traceback: {traceback.format_exc()}")
             return None
 

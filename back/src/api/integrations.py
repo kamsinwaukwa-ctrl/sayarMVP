@@ -11,7 +11,7 @@ from ..models.api import (
     ApiResponse,
     WhatsAppCredentialsRequest,
     WhatsAppStatusResponse,
-    WhatsAppVerifyResponse
+    WhatsAppVerifyResponse,
 )
 from ..models.auth import CurrentPrincipal
 from ..models.errors import APIError, ErrorCode
@@ -23,11 +23,13 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/integrations", tags=["integrations"])
 
 
-@router.post("/whatsapp/credentials", response_model=ApiResponse[WhatsAppStatusResponse])
+@router.post(
+    "/whatsapp/credentials", response_model=ApiResponse[WhatsAppStatusResponse]
+)
 async def save_whatsapp_credentials(
     request: WhatsAppCredentialsRequest,
     principal: CurrentPrincipal = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Save WhatsApp Business API credentials for merchant
@@ -39,8 +41,7 @@ async def save_whatsapp_credentials(
         result = await service.save_credentials(principal.merchant_id, request)
 
         return ApiResponse(
-            data=result,
-            message="WhatsApp credentials saved successfully"
+            data=result, message="WhatsApp credentials saved successfully"
         )
 
     except APIError as e:
@@ -49,20 +50,16 @@ async def save_whatsapp_credentials(
             extra={
                 "merchant_id": str(principal.merchant_id),
                 "error_code": e.code.value,
-                "error_message": str(e)
-            }
+                "error_message": str(e),
+            },
         )
         raise HTTPException(
-            status_code=_get_http_status_for_error_code(e.code),
-            detail=e.to_dict()
+            status_code=_get_http_status_for_error_code(e.code), detail=e.to_dict()
         )
     except Exception as e:
         logger.error(
             "Unexpected error saving WhatsApp credentials",
-            extra={
-                "merchant_id": str(principal.merchant_id),
-                "error": str(e)
-            }
+            extra={"merchant_id": str(principal.merchant_id), "error": str(e)},
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -71,9 +68,9 @@ async def save_whatsapp_credentials(
                 "error": {
                     "code": ErrorCode.INTERNAL_ERROR.value,
                     "message": "Internal server error",
-                    "details": {}
-                }
-            }
+                    "details": {},
+                },
+            },
         )
 
 
@@ -81,7 +78,7 @@ async def save_whatsapp_credentials(
 async def update_whatsapp_credentials(
     request: WhatsAppCredentialsRequest,
     principal: CurrentPrincipal = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Update WhatsApp Business API credentials for merchant
@@ -93,8 +90,7 @@ async def update_whatsapp_credentials(
         result = await service.save_credentials(principal.merchant_id, request)
 
         return ApiResponse(
-            data=result,
-            message="WhatsApp credentials updated successfully"
+            data=result, message="WhatsApp credentials updated successfully"
         )
 
     except APIError as e:
@@ -103,20 +99,16 @@ async def update_whatsapp_credentials(
             extra={
                 "merchant_id": str(principal.merchant_id),
                 "error_code": e.code.value,
-                "error_message": str(e)
-            }
+                "error_message": str(e),
+            },
         )
         raise HTTPException(
-            status_code=_get_http_status_for_error_code(e.code),
-            detail=e.to_dict()
+            status_code=_get_http_status_for_error_code(e.code), detail=e.to_dict()
         )
     except Exception as e:
         logger.error(
             "Unexpected error updating WhatsApp credentials",
-            extra={
-                "merchant_id": str(principal.merchant_id),
-                "error": str(e)
-            }
+            extra={"merchant_id": str(principal.merchant_id), "error": str(e)},
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -125,16 +117,16 @@ async def update_whatsapp_credentials(
                 "error": {
                     "code": ErrorCode.INTERNAL_ERROR.value,
                     "message": "Internal server error",
-                    "details": {}
-                }
-            }
+                    "details": {},
+                },
+            },
         )
 
 
 @router.post("/whatsapp/verify", response_model=ApiResponse[WhatsAppVerifyResponse])
 async def verify_whatsapp_connection(
     principal: CurrentPrincipal = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Verify WhatsApp Business API connection
@@ -146,8 +138,7 @@ async def verify_whatsapp_connection(
         result = await service.verify_connection(principal.merchant_id)
 
         return ApiResponse(
-            data=result,
-            message="WhatsApp connection verified successfully"
+            data=result, message="WhatsApp connection verified successfully"
         )
 
     except APIError as e:
@@ -156,20 +147,16 @@ async def verify_whatsapp_connection(
             extra={
                 "merchant_id": str(principal.merchant_id),
                 "error_code": e.code.value,
-                "error_message": str(e)
-            }
+                "error_message": str(e),
+            },
         )
         raise HTTPException(
-            status_code=_get_http_status_for_error_code(e.code),
-            detail=e.to_dict()
+            status_code=_get_http_status_for_error_code(e.code), detail=e.to_dict()
         )
     except Exception as e:
         logger.error(
             "Unexpected error verifying WhatsApp connection",
-            extra={
-                "merchant_id": str(principal.merchant_id),
-                "error": str(e)
-            }
+            extra={"merchant_id": str(principal.merchant_id), "error": str(e)},
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -178,16 +165,16 @@ async def verify_whatsapp_connection(
                 "error": {
                     "code": ErrorCode.INTERNAL_ERROR.value,
                     "message": "Internal server error",
-                    "details": {}
-                }
-            }
+                    "details": {},
+                },
+            },
         )
 
 
 @router.get("/whatsapp/status", response_model=ApiResponse[WhatsAppStatusResponse])
 async def get_whatsapp_status(
     principal: CurrentPrincipal = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get current WhatsApp connection status
@@ -206,20 +193,16 @@ async def get_whatsapp_status(
             extra={
                 "merchant_id": str(principal.merchant_id),
                 "error_code": e.code.value,
-                "error_message": str(e)
-            }
+                "error_message": str(e),
+            },
         )
         raise HTTPException(
-            status_code=_get_http_status_for_error_code(e.code),
-            detail=e.to_dict()
+            status_code=_get_http_status_for_error_code(e.code), detail=e.to_dict()
         )
     except Exception as e:
         logger.error(
             "Unexpected error getting WhatsApp status",
-            extra={
-                "merchant_id": str(principal.merchant_id),
-                "error": str(e)
-            }
+            extra={"merchant_id": str(principal.merchant_id), "error": str(e)},
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -228,9 +211,9 @@ async def get_whatsapp_status(
                 "error": {
                     "code": ErrorCode.INTERNAL_ERROR.value,
                     "message": "Internal server error",
-                    "details": {}
-                }
-            }
+                    "details": {},
+                },
+            },
         )
 
 

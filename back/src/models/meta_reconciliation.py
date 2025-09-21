@@ -18,6 +18,7 @@ Base = declarative_base()
 
 class MetaItem(TypedDict):
     """Meta API item structure for reconciliation"""
+
     price: Optional[str]
     availability: Optional[str]
     title: Optional[str]
@@ -26,12 +27,14 @@ class MetaItem(TypedDict):
 
 class ReconciliationRunType(str, Enum):
     """Type of reconciliation run"""
+
     SCHEDULED = "scheduled"
     MANUAL = "manual"
 
 
 class ReconciliationStatus(str, Enum):
     """Status of reconciliation run"""
+
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -40,6 +43,7 @@ class ReconciliationStatus(str, Enum):
 
 class DriftAction(str, Enum):
     """Action taken when drift is detected"""
+
     SYNC_TRIGGERED = "sync_triggered"
     SKIPPED = "skipped"
     FAILED = "failed"
@@ -47,6 +51,7 @@ class DriftAction(str, Enum):
 
 class ProductFieldDrift(BaseModel):
     """Represents drift detected in a product field"""
+
     field_name: str = Field(..., description="Name of the field with drift")
     local_value: Optional[str] = Field(None, description="Value in local database")
     meta_value: Optional[str] = Field(None, description="Value in Meta Catalog")
@@ -55,29 +60,46 @@ class ProductFieldDrift(BaseModel):
 
 class ProductReconciliationResult(BaseModel):
     """Result of reconciling a single product"""
+
     product_id: UUID = Field(..., description="Product ID that was reconciled")
     retailer_id: str = Field(..., description="Meta retailer ID for this product")
     has_drift: bool = Field(False, description="Whether any drift was detected")
-    drift_fields: List[ProductFieldDrift] = Field(default_factory=list, description="List of fields with drift")
-    sync_triggered: bool = Field(False, description="Whether a re-sync job was triggered")
-    error: Optional[str] = Field(None, description="Error message if reconciliation failed")
+    drift_fields: List[ProductFieldDrift] = Field(
+        default_factory=list, description="List of fields with drift"
+    )
+    sync_triggered: bool = Field(
+        False, description="Whether a re-sync job was triggered"
+    )
+    error: Optional[str] = Field(
+        None, description="Error message if reconciliation failed"
+    )
 
 
 class ReconciliationRunStats(BaseModel):
     """Statistics for a reconciliation run"""
-    products_total: int = Field(0, description="Total products eligible for reconciliation")
+
+    products_total: int = Field(
+        0, description="Total products eligible for reconciliation"
+    )
     products_checked: int = Field(0, description="Number of products actually checked")
     drift_detected: int = Field(0, description="Number of products with detected drift")
     syncs_triggered: int = Field(0, description="Number of re-sync jobs triggered")
-    errors_count: int = Field(0, description="Number of products that had reconciliation errors")
-    duration_ms: Optional[int] = Field(None, description="Total reconciliation duration in milliseconds")
+    errors_count: int = Field(
+        0, description="Number of products that had reconciliation errors"
+    )
+    duration_ms: Optional[int] = Field(
+        None, description="Total reconciliation duration in milliseconds"
+    )
 
 
 class ReconciliationRun(BaseModel):
     """Complete reconciliation run information"""
+
     id: UUID = Field(..., description="Unique reconciliation run ID")
     merchant_id: UUID = Field(..., description="Merchant this run belongs to")
-    run_type: ReconciliationRunType = Field(..., description="Type of reconciliation run")
+    run_type: ReconciliationRunType = Field(
+        ..., description="Type of reconciliation run"
+    )
     status: ReconciliationStatus = Field(..., description="Current status of the run")
     stats: ReconciliationRunStats = Field(..., description="Run statistics")
     started_at: datetime = Field(..., description="When the run started")
@@ -90,39 +112,64 @@ class ReconciliationRun(BaseModel):
 
 class ReconciliationStatusResponse(BaseModel):
     """Response for reconciliation status endpoint"""
-    last_run_at: Optional[datetime] = Field(None, description="When the last run started")
-    status: Optional[ReconciliationStatus] = Field(None, description="Status of the last run")
-    stats: Optional[ReconciliationRunStats] = Field(None, description="Statistics from the last run")
+
+    last_run_at: Optional[datetime] = Field(
+        None, description="When the last run started"
+    )
+    status: Optional[ReconciliationStatus] = Field(
+        None, description="Status of the last run"
+    )
+    stats: Optional[ReconciliationRunStats] = Field(
+        None, description="Statistics from the last run"
+    )
 
 
 class ReconciliationHistoryResponse(BaseModel):
     """Response for reconciliation history endpoint"""
-    runs: List[ReconciliationRun] = Field(..., description="List of reconciliation runs")
+
+    runs: List[ReconciliationRun] = Field(
+        ..., description="List of reconciliation runs"
+    )
     total: int = Field(..., description="Total number of runs")
     pagination: Dict[str, Any] = Field(..., description="Pagination information")
 
 
 class TriggerReconciliationResponse(BaseModel):
     """Response for manual reconciliation trigger"""
+
     job_id: UUID = Field(..., description="ID of the triggered reconciliation job")
-    scheduled_at: datetime = Field(..., description="When the reconciliation was scheduled to run")
+    scheduled_at: datetime = Field(
+        ..., description="When the reconciliation was scheduled to run"
+    )
 
 
 class MerchantReconciliationStatusResponse(BaseModel):
     """Response for merchant-specific reconciliation status"""
-    last_run_at: Optional[datetime] = Field(None, description="When the last run started for this merchant")
-    products_checked: int = Field(0, description="Number of products checked in last run")
-    drift_detected: int = Field(0, description="Number of products with drift in last run")
+
+    last_run_at: Optional[datetime] = Field(
+        None, description="When the last run started for this merchant"
+    )
+    products_checked: int = Field(
+        0, description="Number of products checked in last run"
+    )
+    drift_detected: int = Field(
+        0, description="Number of products with drift in last run"
+    )
     sync_pending: int = Field(0, description="Number of sync jobs currently pending")
 
 
 # SQLAlchemy Models
 class MetaReconciliationRun(Base):
     """SQLAlchemy model for reconciliation runs"""
+
     __tablename__ = "meta_reconciliation_runs"
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    merchant_id = Column(PostgresUUID(as_uuid=True), ForeignKey("merchants.id", ondelete="CASCADE"), nullable=False)
+    merchant_id = Column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("merchants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     run_type = Column(String(20), nullable=False)
     status = Column(String(20), nullable=False, default="running")
 
@@ -148,12 +195,25 @@ class MetaReconciliationRun(Base):
 
 class MetaDriftLog(Base):
     """SQLAlchemy model for drift detection logs"""
+
     __tablename__ = "meta_drift_log"
 
     id = Column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    reconciliation_run_id = Column(PostgresUUID(as_uuid=True), ForeignKey("meta_reconciliation_runs.id", ondelete="CASCADE"), nullable=False)
-    product_id = Column(PostgresUUID(as_uuid=True), ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
-    merchant_id = Column(PostgresUUID(as_uuid=True), ForeignKey("merchants.id", ondelete="CASCADE"), nullable=False)
+    reconciliation_run_id = Column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("meta_reconciliation_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    product_id = Column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("products.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    merchant_id = Column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("merchants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
 
     field_name = Column(String(50), nullable=False)
     local_value = Column(Text)
@@ -200,10 +260,14 @@ def normalize_image_url(cloudinary_url: str) -> str:
     return cloudinary_url
 
 
-def get_items_by_retailer_ids(catalog_id: str, retailer_ids: List[str]) -> Dict[str, MetaItem]:
+def get_items_by_retailer_ids(
+    catalog_id: str, retailer_ids: List[str]
+) -> Dict[str, MetaItem]:
     """
     Mock function signature for Meta API integration.
     In actual implementation, this would call the Meta Graph API.
     """
     # This is implemented in the service layer
-    raise NotImplementedError("This function is implemented in meta_reconciliation_service.py")
+    raise NotImplementedError(
+        "This function is implemented in meta_reconciliation_service.py"
+    )

@@ -1,16 +1,31 @@
 """
 SQLAlchemy models for Sayar WhatsApp Commerce Platform database schema
 """
+
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Enum, JSON, UniqueConstraint, BigInteger, DECIMAL
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Boolean,
+    ForeignKey,
+    Enum,
+    JSON,
+    UniqueConstraint,
+    BigInteger,
+    DECIMAL,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import uuid
 
 Base = declarative_base()
 
+
 class Merchant(Base):
     """Merchant SQLAlchemy model"""
+
     __tablename__ = "merchants"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -26,16 +41,18 @@ class Merchant(Base):
     phone_number_id_enc = Column(String)
     app_id_enc = Column(String)
     system_user_token_enc = Column(String)
-    wa_connection_status = Column(String, default='not_connected')
-    wa_environment = Column(String, default='test')
+    wa_connection_status = Column(String, default="not_connected")
+    wa_environment = Column(String, default="test")
     wa_verified_at = Column(DateTime)
     wa_last_error = Column(String)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class User(Base):
     """User SQLAlchemy model"""
+
     __tablename__ = "users"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -47,8 +64,10 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class Product(Base):
     """Product SQLAlchemy model"""
+
     __tablename__ = "products"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -77,8 +96,10 @@ class Product(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class ProductImage(Base):
     """Product image SQLAlchemy model"""
+
     __tablename__ = "product_images"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -106,6 +127,7 @@ class ProductImage(Base):
 
 class CloudinaryPresetStats(Base):
     """Cloudinary preset performance statistics"""
+
     __tablename__ = "cloudinary_preset_stats"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -120,12 +142,13 @@ class CloudinaryPresetStats(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (
-        UniqueConstraint('merchant_id', 'preset_id', name='uq_merchant_preset'),
+        UniqueConstraint("merchant_id", "preset_id", name="uq_merchant_preset"),
     )
 
 
 class Customer(Base):
     """Customer SQLAlchemy model"""
+
     __tablename__ = "customers"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -135,8 +158,10 @@ class Customer(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class Address(Base):
     """Address SQLAlchemy model"""
+
     __tablename__ = "addresses"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -151,8 +176,10 @@ class Address(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class Order(Base):
     """Order SQLAlchemy model"""
+
     __tablename__ = "orders"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -170,8 +197,10 @@ class Order(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class Discount(Base):
     """Discount SQLAlchemy model"""
+
     __tablename__ = "discounts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -192,8 +221,10 @@ class Discount(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class OutboxJob(Base):
     """Outbox job SQLAlchemy model"""
+
     __tablename__ = "outbox_jobs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -208,8 +239,10 @@ class OutboxJob(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class SystemSetting(Base):
     """System setting SQLAlchemy model"""
+
     __tablename__ = "system_settings"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -219,8 +252,10 @@ class SystemSetting(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class MerchantSetting(Base):
     """Merchant setting SQLAlchemy model"""
+
     __tablename__ = "merchant_settings"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -231,14 +266,14 @@ class MerchantSetting(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Add composite unique constraint for merchant_id + key
-    __table_args__ = (
-        {'extend_existing': True},
-    )
+    __table_args__ = ({"extend_existing": True},)
+
 
 class DeliveryRate(Base):
     """Delivery rate SQLAlchemy model"""
+
     __tablename__ = "delivery_rates"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     merchant_id = Column(UUID(as_uuid=True), ForeignKey("merchants.id"), nullable=False)
     name = Column(String, nullable=False)
@@ -249,25 +284,29 @@ class DeliveryRate(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 class FeatureFlag(Base):
     """Feature flag SQLAlchemy model"""
+
     __tablename__ = "feature_flags"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False, index=True)
     description = Column(String)
     enabled = Column(Boolean, default=False, nullable=False)
-    merchant_id = Column(UUID(as_uuid=True), ForeignKey("merchants.id"), nullable=True)  # NULL for global flags
+    merchant_id = Column(
+        UUID(as_uuid=True), ForeignKey("merchants.id"), nullable=True
+    )  # NULL for global flags
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Add composite unique constraint for name + merchant_id
-    __table_args__ = (
-        {'extend_existing': True},
-    )
+    __table_args__ = ({"extend_existing": True},)
+
 
 class PaymentProviderConfig(Base):
     """Payment provider configuration SQLAlchemy model"""
+
     __tablename__ = "payment_provider_configs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -276,8 +315,10 @@ class PaymentProviderConfig(Base):
     public_key_encrypted = Column(String, nullable=False)
     secret_key_encrypted = Column(String, nullable=False)
     webhook_secret_encrypted = Column(String)  # Optional for some providers
-    environment = Column(String, nullable=False, default='test')  # 'test' or 'live'
-    verification_status = Column(String, nullable=False, default='pending')  # 'pending', 'verified', 'failed'
+    environment = Column(String, nullable=False, default="test")  # 'test' or 'live'
+    verification_status = Column(
+        String, nullable=False, default="pending"
+    )  # 'pending', 'verified', 'failed'
     last_verified_at = Column(DateTime)
     verification_error = Column(String)  # Store error messages
     active = Column(Boolean, nullable=False, default=True)
@@ -286,18 +327,27 @@ class PaymentProviderConfig(Base):
 
     # Add unique constraint for merchant + provider + environment
     __table_args__ = (
-        UniqueConstraint('merchant_id', 'provider_type', 'environment', name='uq_payment_provider_config_scope'),
-        {'extend_existing': True},
+        UniqueConstraint(
+            "merchant_id",
+            "provider_type",
+            "environment",
+            name="uq_payment_provider_config_scope",
+        ),
+        {"extend_existing": True},
     )
+
 
 class MetaCatalogSyncLog(Base):
     """Meta catalog synchronization log SQLAlchemy model"""
+
     __tablename__ = "meta_catalog_sync_log"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     merchant_id = Column(UUID(as_uuid=True), ForeignKey("merchants.id"), nullable=False)
     product_id = Column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=False)
-    outbox_job_id = Column(UUID(as_uuid=True), ForeignKey("outbox_events.id"), nullable=True)
+    outbox_job_id = Column(
+        UUID(as_uuid=True), ForeignKey("outbox_events.id"), nullable=True
+    )
     action = Column(String, nullable=False)
     retailer_id = Column(String, nullable=False)
     catalog_id = Column(String, nullable=False)

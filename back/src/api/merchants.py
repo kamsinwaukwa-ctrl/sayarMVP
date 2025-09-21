@@ -11,7 +11,12 @@ from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
-from ..models.api import ApiResponse, ApiErrorResponse, OnboardingProgressResponse, UpdateOnboardingProgressRequest
+from ..models.api import (
+    ApiResponse,
+    ApiErrorResponse,
+    OnboardingProgressResponse,
+    UpdateOnboardingProgressRequest,
+)
 from ..models.errors import ErrorCode
 from ..models.auth import CurrentPrincipal
 from ..database.connection import get_db
@@ -25,8 +30,10 @@ router = APIRouter(prefix="/merchants", tags=["Merchants"])
 # Supported currencies - can be moved to config later
 SUPPORTED_CURRENCIES = {"NGN", "USD", "GHS", "KES"}
 
+
 class MerchantOut(BaseModel):
     """Merchant response model for brand basics"""
+
     id: str
     name: Optional[str] = None
     description: Optional[str] = None
@@ -35,8 +42,10 @@ class MerchantOut(BaseModel):
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
+
 class BrandBasicsIn(BaseModel):
     """Brand basics update request"""
+
     description: Optional[str] = None
     currency: Optional[str] = None
     logo_url: Optional[str] = None
@@ -47,7 +56,9 @@ class BrandBasicsIn(BaseModel):
         if v is None:
             return v
         if v not in SUPPORTED_CURRENCIES:
-            raise ValueError(f"Unsupported currency: {v}. Supported: {SUPPORTED_CURRENCIES}")
+            raise ValueError(
+                f"Unsupported currency: {v}. Supported: {SUPPORTED_CURRENCIES}"
+            )
         return v
 
 
@@ -56,14 +67,14 @@ class BrandBasicsIn(BaseModel):
     response_model=ApiResponse[MerchantOut],
     responses={
         401: {"model": ApiErrorResponse, "description": "Unauthorized"},
-        404: {"model": ApiErrorResponse, "description": "Merchant not found"}
+        404: {"model": ApiErrorResponse, "description": "Merchant not found"},
     },
     summary="Get current merchant",
-    description="Get information about the current user's merchant account"
+    description="Get information about the current user's merchant account",
 )
 async def get_current_merchant(
     db: AsyncSession = Depends(get_db),
-    current_user: CurrentPrincipal = Depends(get_current_user)
+    current_user: CurrentPrincipal = Depends(get_current_user),
 ):
     """
     Get current merchant information.
@@ -74,10 +85,7 @@ async def get_current_merchant(
     merchant = await service.get_by_id(current_user.merchant_id)
 
     if not merchant:
-        raise HTTPException(
-            status_code=404,
-            detail="Merchant not found"
-        )
+        raise HTTPException(status_code=404, detail="Merchant not found")
 
     merchant_data = MerchantOut(
         id=str(merchant.id),
@@ -86,13 +94,10 @@ async def get_current_merchant(
         currency=merchant.currency,
         logo_url=merchant.logo_url,
         created_at=merchant.created_at.isoformat() if merchant.created_at else None,
-        updated_at=merchant.updated_at.isoformat() if merchant.updated_at else None
+        updated_at=merchant.updated_at.isoformat() if merchant.updated_at else None,
     )
 
-    return ApiResponse(
-        data=merchant_data,
-        message="Merchant retrieved successfully"
-    )
+    return ApiResponse(data=merchant_data, message="Merchant retrieved successfully")
 
 
 @router.patch(
@@ -101,16 +106,16 @@ async def get_current_merchant(
     responses={
         400: {"model": ApiErrorResponse, "description": "Validation error"},
         401: {"model": ApiErrorResponse, "description": "Unauthorized"},
-        404: {"model": ApiErrorResponse, "description": "Merchant not found"}
+        404: {"model": ApiErrorResponse, "description": "Merchant not found"},
     },
     summary="Update merchant",
-    description="Update current merchant information"
+    description="Update current merchant information",
 )
 async def update_merchant(
     request: BrandBasicsIn,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentPrincipal = Depends(get_current_user),
-    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     """
     Update current merchant information.
@@ -125,17 +130,13 @@ async def update_merchant(
             current_user.merchant_id,
             description=request.description,
             primary_currency=request.currency,
-            logo_url=request.logo_url
+            logo_url=request.logo_url,
         )
     except ValueError as e:
-        raise HTTPException(
-            status_code=404,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to update merchant: {str(e)}"
+            status_code=500, detail=f"Failed to update merchant: {str(e)}"
         )
 
     merchant_data = MerchantOut(
@@ -144,14 +145,19 @@ async def update_merchant(
         description=updated_merchant.description,
         currency=updated_merchant.currency,
         logo_url=updated_merchant.logo_url,
-        created_at=updated_merchant.created_at.isoformat() if updated_merchant.created_at else None,
-        updated_at=updated_merchant.updated_at.isoformat() if updated_merchant.updated_at else None
+        created_at=(
+            updated_merchant.created_at.isoformat()
+            if updated_merchant.created_at
+            else None
+        ),
+        updated_at=(
+            updated_merchant.updated_at.isoformat()
+            if updated_merchant.updated_at
+            else None
+        ),
     )
 
-    return ApiResponse(
-        data=merchant_data,
-        message="Merchant updated successfully"
-    )
+    return ApiResponse(data=merchant_data, message="Merchant updated successfully")
 
 
 @router.post(
@@ -160,16 +166,16 @@ async def update_merchant(
     responses={
         400: {"model": ApiErrorResponse, "description": "Invalid file"},
         401: {"model": ApiErrorResponse, "description": "Unauthorized"},
-        413: {"model": ApiErrorResponse, "description": "File too large"}
+        413: {"model": ApiErrorResponse, "description": "File too large"},
     },
     summary="Upload merchant logo",
-    description="Upload a logo image for the current merchant"
+    description="Upload a logo image for the current merchant",
 )
 async def upload_merchant_logo(
     file: UploadFile = File(..., description="Logo image file"),
     db: AsyncSession = Depends(get_db),
     current_user: CurrentPrincipal = Depends(get_current_user),
-    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     """
     Upload merchant logo image to Cloudinary.
@@ -181,35 +187,23 @@ async def upload_merchant_logo(
     from ..integrations.cloudinary_client import CloudinaryClient, CloudinaryConfig
 
     # Validate file type
-    if not file.content_type or not file.content_type.startswith('image/'):
-        raise HTTPException(
-            status_code=400,
-            detail="File must be an image"
-        )
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
 
     # Read file content
     try:
         file_content = await file.read()
     except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Failed to read file: {str(e)}"
-        )
+        raise HTTPException(status_code=400, detail=f"Failed to read file: {str(e)}")
 
     # Check file size (5MB limit)
     if len(file_content) > 5 * 1024 * 1024:
-        raise HTTPException(
-            status_code=413,
-            detail="File size must be less than 5MB"
-        )
+        raise HTTPException(status_code=413, detail="File size must be less than 5MB")
 
     # Initialize Cloudinary config directly
     config = CloudinaryConfig()
     if not config.is_configured():
-        raise HTTPException(
-            status_code=500,
-            detail="Cloudinary not configured"
-        )
+        raise HTTPException(status_code=500, detail="Cloudinary not configured")
 
     try:
         # Import cloudinary library
@@ -220,7 +214,7 @@ async def upload_merchant_logo(
         cloudinary.config(
             cloud_name=config.cloud_name,
             api_key=config.api_key,
-            api_secret=config.api_secret
+            api_secret=config.api_secret,
         )
 
         # Create a simple upload method for logos
@@ -232,7 +226,7 @@ async def upload_merchant_logo(
             folder=f"sayar/merchants/{current_user.merchant_id}/brand",
             public_id=image_uuid,
             overwrite=True,
-            resource_type="image"
+            resource_type="image",
         )
 
         return ApiResponse(
@@ -246,14 +240,11 @@ async def upload_merchant_logo(
                     "bytes": response.get("bytes"),
                 }
             },
-            message="Logo uploaded successfully"
+            message="Logo uploaded successfully",
         )
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to upload logo: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to upload logo: {str(e)}")
 
 
 @router.get(
@@ -261,13 +252,13 @@ async def upload_merchant_logo(
     response_model=ApiResponse,
     responses={
         401: {"model": ApiErrorResponse, "description": "Unauthorized"},
-        500: {"model": ApiErrorResponse, "description": "Cloudinary connection failed"}
+        500: {"model": ApiErrorResponse, "description": "Cloudinary connection failed"},
     },
     summary="Verify Cloudinary connection",
-    description="Test Cloudinary API credentials and connectivity"
+    description="Test Cloudinary API credentials and connectivity",
 )
 async def verify_cloudinary_connection(
-    current_user: CurrentPrincipal = Depends(get_current_user)
+    current_user: CurrentPrincipal = Depends(get_current_user),
 ):
     """
     Verify Cloudinary API credentials and connectivity.
@@ -280,7 +271,7 @@ async def verify_cloudinary_connection(
     if not config.is_configured():
         raise HTTPException(
             status_code=500,
-            detail="Cloudinary not configured - missing environment variables"
+            detail="Cloudinary not configured - missing environment variables",
         )
 
     try:
@@ -288,6 +279,7 @@ async def verify_cloudinary_connection(
 
         # Test connection by calling Cloudinary Admin API
         import requests
+
         auth = (config.api_key, config.api_secret)
         url = f"{config.get_base_url()}/resources/image"
 
@@ -299,21 +291,20 @@ async def verify_cloudinary_connection(
                     "ok": True,
                     "cloud_name": config.cloud_name,
                     "connection": "verified",
-                    "base_folder": getattr(config, 'base_folder', 'sayar'),
-                    "upload_timeout": config.upload_timeout
+                    "base_folder": getattr(config, "base_folder", "sayar"),
+                    "upload_timeout": config.upload_timeout,
                 },
-                message="Cloudinary connection verified successfully"
+                message="Cloudinary connection verified successfully",
             )
         else:
             raise HTTPException(
                 status_code=500,
-                detail=f"Cloudinary API error: {response.status_code} {response.text}"
+                detail=f"Cloudinary API error: {response.status_code} {response.text}",
             )
 
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to verify Cloudinary connection: {str(e)}"
+            status_code=500, detail=f"Failed to verify Cloudinary connection: {str(e)}"
         )
 
 
@@ -322,14 +313,14 @@ async def verify_cloudinary_connection(
     response_model=ApiResponse[OnboardingProgressResponse],
     responses={
         401: {"model": ApiErrorResponse, "description": "Unauthorized"},
-        404: {"model": ApiErrorResponse, "description": "Merchant not found"}
+        404: {"model": ApiErrorResponse, "description": "Merchant not found"},
     },
     summary="Get onboarding progress",
-    description="Get current merchant's onboarding progress status"
+    description="Get current merchant's onboarding progress status",
 )
 async def get_onboarding_progress(
     db: AsyncSession = Depends(get_db),
-    current_user: CurrentPrincipal = Depends(get_current_user)
+    current_user: CurrentPrincipal = Depends(get_current_user),
 ):
     """
     Get current merchant's onboarding progress based on actual data.
@@ -338,10 +329,7 @@ async def get_onboarding_progress(
     merchant = await service.get_by_id(current_user.merchant_id)
 
     if not merchant:
-        raise HTTPException(
-            status_code=404,
-            detail="Merchant not found"
-        )
+        raise HTTPException(status_code=404, detail="Merchant not found")
 
     # Calculate brand_basics completion: requires description, currency, and logo
     desc = (merchant.description or "").strip()
@@ -349,22 +337,23 @@ async def get_onboarding_progress(
     logo = merchant.logo_url
 
     brand_basics_complete = bool(
-        desc and len(desc) >= 10 and
-        curr and
-        logo and logo.startswith(("http://", "https://"))
+        desc
+        and len(desc) >= 10
+        and curr
+        and logo
+        and logo.startswith(("http://", "https://"))
     )
 
     progress = OnboardingProgressResponse(
         brand_basics=brand_basics_complete,
         meta_catalog=False,  # TODO: implement based on actual meta catalog setup
-        products=False,      # TODO: implement based on product count
-        delivery_rates=False, # TODO: implement based on delivery rates setup
-        payments=False       # TODO: implement based on payment provider setup
+        products=False,  # TODO: implement based on product count
+        delivery_rates=False,  # TODO: implement based on delivery rates setup
+        payments=False,  # TODO: implement based on payment provider setup
     )
 
     return ApiResponse(
-        data=progress,
-        message="Onboarding progress retrieved successfully"
+        data=progress, message="Onboarding progress retrieved successfully"
     )
 
 
@@ -374,14 +363,14 @@ async def get_onboarding_progress(
     responses={
         400: {"model": ApiErrorResponse, "description": "Invalid request"},
         401: {"model": ApiErrorResponse, "description": "Unauthorized"},
-        404: {"model": ApiErrorResponse, "description": "Merchant not found"}
+        404: {"model": ApiErrorResponse, "description": "Merchant not found"},
     },
     summary="Update onboarding progress",
-    description="Update current merchant's onboarding progress"
+    description="Update current merchant's onboarding progress",
 )
 async def update_onboarding_progress(
     request: UpdateOnboardingProgressRequest,
-    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     """
     Update current merchant's onboarding progress.
@@ -398,10 +387,9 @@ async def update_onboarding_progress(
         meta_catalog=False,
         products=False,
         delivery_rates=False,
-        payments=False
+        payments=False,
     )
 
     return ApiResponse(
-        data=progress,
-        message="Onboarding progress updated successfully"
+        data=progress, message="Onboarding progress updated successfully"
     )

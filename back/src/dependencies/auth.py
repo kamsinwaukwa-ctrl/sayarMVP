@@ -17,27 +17,29 @@ from ..services.auth_service import AuthService
 # Security scheme for OpenAPI docs
 security = HTTPBearer(scheme_name="Bearer")
 
+
 class AuthenticationError(HTTPException):
     """Authentication error"""
+
     def __init__(self, detail: str = "Authentication failed"):
         super().__init__(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=detail,
-            headers={"WWW-Authenticate": "Bearer"}
+            headers={"WWW-Authenticate": "Bearer"},
         )
+
 
 class AuthorizationError(HTTPException):
     """Authorization error"""
+
     def __init__(self, detail: str = "Insufficient permissions"):
-        super().__init__(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=detail
-        )
+        super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+
 
 async def apply_rls_claims(session: AsyncSession, claims: dict) -> None:
     """
     Apply JWT claims to PostgreSQL session for RLS policies
-    
+
     Args:
         session: SQLAlchemy async session
         claims: JWT payload claims
@@ -46,14 +48,15 @@ async def apply_rls_claims(session: AsyncSession, claims: dict) -> None:
         claims_json = json.dumps(claims)
         await session.execute(
             text("SELECT set_config('request.jwt.claims', :claims, true)"),
-            {"claims": claims_json}
+            {"claims": claims_json},
         )
     except Exception as e:
         raise AuthenticationError(f"Failed to apply RLS claims: {str(e)}")
 
+
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
-    db: Annotated[AsyncSession, Depends(get_db)]
+    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> CurrentPrincipal:
     """
     Get current authenticated user and apply RLS claims
@@ -96,18 +99,19 @@ async def get_current_user(
         # Catch all other exceptions and convert to 401
         raise AuthenticationError("Authentication failed")
 
+
 async def get_current_admin(
     current_user: Annotated[CurrentPrincipal, Depends(get_current_user)]
 ) -> CurrentPrincipal:
     """
     Require admin role
-    
+
     Args:
         current_user: Current authenticated user
-        
+
     Returns:
         CurrentPrincipal if user is admin
-        
+
     Raises:
         AuthorizationError: If user is not admin
     """
@@ -115,39 +119,41 @@ async def get_current_admin(
         raise AuthorizationError("Admin access required")
     return current_user
 
+
 async def get_optional_user(
     authorization: str = Header(None),
-    db: Annotated[AsyncSession, Depends(get_db)] = None
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
 ) -> CurrentPrincipal | None:
     """
     Get current user optionally (for endpoints that work with or without auth)
-    
+
     Args:
         authorization: Authorization header
         db: Database session
-        
+
     Returns:
         CurrentPrincipal or None if not authenticated
     """
     if not authorization:
         return None
-        
+
     try:
         token = get_token_from_header(authorization)
         payload = decode_jwt(token)
-        
+
         # Apply RLS claims to database session
         await apply_rls_claims(db, payload)
-        
+
         # Get user information
         auth_service = AuthService(db)
         user = await auth_service.get_user_by_id(payload["sub"])
-        
+
         return user
-        
+
     except (JWTError, Exception):
         # Return None for optional authentication
         return None
+
 
 def require_merchant_access(
     current_user: Annotated[CurrentPrincipal, Depends(get_current_user)]
@@ -155,16 +161,17 @@ def require_merchant_access(
     """
     Dependency to ensure user has merchant access
     This is automatically handled by RLS policies, but can be used for explicit checks
-    
+
     Args:
         current_user: Current authenticated user
-        
+
     Returns:
         CurrentPrincipal
     """
     # RLS policies will automatically filter by merchant_id
     # This dependency can be used where explicit merchant validation is needed
     return current_user
+
 
 # Type aliases for easier use
 CurrentUser = Annotated[CurrentPrincipal, Depends(get_current_user)]

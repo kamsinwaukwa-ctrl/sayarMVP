@@ -13,29 +13,26 @@ from ..models.security import WebhookVerificationResult, WebhookProvider
 
 class WebhookVerificationService:
     """Service for verifying webhook signatures from various providers"""
-    
+
     def __init__(self):
         """Initialize with provider-specific secret keys from environment"""
         self.secrets = {
             WebhookProvider.PAYSTACK: os.getenv("PAYSTACK_SECRET_KEY"),
             WebhookProvider.KORAPAY: os.getenv("KORAPAY_SECRET_KEY"),
-            WebhookProvider.WHATSAPP: os.getenv("WHATSAPP_APP_SECRET")
+            WebhookProvider.WHATSAPP: os.getenv("WHATSAPP_APP_SECRET"),
         }
-    
+
     def verify_paystack_webhook(
-        self, 
-        payload: bytes, 
-        signature: str, 
-        secret_key: Optional[str] = None
+        self, payload: bytes, signature: str, secret_key: Optional[str] = None
     ) -> WebhookVerificationResult:
         """
         Verify Paystack webhook signature using HMAC-SHA512
-        
+
         Args:
             payload: Raw request body bytes
             signature: X-Paystack-Signature header value
             secret_key: Paystack secret key (optional, uses env if not provided)
-            
+
         Returns:
             WebhookVerificationResult with verification status
         """
@@ -45,48 +42,43 @@ class WebhookVerificationService:
                 is_valid=False,
                 provider=WebhookProvider.PAYSTACK,
                 payload={},
-                error="PAYSTACK_SECRET_KEY not configured"
+                error="PAYSTACK_SECRET_KEY not configured",
             )
-        
+
         try:
             # Paystack uses HMAC-SHA512 with the raw payload
             expected_signature = hmac.new(
-                secret.encode(),
-                payload,
-                hashlib.sha512
+                secret.encode(), payload, hashlib.sha512
             ).hexdigest()
-            
+
             is_valid = hmac.compare_digest(expected_signature, signature)
-            
+
             return WebhookVerificationResult(
                 is_valid=is_valid,
                 provider=WebhookProvider.PAYSTACK,
                 payload=json.loads(payload.decode()) if is_valid else {},
-                error=None if is_valid else "Invalid signature"
+                error=None if is_valid else "Invalid signature",
             )
-            
+
         except Exception as e:
             return WebhookVerificationResult(
                 is_valid=False,
                 provider=WebhookProvider.PAYSTACK,
                 payload={},
-                error=f"Verification failed: {e}"
+                error=f"Verification failed: {e}",
             )
-    
+
     def verify_korapay_webhook(
-        self, 
-        payload: bytes, 
-        signature: str, 
-        secret_key: Optional[str] = None
+        self, payload: bytes, signature: str, secret_key: Optional[str] = None
     ) -> WebhookVerificationResult:
         """
         Verify Korapay webhook signature using HMAC-SHA256
-        
+
         Args:
             payload: Raw request body bytes
             signature: X-Korapay-Signature header value
             secret_key: Korapay secret key (optional, uses env if not provided)
-            
+
         Returns:
             WebhookVerificationResult with verification status
         """
@@ -96,48 +88,43 @@ class WebhookVerificationService:
                 is_valid=False,
                 provider=WebhookProvider.KORAPAY,
                 payload={},
-                error="KORAPAY_SECRET_KEY not configured"
+                error="KORAPAY_SECRET_KEY not configured",
             )
-        
+
         try:
             # Korapay uses HMAC-SHA256 with the raw payload
             expected_signature = hmac.new(
-                secret.encode(),
-                payload,
-                hashlib.sha256
+                secret.encode(), payload, hashlib.sha256
             ).hexdigest()
-            
+
             is_valid = hmac.compare_digest(expected_signature, signature)
-            
+
             return WebhookVerificationResult(
                 is_valid=is_valid,
                 provider=WebhookProvider.KORAPAY,
                 payload=json.loads(payload.decode()) if is_valid else {},
-                error=None if is_valid else "Invalid signature"
+                error=None if is_valid else "Invalid signature",
             )
-            
+
         except Exception as e:
             return WebhookVerificationResult(
                 is_valid=False,
                 provider=WebhookProvider.KORAPAY,
                 payload={},
-                error=f"Verification failed: {e}"
+                error=f"Verification failed: {e}",
             )
-    
+
     def verify_whatsapp_webhook(
-        self, 
-        payload: bytes, 
-        signature: str, 
-        app_secret: Optional[str] = None
+        self, payload: bytes, signature: str, app_secret: Optional[str] = None
     ) -> WebhookVerificationResult:
         """
         Verify WhatsApp webhook signature using HMAC-SHA256
-        
+
         Args:
             payload: Raw request body bytes
             signature: X-Hub-Signature-256 header value (format: sha256=...)
             app_secret: WhatsApp app secret (optional, uses env if not provided)
-            
+
         Returns:
             WebhookVerificationResult with verification status
         """
@@ -147,51 +134,46 @@ class WebhookVerificationService:
                 is_valid=False,
                 provider=WebhookProvider.WHATSAPP,
                 payload={},
-                error="WHATSAPP_APP_SECRET not configured"
+                error="WHATSAPP_APP_SECRET not configured",
             )
-        
+
         try:
             # WhatsApp uses HMAC-SHA256 and includes 'sha256=' prefix
-            if signature.startswith('sha256='):
+            if signature.startswith("sha256="):
                 signature = signature[7:]  # Remove 'sha256=' prefix
-            
+
             expected_signature = hmac.new(
-                secret.encode(),
-                payload,
-                hashlib.sha256
+                secret.encode(), payload, hashlib.sha256
             ).hexdigest()
-            
+
             is_valid = hmac.compare_digest(expected_signature, signature)
-            
+
             return WebhookVerificationResult(
                 is_valid=is_valid,
                 provider=WebhookProvider.WHATSAPP,
                 payload=json.loads(payload.decode()) if is_valid else {},
-                error=None if is_valid else "Invalid signature"
+                error=None if is_valid else "Invalid signature",
             )
-            
+
         except Exception as e:
             return WebhookVerificationResult(
                 is_valid=False,
                 provider=WebhookProvider.WHATSAPP,
                 payload={},
-                error=f"Verification failed: {e}"
+                error=f"Verification failed: {e}",
             )
-    
+
     def verify_webhook(
-        self, 
-        provider: WebhookProvider, 
-        payload: bytes, 
-        signature: str
+        self, provider: WebhookProvider, payload: bytes, signature: str
     ) -> WebhookVerificationResult:
         """
         Generic webhook verification method that routes to provider-specific verification
-        
+
         Args:
             provider: Webhook provider type
             payload: Raw request body bytes
             signature: Signature header value
-            
+
         Returns:
             WebhookVerificationResult with verification status
         """
@@ -206,7 +188,7 @@ class WebhookVerificationService:
                 is_valid=False,
                 provider=provider,
                 payload={},
-                error=f"Unsupported provider: {provider}"
+                error=f"Unsupported provider: {provider}",
             )
 
 
@@ -217,7 +199,7 @@ _webhook_service: Optional[WebhookVerificationService] = None
 def get_webhook_service() -> WebhookVerificationService:
     """
     Get or create global webhook verification service instance
-    
+
     Returns:
         WebhookVerificationService instance
     """
@@ -228,18 +210,16 @@ def get_webhook_service() -> WebhookVerificationService:
 
 
 def verify_webhook_signature(
-    provider: WebhookProvider, 
-    payload: bytes, 
-    signature: str
+    provider: WebhookProvider, payload: bytes, signature: str
 ) -> WebhookVerificationResult:
     """
     Verify webhook signature for a specific provider
-    
+
     Args:
         provider: Webhook provider type
         payload: Raw request body bytes
         signature: Signature header value
-        
+
     Returns:
         WebhookVerificationResult with verification status
     """

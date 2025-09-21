@@ -28,6 +28,7 @@ os.environ["TESTING"] = "true"
 # Use PostgreSQL for testing
 TEST_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/sayar_test"
 
+
 @pytest.fixture(scope="function")
 async def test_db():
     """Create a test database session"""
@@ -36,19 +37,18 @@ async def test_db():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
-    async_session = sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
-    
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
     async with async_session() as session:
         yield session
-        
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
 
 @pytest_asyncio.fixture
 async def test_client() -> AsyncClient:
@@ -59,35 +59,37 @@ async def test_client() -> AsyncClient:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
-    async_session = sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
-    
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
     async with async_session() as session:
         # Setup database dependency override
         async def override_get_db():
             yield session
-            
+
         app.dependency_overrides[get_db] = override_get_db
-        
+
         try:
-            async with AsyncClient(transport=_transport, base_url="http://testserver") as ac:
+            async with AsyncClient(
+                transport=_transport, base_url="http://testserver"
+            ) as ac:
                 yield ac
         finally:
             app.dependency_overrides.clear()
-            
+
     # Clean up database
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
 
 @pytest_asyncio.fixture
 async def client(test_client: AsyncClient) -> AsyncClient:
     """Alias for test_client fixture for backward compatibility"""
     yield test_client
+
 
 @pytest.fixture
 def merchant_token():
@@ -96,9 +98,10 @@ def merchant_token():
         data={
             "sub": "test-merchant",
             "role": "merchant",
-            "exp": datetime.now(timezone.utc) + timedelta(minutes=30)
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=30),
         }
     )
+
 
 @pytest.fixture
 def admin_token():
@@ -107,11 +110,13 @@ def admin_token():
         data={
             "sub": "test-admin",
             "role": "admin",
-            "exp": datetime.now(timezone.utc) + timedelta(minutes=30)
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=30),
         }
     )
 
+
 # app_client fixture removed in favor of test_client and client fixtures
+
 
 @pytest.fixture(scope="function")
 async def db_session():
@@ -121,26 +126,26 @@ async def db_session():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
-    async_session = sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
-    
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
     async with async_session() as session:
         yield session
-        
+
     # Clean up database
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
+
 @pytest.fixture
 def mock_supabase():
     """Mock Supabase client for unit tests"""
+
     class MockSupabase:
         async def rpc(self, *args, **kwargs):
             return {"data": None, "error": None}
-            
+
     return MockSupabase()

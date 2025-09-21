@@ -17,12 +17,12 @@ from ..models.api import (
     ProductImageResponse,
     ProductImageUploadRequest,
     SetPrimaryImageResponse,
-    CloudinaryWebhookPayload
+    CloudinaryWebhookPayload,
 )
 from ..models.cloudinary import (
     ProductImageWithVariantsResponse,
     UploadWithPresetsRequest,
-    PresetProfile
+    PresetProfile,
 )
 from ..models.errors import APIError, ErrorCode, NotFoundError
 from ..services.cloudinary_service import CloudinaryService
@@ -34,11 +34,10 @@ router = APIRouter()
     "/integrations/cloudinary/health",
     response_model=ApiResponse[CloudinaryHealthResponse],
     summary="Check Cloudinary platform health",
-    description="Verify that platform Cloudinary credentials are configured and working"
+    description="Verify that platform Cloudinary credentials are configured and working",
 )
 async def cloudinary_health_check(
-    db: Session = Depends(get_db),
-    merchant: Merchant = Depends(get_current_merchant)
+    db: Session = Depends(get_db), merchant: Merchant = Depends(get_current_merchant)
 ):
     """
     Check Cloudinary platform health
@@ -56,14 +55,14 @@ async def cloudinary_health_check(
                     "error": {
                         "code": "CLOUDINARY_NOT_CONFIGURED",
                         "message": "Cloudinary platform credentials not configured",
-                        "details": {}
-                    }
-                }
+                        "details": {},
+                    },
+                },
             )
 
         return ApiResponse(
             data=CloudinaryHealthResponse(**health_data),
-            message="Cloudinary platform is healthy"
+            message="Cloudinary platform is healthy",
         )
 
     except APIError as e:
@@ -75,9 +74,9 @@ async def cloudinary_health_check(
                     "error": {
                         "code": "CLOUDINARY_HEALTHCHECK_FAILED",
                         "message": e.message,
-                        "details": {}
-                    }
-                }
+                        "details": {},
+                    },
+                },
             )
         raise
 
@@ -87,16 +86,18 @@ async def cloudinary_health_check(
     response_model=ApiResponse[ProductImageResponse],
     status_code=201,
     summary="Upload product image",
-    description="Upload image to Cloudinary with automatic transformations"
+    description="Upload image to Cloudinary with automatic transformations",
 )
 async def upload_product_image(
     product_id: UUID,
     request: Request,
     image: UploadFile = File(..., description="Image file (PNG, JPG, WEBP, max 5MB)"),
     is_primary: bool = Form(False, description="Set as primary image"),
-    alt_text: Optional[str] = Form(None, description="Alternative text for accessibility"),
+    alt_text: Optional[str] = Form(
+        None, description="Alternative text for accessibility"
+    ),
     db: Session = Depends(get_db),
-    merchant: Merchant = Depends(get_current_merchant)
+    merchant: Merchant = Depends(get_current_merchant),
 ):
     """
     Upload product image to Cloudinary
@@ -120,13 +121,10 @@ async def upload_product_image(
             filename=image.filename or "upload",
             is_primary=is_primary,
             alt_text=alt_text,
-            webhook_url=webhook_url
+            webhook_url=webhook_url,
         )
 
-        return ApiResponse(
-            data=result,
-            message="Image uploaded successfully"
-        )
+        return ApiResponse(data=result, message="Image uploaded successfully")
 
     except NotFoundError as e:
         raise HTTPException(
@@ -136,9 +134,9 @@ async def upload_product_image(
                 "error": {
                     "code": "RESOURCE_NOT_FOUND",
                     "message": str(e),
-                    "details": {}
-                }
-            }
+                    "details": {},
+                },
+            },
         )
     except APIError as e:
         status_code = 400
@@ -151,12 +149,8 @@ async def upload_product_image(
             status_code=status_code,
             detail={
                 "ok": False,
-                "error": {
-                    "code": e.code.value,
-                    "message": e.message,
-                    "details": {}
-                }
-            }
+                "error": {"code": e.code.value, "message": e.message, "details": {}},
+            },
         )
 
 
@@ -165,17 +159,21 @@ async def upload_product_image(
     response_model=ApiResponse[ProductImageWithVariantsResponse],
     status_code=201,
     summary="Upload image with preset transformations",
-    description="Upload image to Cloudinary with preset-based transformations and variants"
+    description="Upload image to Cloudinary with preset-based transformations and variants",
 )
 async def upload_product_image_with_presets(
     product_id: UUID,
     request: Request,
     image: UploadFile = File(..., description="Image file (PNG, JPG, WEBP, max 5MB)"),
     is_primary: bool = Form(False, description="Set as primary image"),
-    alt_text: Optional[str] = Form(None, description="Alternative text for accessibility"),
-    preset_profile: PresetProfile = Form(PresetProfile.STANDARD, description="Preset profile to use"),
+    alt_text: Optional[str] = Form(
+        None, description="Alternative text for accessibility"
+    ),
+    preset_profile: PresetProfile = Form(
+        PresetProfile.STANDARD, description="Preset profile to use"
+    ),
     db: Session = Depends(get_db),
-    merchant: Merchant = Depends(get_current_merchant)
+    merchant: Merchant = Depends(get_current_merchant),
 ):
     """
     Upload product image with preset-based transformations
@@ -193,9 +191,7 @@ async def upload_product_image_with_presets(
 
         # Create upload request
         upload_request = UploadWithPresetsRequest(
-            is_primary=is_primary,
-            alt_text=alt_text,
-            preset_profile=preset_profile
+            is_primary=is_primary, alt_text=alt_text, preset_profile=preset_profile
         )
 
         service = CloudinaryService(db)
@@ -205,12 +201,12 @@ async def upload_product_image_with_presets(
             file_content=file_content,
             filename=image.filename or "upload",
             request=upload_request,
-            webhook_url=webhook_url
+            webhook_url=webhook_url,
         )
 
         return ApiResponse(
             data=result,
-            message=f"Image uploaded successfully with {preset_profile.value} preset profile"
+            message=f"Image uploaded successfully with {preset_profile.value} preset profile",
         )
 
     except NotFoundError as e:
@@ -221,9 +217,9 @@ async def upload_product_image_with_presets(
                 "error": {
                     "code": "RESOURCE_NOT_FOUND",
                     "message": str(e),
-                    "details": {}
-                }
-            }
+                    "details": {},
+                },
+            },
         )
     except APIError as e:
         # Map APIError codes to HTTP status codes
@@ -237,12 +233,8 @@ async def upload_product_image_with_presets(
             status_code=status_code,
             detail={
                 "ok": False,
-                "error": {
-                    "code": e.code.value,
-                    "message": e.message,
-                    "details": {}
-                }
-            }
+                "error": {"code": e.code.value, "message": e.message, "details": {}},
+            },
         )
 
 
@@ -250,13 +242,13 @@ async def upload_product_image_with_presets(
     "/products/{product_id}/images/{image_id}",
     status_code=204,
     summary="Delete product image",
-    description="Delete image from both database and Cloudinary"
+    description="Delete image from both database and Cloudinary",
 )
 async def delete_product_image(
     product_id: UUID,
     image_id: UUID,
     db: Session = Depends(get_db),
-    merchant: Merchant = Depends(get_current_merchant)
+    merchant: Merchant = Depends(get_current_merchant),
 ):
     """
     Delete product image
@@ -267,10 +259,7 @@ async def delete_product_image(
     """
     try:
         service = CloudinaryService(db)
-        service.delete_product_image(
-            image_id=image_id,
-            merchant_id=merchant.id
-        )
+        service.delete_product_image(image_id=image_id, merchant_id=merchant.id)
 
         return JSONResponse(content=None, status_code=204)
 
@@ -282,9 +271,9 @@ async def delete_product_image(
                 "error": {
                     "code": "RESOURCE_NOT_FOUND",
                     "message": str(e),
-                    "details": {}
-                }
-            }
+                    "details": {},
+                },
+            },
         )
     except APIError as e:
         status_code = 502 if e.code == ErrorCode.CLOUDINARY_DELETE_FAILED else 400
@@ -292,12 +281,8 @@ async def delete_product_image(
             status_code=status_code,
             detail={
                 "ok": False,
-                "error": {
-                    "code": e.code.value,
-                    "message": e.message,
-                    "details": {}
-                }
-            }
+                "error": {"code": e.code.value, "message": e.message, "details": {}},
+            },
         )
 
 
@@ -305,13 +290,13 @@ async def delete_product_image(
     "/products/{product_id}/images/{image_id}/primary",
     response_model=ApiResponse[SetPrimaryImageResponse],
     summary="Set primary image",
-    description="Set an image as the primary image for a product"
+    description="Set an image as the primary image for a product",
 )
 async def set_primary_image(
     product_id: UUID,
     image_id: UUID,
     db: Session = Depends(get_db),
-    merchant: Merchant = Depends(get_current_merchant)
+    merchant: Merchant = Depends(get_current_merchant),
 ):
     """
     Set image as primary for product
@@ -322,15 +307,10 @@ async def set_primary_image(
     try:
         service = CloudinaryService(db)
         result = service.set_primary_image(
-            image_id=image_id,
-            product_id=product_id,
-            merchant_id=merchant.id
+            image_id=image_id, product_id=product_id, merchant_id=merchant.id
         )
 
-        return ApiResponse(
-            data=result,
-            message="Primary image updated successfully"
-        )
+        return ApiResponse(data=result, message="Primary image updated successfully")
 
     except NotFoundError as e:
         raise HTTPException(
@@ -340,9 +320,9 @@ async def set_primary_image(
                 "error": {
                     "code": "RESOURCE_NOT_FOUND",
                     "message": str(e),
-                    "details": {}
-                }
-            }
+                    "details": {},
+                },
+            },
         )
 
 
@@ -350,12 +330,12 @@ async def set_primary_image(
     "/products/{product_id}/images",
     response_model=ApiResponse[List[ProductImageResponse]],
     summary="Get product images",
-    description="List all images for a product"
+    description="List all images for a product",
 )
 async def get_product_images(
     product_id: UUID,
     db: Session = Depends(get_db),
-    merchant: Merchant = Depends(get_current_merchant)
+    merchant: Merchant = Depends(get_current_merchant),
 ):
     """
     Get all images for a product
@@ -364,14 +344,10 @@ async def get_product_images(
     try:
         service = CloudinaryService(db)
         images = service.get_product_images(
-            product_id=product_id,
-            merchant_id=merchant.id
+            product_id=product_id, merchant_id=merchant.id
         )
 
-        return ApiResponse(
-            data=images,
-            message=f"Found {len(images)} images"
-        )
+        return ApiResponse(data=images, message=f"Found {len(images)} images")
 
     except Exception as e:
         raise HTTPException(
@@ -381,21 +357,18 @@ async def get_product_images(
                 "error": {
                     "code": "INTERNAL_ERROR",
                     "message": "Failed to retrieve product images",
-                    "details": {}
-                }
-            }
+                    "details": {},
+                },
+            },
         )
 
 
 @router.post(
     "/webhooks/cloudinary",
     summary="Cloudinary webhook",
-    description="Process Cloudinary webhook callbacks for image metadata updates"
+    description="Process Cloudinary webhook callbacks for image metadata updates",
 )
-async def cloudinary_webhook(
-    request: Request,
-    db: Session = Depends(get_db)
-):
+async def cloudinary_webhook(request: Request, db: Session = Depends(get_db)):
     """
     Process Cloudinary webhook
     - Verifies webhook signature
@@ -416,13 +389,14 @@ async def cloudinary_webhook(
                     "error": {
                         "code": "WEBHOOK_SIGNATURE_INVALID",
                         "message": "Missing required webhook headers",
-                        "details": {}
-                    }
-                }
+                        "details": {},
+                    },
+                },
             )
 
         # Parse JSON payload
         import json
+
         try:
             payload_data = json.loads(body.decode())
             payload = CloudinaryWebhookPayload(**payload_data)
@@ -434,18 +408,15 @@ async def cloudinary_webhook(
                     "error": {
                         "code": "VALIDATION_ERROR",
                         "message": f"Invalid webhook payload: {str(e)}",
-                        "details": {}
-                    }
-                }
+                        "details": {},
+                    },
+                },
             )
 
         # Process webhook
         service = CloudinaryService(db)
         result = service.process_webhook(
-            payload=payload,
-            signature=signature,
-            timestamp=timestamp,
-            raw_body=body
+            payload=payload, signature=signature, timestamp=timestamp, raw_body=body
         )
 
         return JSONResponse(content=result, status_code=200)
@@ -459,20 +430,16 @@ async def cloudinary_webhook(
                     "error": {
                         "code": e.code.value,
                         "message": e.message,
-                        "details": {}
-                    }
-                }
+                        "details": {},
+                    },
+                },
             )
         raise HTTPException(
             status_code=500,
             detail={
                 "ok": False,
-                "error": {
-                    "code": e.code.value,
-                    "message": e.message,
-                    "details": {}
-                }
-            }
+                "error": {"code": e.code.value, "message": e.message, "details": {}},
+            },
         )
     except Exception as e:
         raise HTTPException(
@@ -482,7 +449,7 @@ async def cloudinary_webhook(
                 "error": {
                     "code": "INTERNAL_ERROR",
                     "message": "Failed to process webhook",
-                    "details": {}
-                }
-            }
+                    "details": {},
+                },
+            },
         )

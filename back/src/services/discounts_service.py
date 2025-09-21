@@ -15,14 +15,17 @@ from ..models.api import (
     UpdateDiscountRequest,
     DiscountResponse,
     ValidateDiscountRequest,
-    DiscountValidationResponse
+    DiscountValidationResponse,
 )
 from ..models.sqlalchemy_models import Discount
 from ..utils.logger import log
 
+
 class DiscountError(Exception):
     """Discount related errors"""
+
     pass
+
 
 class DiscountsService:
     """Service class for discount operations with comprehensive business validation"""
@@ -34,7 +37,7 @@ class DiscountsService:
         self,
         merchant_id: UUID,
         status: Optional[str] = None,
-        active_only: Optional[bool] = None
+        active_only: Optional[bool] = None,
     ) -> List[DiscountResponse]:
         """
         Get list of discounts for a merchant
@@ -60,8 +63,11 @@ class DiscountsService:
                     now = datetime.now(timezone.utc)
                     query = query.where(
                         and_(
-                            Discount.status == 'active',
-                            func.coalesce(Discount.expires_at, now + text("INTERVAL '1 year'")) > now
+                            Discount.status == "active",
+                            func.coalesce(
+                                Discount.expires_at, now + text("INTERVAL '1 year'")
+                            )
+                            > now,
                         )
                     )
                 else:
@@ -69,8 +75,8 @@ class DiscountsService:
                     now = datetime.now(timezone.utc)
                     query = query.where(
                         or_(
-                            Discount.status.in_(['paused', 'expired']),
-                            Discount.expires_at <= now
+                            Discount.status.in_(["paused", "expired"]),
+                            Discount.expires_at <= now,
                         )
                     )
 
@@ -81,21 +87,26 @@ class DiscountsService:
             discounts = result.scalars().all()
 
             # Convert to response models
-            return [DiscountResponse.from_attributes(discount) for discount in discounts]
+            return [
+                DiscountResponse.from_attributes(discount) for discount in discounts
+            ]
 
         except Exception as e:
-            log.error("Failed to list discounts", extra={
-                "merchant_id": str(merchant_id),
-                "error": str(e),
-                "event_type": "discounts_list_error"
-            })
+            log.error(
+                "Failed to list discounts",
+                extra={
+                    "merchant_id": str(merchant_id),
+                    "error": str(e),
+                    "event_type": "discounts_list_error",
+                },
+            )
             raise DiscountError(f"Failed to list discounts: {str(e)}")
 
     async def create_discount(
         self,
         merchant_id: UUID,
         discount_data: CreateDiscountRequest,
-        idempotency_key: Optional[str] = None
+        idempotency_key: Optional[str] = None,
     ) -> DiscountResponse:
         """
         Create a new discount with business validation
@@ -130,7 +141,7 @@ class DiscountsService:
                 "status": "active",
                 "stackable": False,
                 "created_at": datetime.now(timezone.utc),
-                "updated_at": datetime.now(timezone.utc)
+                "updated_at": datetime.now(timezone.utc),
             }
 
             # Set type-specific fields
@@ -153,37 +164,42 @@ class DiscountsService:
             await self.db.commit()
             await self.db.refresh(discount)
 
-            log.info("Discount created", extra={
-                "merchant_id": str(merchant_id),
-                "discount_id": str(discount.id),
-                "code": discount.code,
-                "type": discount.type,
-                "event_type": "discount_created"
-            })
+            log.info(
+                "Discount created",
+                extra={
+                    "merchant_id": str(merchant_id),
+                    "discount_id": str(discount.id),
+                    "code": discount.code,
+                    "type": discount.type,
+                    "event_type": "discount_created",
+                },
+            )
 
             return DiscountResponse.from_attributes(discount)
 
         except IntegrityError as e:
             await self.db.rollback()
             if "unique" in str(e).lower():
-                raise DiscountError(f"Discount code '{discount_data.code}' already exists")
+                raise DiscountError(
+                    f"Discount code '{discount_data.code}' already exists"
+                )
             raise DiscountError(f"Database constraint error: {str(e)}")
 
         except Exception as e:
             await self.db.rollback()
-            log.error("Failed to create discount", extra={
-                "merchant_id": str(merchant_id),
-                "code": discount_data.code,
-                "error": str(e),
-                "event_type": "discount_create_error"
-            })
+            log.error(
+                "Failed to create discount",
+                extra={
+                    "merchant_id": str(merchant_id),
+                    "code": discount_data.code,
+                    "error": str(e),
+                    "event_type": "discount_create_error",
+                },
+            )
             raise DiscountError(f"Failed to create discount: {str(e)}")
 
     async def update_discount(
-        self,
-        merchant_id: UUID,
-        discount_id: UUID,
-        update_data: UpdateDiscountRequest
+        self, merchant_id: UUID, discount_id: UUID, update_data: UpdateDiscountRequest
     ) -> DiscountResponse:
         """
         Update an existing discount
@@ -202,10 +218,7 @@ class DiscountsService:
         try:
             # Get existing discount
             query = select(Discount).where(
-                and_(
-                    Discount.id == discount_id,
-                    Discount.merchant_id == merchant_id
-                )
+                and_(Discount.id == discount_id, Discount.merchant_id == merchant_id)
             )
             result = await self.db.execute(query)
             discount = result.scalar_one_or_none()
@@ -217,9 +230,7 @@ class DiscountsService:
             await self._validate_discount_update(discount, update_data)
 
             # Apply updates
-            update_dict = {
-                "updated_at": datetime.now(timezone.utc)
-            }
+            update_dict = {"updated_at": datetime.now(timezone.utc)}
 
             if update_data.status is not None:
                 update_dict["status"] = update_data.status
@@ -231,36 +242,42 @@ class DiscountsService:
                 update_dict["usage_limit_total"] = update_data.usage_limit_total
 
             if update_data.usage_limit_per_customer is not None:
-                update_dict["usage_limit_per_customer"] = update_data.usage_limit_per_customer
+                update_dict["usage_limit_per_customer"] = (
+                    update_data.usage_limit_per_customer
+                )
 
             # Update discount
             await self.db.execute(
-                update(Discount)
-                .where(Discount.id == discount_id)
-                .values(**update_dict)
+                update(Discount).where(Discount.id == discount_id).values(**update_dict)
             )
             await self.db.commit()
 
             # Refresh and return
             await self.db.refresh(discount)
 
-            log.info("Discount updated", extra={
-                "merchant_id": str(merchant_id),
-                "discount_id": str(discount_id),
-                "changes": update_dict,
-                "event_type": "discount_updated"
-            })
+            log.info(
+                "Discount updated",
+                extra={
+                    "merchant_id": str(merchant_id),
+                    "discount_id": str(discount_id),
+                    "changes": update_dict,
+                    "event_type": "discount_updated",
+                },
+            )
 
             return DiscountResponse.from_attributes(discount)
 
         except Exception as e:
             await self.db.rollback()
-            log.error("Failed to update discount", extra={
-                "merchant_id": str(merchant_id),
-                "discount_id": str(discount_id),
-                "error": str(e),
-                "event_type": "discount_update_error"
-            })
+            log.error(
+                "Failed to update discount",
+                extra={
+                    "merchant_id": str(merchant_id),
+                    "discount_id": str(discount_id),
+                    "error": str(e),
+                    "event_type": "discount_update_error",
+                },
+            )
             raise DiscountError(f"Failed to update discount: {str(e)}")
 
     async def delete_discount(self, merchant_id: UUID, discount_id: UUID) -> bool:
@@ -277,10 +294,7 @@ class DiscountsService:
         try:
             # Check if discount exists for merchant
             query = select(func.count(Discount.id)).where(
-                and_(
-                    Discount.id == discount_id,
-                    Discount.merchant_id == merchant_id
-                )
+                and_(Discount.id == discount_id, Discount.merchant_id == merchant_id)
             )
             result = await self.db.execute(query)
             count = result.scalar()
@@ -292,35 +306,38 @@ class DiscountsService:
             await self.db.execute(
                 delete(Discount).where(
                     and_(
-                        Discount.id == discount_id,
-                        Discount.merchant_id == merchant_id
+                        Discount.id == discount_id, Discount.merchant_id == merchant_id
                     )
                 )
             )
             await self.db.commit()
 
-            log.info("Discount deleted", extra={
-                "merchant_id": str(merchant_id),
-                "discount_id": str(discount_id),
-                "event_type": "discount_deleted"
-            })
+            log.info(
+                "Discount deleted",
+                extra={
+                    "merchant_id": str(merchant_id),
+                    "discount_id": str(discount_id),
+                    "event_type": "discount_deleted",
+                },
+            )
 
             return True
 
         except Exception as e:
             await self.db.rollback()
-            log.error("Failed to delete discount", extra={
-                "merchant_id": str(merchant_id),
-                "discount_id": str(discount_id),
-                "error": str(e),
-                "event_type": "discount_delete_error"
-            })
+            log.error(
+                "Failed to delete discount",
+                extra={
+                    "merchant_id": str(merchant_id),
+                    "discount_id": str(discount_id),
+                    "error": str(e),
+                    "event_type": "discount_delete_error",
+                },
+            )
             raise DiscountError(f"Failed to delete discount: {str(e)}")
 
     async def validate_discount(
-        self,
-        merchant_id: UUID,
-        validation_request: ValidateDiscountRequest
+        self, merchant_id: UUID, validation_request: ValidateDiscountRequest
     ) -> DiscountValidationResponse:
         """
         Validate a discount code for checkout
@@ -337,33 +354,35 @@ class DiscountsService:
             subtotal_kobo = validation_request.subtotal_kobo
             customer_id = validation_request.customer_id
 
-            log.info("Discount validation requested", extra={
-                "merchant_id": str(merchant_id),
-                "code": code,
-                "subtotal_kobo": subtotal_kobo,
-                "customer_id": str(customer_id) if customer_id else None,
-                "event_type": "discount_validation_requested"
-            })
+            log.info(
+                "Discount validation requested",
+                extra={
+                    "merchant_id": str(merchant_id),
+                    "code": code,
+                    "subtotal_kobo": subtotal_kobo,
+                    "customer_id": str(customer_id) if customer_id else None,
+                    "event_type": "discount_validation_requested",
+                },
+            )
 
             # Find discount
             query = select(Discount).where(
-                and_(
-                    Discount.merchant_id == merchant_id,
-                    Discount.code == code
-                )
+                and_(Discount.merchant_id == merchant_id, Discount.code == code)
             )
             result = await self.db.execute(query)
             discount = result.scalar_one_or_none()
 
             if not discount:
-                log.info("Discount validation failed - code not found", extra={
-                    "merchant_id": str(merchant_id),
-                    "code": code,
-                    "event_type": "discount_validation_failed"
-                })
+                log.info(
+                    "Discount validation failed - code not found",
+                    extra={
+                        "merchant_id": str(merchant_id),
+                        "code": code,
+                        "event_type": "discount_validation_failed",
+                    },
+                )
                 return DiscountValidationResponse(
-                    valid=False,
-                    reason="Discount code not found"
+                    valid=False, reason="Discount code not found"
                 )
 
             # Check all validation rules
@@ -371,34 +390,37 @@ class DiscountsService:
                 discount, subtotal_kobo, customer_id
             )
 
-            log.info("Discount validation completed", extra={
-                "merchant_id": str(merchant_id),
-                "discount_id": str(discount.id),
-                "code": code,
-                "valid": validation_result.valid,
-                "discount_kobo": validation_result.discount_kobo,
-                "reason": validation_result.reason,
-                "event_type": "discount_validated"
-            })
+            log.info(
+                "Discount validation completed",
+                extra={
+                    "merchant_id": str(merchant_id),
+                    "discount_id": str(discount.id),
+                    "code": code,
+                    "valid": validation_result.valid,
+                    "discount_kobo": validation_result.discount_kobo,
+                    "reason": validation_result.reason,
+                    "event_type": "discount_validated",
+                },
+            )
 
             return validation_result
 
         except Exception as e:
-            log.error("Discount validation error", extra={
-                "merchant_id": str(merchant_id),
-                "code": validation_request.code,
-                "error": str(e),
-                "event_type": "discount_validation_error"
-            })
+            log.error(
+                "Discount validation error",
+                extra={
+                    "merchant_id": str(merchant_id),
+                    "code": validation_request.code,
+                    "error": str(e),
+                    "event_type": "discount_validation_error",
+                },
+            )
             return DiscountValidationResponse(
-                valid=False,
-                reason="Validation error occurred"
+                valid=False, reason="Validation error occurred"
             )
 
     async def _validate_discount_creation(
-        self,
-        merchant_id: UUID,
-        discount_data: CreateDiscountRequest
+        self, merchant_id: UUID, discount_data: CreateDiscountRequest
     ) -> None:
         """Validate discount creation business rules"""
 
@@ -422,20 +444,23 @@ class DiscountsService:
         # Validate usage limits
         if discount_data.usage_limit_per_customer and discount_data.usage_limit_total:
             if discount_data.usage_limit_per_customer > discount_data.usage_limit_total:
-                raise DiscountError("usage_limit_per_customer cannot exceed usage_limit_total")
+                raise DiscountError(
+                    "usage_limit_per_customer cannot exceed usage_limit_total"
+                )
 
         # Validate reasonable discount amounts
         if discount_data.type == "fixed" and discount_data.amount_kobo:
             if discount_data.amount_kobo > 100000000:  # 1M naira
                 raise DiscountError("Fixed discount amount too large")
 
-        if discount_data.max_discount_kobo and discount_data.max_discount_kobo > 100000000:
+        if (
+            discount_data.max_discount_kobo
+            and discount_data.max_discount_kobo > 100000000
+        ):
             raise DiscountError("Maximum discount amount too large")
 
     async def _validate_discount_update(
-        self,
-        discount: Discount,
-        update_data: UpdateDiscountRequest
+        self, discount: Discount, update_data: UpdateDiscountRequest
     ) -> None:
         """Validate discount update business rules"""
 
@@ -462,10 +487,7 @@ class DiscountsService:
                 )
 
     async def _validate_discount_usage(
-        self,
-        discount: Discount,
-        subtotal_kobo: int,
-        customer_id: Optional[UUID]
+        self, discount: Discount, subtotal_kobo: int, customer_id: Optional[UUID]
     ) -> DiscountValidationResponse:
         """Validate if discount can be used for a specific order"""
 
@@ -474,67 +496,65 @@ class DiscountsService:
         # Check status
         if discount.status != "active":
             return DiscountValidationResponse(
-                valid=False,
-                reason=f"Discount is {discount.status}"
+                valid=False, reason=f"Discount is {discount.status}"
             )
 
         # Check time window
         if discount.starts_at and now < discount.starts_at:
             return DiscountValidationResponse(
-                valid=False,
-                reason="Discount not yet active"
+                valid=False, reason="Discount not yet active"
             )
 
         if discount.expires_at and now > discount.expires_at:
             return DiscountValidationResponse(
-                valid=False,
-                reason="Discount has expired"
+                valid=False, reason="Discount has expired"
             )
 
         # Check minimum subtotal
         if subtotal_kobo < discount.min_subtotal_kobo:
             return DiscountValidationResponse(
                 valid=False,
-                reason=f"Minimum order amount not met (required: ₦{discount.min_subtotal_kobo/100:.2f})"
+                reason=f"Minimum order amount not met (required: ₦{discount.min_subtotal_kobo/100:.2f})",
             )
 
         # Check total usage limit
         if discount.usage_limit_total is not None:
             if discount.times_redeemed >= discount.usage_limit_total:
                 return DiscountValidationResponse(
-                    valid=False,
-                    reason="Discount usage limit exceeded"
+                    valid=False, reason="Discount usage limit exceeded"
                 )
 
         # Check per-customer usage limit
         if discount.usage_limit_per_customer is not None and customer_id:
-            customer_usage = await self._get_customer_usage_count(discount.id, customer_id)
+            customer_usage = await self._get_customer_usage_count(
+                discount.id, customer_id
+            )
             if customer_usage >= discount.usage_limit_per_customer:
                 return DiscountValidationResponse(
-                    valid=False,
-                    reason="Customer usage limit exceeded"
+                    valid=False, reason="Customer usage limit exceeded"
                 )
 
         # Calculate discount amount
         discount_kobo = self._calculate_discount_amount(discount, subtotal_kobo)
 
-        return DiscountValidationResponse(
-            valid=True,
-            discount_kobo=discount_kobo
-        )
+        return DiscountValidationResponse(valid=True, discount_kobo=discount_kobo)
 
-    async def _get_customer_usage_count(self, discount_id: UUID, customer_id: UUID) -> int:
+    async def _get_customer_usage_count(
+        self, discount_id: UUID, customer_id: UUID
+    ) -> int:
         """Get number of times customer has used this discount"""
         try:
-            query = text("""
+            query = text(
+                """
                 SELECT COUNT(*)
                 FROM coupon_redemptions
                 WHERE discount_id = :discount_id AND customer_id = :customer_id
-            """)
-            result = await self.db.execute(query, {
-                "discount_id": str(discount_id),
-                "customer_id": str(customer_id)
-            })
+            """
+            )
+            result = await self.db.execute(
+                query,
+                {"discount_id": str(discount_id), "customer_id": str(customer_id)},
+            )
             return result.scalar() or 0
         except Exception:
             # If we can't check, assume 0 usage (fail open)
