@@ -11,6 +11,10 @@ from contextlib import asynccontextmanager
 import uvicorn
 import os
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Import API routers
 from src.api.auth import router as auth_router
@@ -21,6 +25,9 @@ from src.api.discounts import router as discounts_router
 from src.api.health import router as health_router
 from src.api.meta_feeds import router as meta_feeds_router
 from src.api.payment_providers import router as payment_providers_router
+from src.api.integrations import router as integrations_router
+from src.api.meta_integrations import router as meta_integrations_router
+from src.api.admin.reconciliation import router as admin_reconciliation_router
 
 # Import observability components
 from src.middleware.logging import LoggingMiddleware
@@ -125,13 +132,12 @@ app.add_middleware(ErrorMiddleware, include_debug_info=include_debug)
 # 2. Logging middleware (logs requests/responses)
 app.add_middleware(LoggingMiddleware)
 
-# 3. CORS middleware
-cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
+# 3. CORS middleware - no star with credentials, register early
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"],  # no '*'
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -148,6 +154,9 @@ app.include_router(products_router, prefix="/api/v1")
 app.include_router(delivery_rates_router, prefix="/api/v1")
 app.include_router(discounts_router, prefix="/api/v1")
 app.include_router(payment_providers_router, prefix="/api/v1")
+app.include_router(meta_integrations_router, prefix="/api/v1")
+app.include_router(integrations_router)
+app.include_router(admin_reconciliation_router)
 
 
 @app.get("/")

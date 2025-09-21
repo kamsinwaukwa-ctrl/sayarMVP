@@ -375,13 +375,32 @@ def record_histogram(operation: str, duration_seconds: float, component: str = "
 def record_timer(operation: str, duration_seconds: float, component: str = "unknown"):
     """
     Record timer duration (alias for record_histogram for backward compatibility)
-    
+
     Args:
         operation: Name of the operation
         duration_seconds: Duration in seconds
         component: Component performing the operation
     """
     record_histogram(operation, duration_seconds, component)
+
+
+# Generic gauge for setting values
+GENERIC_GAUGE = Gauge(
+    "generic_gauge_value",
+    "Generic gauge for setting values",
+    ["name"]
+)
+
+
+def set_gauge(name: str, value: float):
+    """
+    Set a gauge value
+
+    Args:
+        name: Name of the gauge metric
+        value: Value to set
+    """
+    GENERIC_GAUGE.labels(name=name).set(value)
 
 
 # Alias for backward compatibility with outbox worker

@@ -2,11 +2,13 @@
 Meta Commerce Catalog models and types for WhatsApp Business integration
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, validator
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime
 from enum import Enum
+import hashlib
+import re
 
 class MetaSyncStatus(str, Enum):
     """Meta catalog sync status enumeration"""
@@ -26,6 +28,7 @@ class MetaCatalogProduct(BaseModel):
     condition: str = Field(default="new", description="Product condition")
     price: str = Field(..., description="Price with currency (e.g., '150.00 NGN')")
     brand: Optional[str] = Field(None, description="Product brand")
+    mpn: Optional[str] = Field(None, description="Manufacturer Part Number")
     category: Optional[str] = Field(None, description="Product category")
     inventory: Optional[int] = Field(None, ge=0, description="Available inventory count")
     
@@ -124,6 +127,8 @@ class ProductDB(BaseModel):
     available_qty: int = Field(..., ge=0)
     image_url: Optional[str] = None
     sku: str
+    brand: str
+    mpn: str
     status: str
     retailer_id: str
     category_path: Optional[str] = None
@@ -259,3 +264,276 @@ class MetaFeedStats(BaseModel):
         if hasattr(info, 'data') and 'total_products' in info.data and v > info.data['total_products']:
             raise ValueError('visible_products cannot exceed total_products')
         return v
+
+
+# =============================================================================
+# BE-016.1: Meta Catalog Sync Models
+# =============================================================================
+
+class CatalogSyncAction(str, Enum):
+    """Types of catalog sync actions"""
+    CREATE = "create"
+    UPDATE = "update"
+    UPDATE_IMAGE = "update_image"
+    DELETE = "delete"
+
+
+class CatalogSyncStatus(str, Enum):
+    """Catalog sync processing status"""
+    PENDING = "pending"
+    SUCCESS = "success"
+    FAILED = "failed"
+    RATE_LIMITED = "rate_limited"
+
+
+class CatalogSyncTrigger(str, Enum):
+    """What triggered the catalog sync event"""
+    IMAGE_UPLOAD = "image_upload"
+    PRIMARY_CHANGE = "primary_change"
+    WEBHOOK_UPDATE = "webhook_update"
+
+
+class MetaCatalogSyncPayload(BaseModel):
+    """Payload for catalog_sync outbox jobs"""
+    action: CatalogSyncAction
+    product_id: UUID
+    retailer_id: str
+    meta_catalog_id: str
+    changes: Dict[str, Any] = Field(default_factory=dict)
+    idempotency_key: str
+    triggered_by: CatalogSyncTrigger
+
+    @field_validator('retailer_id')
+    @classmethod
+    def validate_retailer_id(cls, v):
+        """Validate retailer_id format"""
+        if not re.match(r'^[a-zA-Z0-9_-]+$', v):
+            raise ValueError('retailer_id must contain only alphanumeric characters, underscores, and hyphens')
+        return v
+
+    @field_validator('meta_catalog_id')
+    @classmethod
+    def validate_catalog_id(cls, v):
+        """Validate catalog ID format"""
+        if not v or len(v.strip()) == 0:
+            raise ValueError('meta_catalog_id cannot be empty')
+        return v.strip()
+
+    @classmethod
+    def generate_idempotency_key(cls, product_id: UUID, action: CatalogSyncAction, content: Dict[str, Any]) -> str:
+        """Generate idempotency key for deduplication"""
+        # Create deterministic hash from content
+        content_str = str(sorted(content.items()))
+        content_hash = hashlib.sha256(content_str.encode()).hexdigest()[:16]
+
+        return f"{product_id}:{action.value}:{content_hash}"
+
+    def normalize_legacy_shape(self) -> "MetaCatalogSyncPayload":
+        """Convert legacy event shapes to canonical format"""
+        # Check for legacy field names and normalize
+        if "image_url" in self.changes and "primary_image_url" not in self.changes:
+            # Legacy shape: {"image_url": "..."} → {"primary_image_url": "..."}
+            self.changes["primary_image_url"] = self.changes.pop("image_url")
+
+        if "image_urls" in self.changes and "additional_image_urls" not in self.changes:
+            # Legacy shape: {"image_urls": [...]} → {"additional_image_urls": [...]}
+            self.changes["additional_image_urls"] = self.changes.pop("image_urls")
+
+        return self
+
+
+class MetaCatalogImageUpdate(BaseModel):
+    """Image update data for Meta Catalog API"""
+    image_url: str = Field(..., description="Primary product image URL (main preset)")
+    additional_image_urls: Optional[List[str]] = Field([], description="Additional product image URLs")
+
+    @field_validator('image_url')
+    @classmethod
+    def validate_primary_image_url(cls, v):
+        """Validate primary image URL format"""
+        # Must be Cloudinary URL with main preset transformation
+        pattern = r'^https://res\.cloudinary\.com/[^/]+/image/upload/c_limit,w_1600,h_1600,f_auto,q_auto:(good|best)/.*$'
+        if not re.match(pattern, v):
+            raise ValueError('Primary image URL must be Cloudinary main preset URL')
+        return v
+
+    @field_validator('additional_image_urls')
+    @classmethod
+    def validate_additional_image_urls(cls, v):
+        """Validate additional image URLs"""
+        if not v:
+            return []
+
+        for url in v:
+            if not url.startswith('https://res.cloudinary.com/'):
+                raise ValueError('All image URLs must be from Cloudinary')
+
+        return v
+
+
+class MetaCatalogSyncResult(BaseModel):
+    """Result of catalog sync operation for images"""
+    success: bool
+    meta_product_id: Optional[str] = None
+    errors: Optional[List[str]] = None
+    retry_after: Optional[datetime] = None
+    rate_limited: bool = False
+    idempotency_key: str
+    duration_ms: Optional[int] = None
+
+    @property
+    def should_retry(self) -> bool:
+        """Determine if the operation should be retried"""
+        if self.success:
+            return False
+
+        # Rate limited requests should always retry
+        if self.rate_limited:
+            return True
+
+        # Check for retryable error types
+        if self.errors:
+            retryable_patterns = [
+                'temporarily unavailable',
+                'timeout',
+                'connection',
+                'network',
+                'rate limit',
+                'internal server error',
+                '500',
+                '502',
+                '503',
+                '504'
+            ]
+            error_text = ' '.join(self.errors).lower()
+            return any(pattern in error_text for pattern in retryable_patterns)
+
+        return True
+
+
+class MetaCatalogSyncLogEntry(BaseModel):
+    """Catalog sync log entry for tracking"""
+    id: UUID
+    merchant_id: UUID
+    product_id: UUID
+    outbox_job_id: Optional[UUID]
+    action: CatalogSyncAction
+    retailer_id: str
+    catalog_id: str
+    status: CatalogSyncStatus
+    request_payload: Optional[Dict[str, Any]]
+    response_data: Optional[Dict[str, Any]]
+    error_details: Optional[Dict[str, Any]]
+    retry_count: int = 0
+    next_retry_at: Optional[datetime]
+    idempotency_key: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class MetaCatalogBatchImageRequest(BaseModel):
+    """Meta Graph API batch request format for image updates"""
+    requests: List[Dict[str, Any]]
+
+    @classmethod
+    def create_image_update_request(
+        cls,
+        retailer_id: str,
+        image_data: MetaCatalogImageUpdate
+    ) -> "MetaCatalogBatchImageRequest":
+        """Create batch request for image update"""
+        request_data = {
+            "method": "UPDATE",
+            "retailer_id": retailer_id,
+            "data": {
+                "image_url": image_data.image_url
+            }
+        }
+
+        # Add additional images if present
+        if image_data.additional_image_urls:
+            request_data["data"]["additional_image_urls"] = image_data.additional_image_urls
+
+        return cls(requests=[request_data])
+
+
+class MetaCatalogBatchImageResponse(BaseModel):
+    """Meta Graph API batch response format for image updates"""
+    data: Optional[List[Dict[str, Any]]] = None
+    error: Optional[Dict[str, Any]] = None
+
+    @property
+    def is_success(self) -> bool:
+        """Check if the batch response indicates success"""
+        return self.error is None and self.data is not None
+
+    @property
+    def is_rate_limited(self) -> bool:
+        """Check if the response indicates rate limiting"""
+        if self.error and 'code' in self.error:
+            # Meta API rate limit error codes
+            rate_limit_codes = [4, 17, 613, 80004]
+            return self.error['code'] in rate_limit_codes
+        return False
+
+
+class LegacyEventNormalization(BaseModel):
+    """Tracking for legacy event shape normalization"""
+    merchant_id: UUID
+    product_id: UUID
+    legacy_shape: str
+    canonical_shape: str
+    producer_hint: Optional[str] = None
+    normalized_at: datetime = Field(default_factory=lambda: datetime.now(datetime.timezone.utc))
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class IdempotencyCheck(BaseModel):
+    """Idempotency validation result"""
+    is_duplicate: bool
+    existing_sync_id: Optional[UUID] = None
+    ttl_hours: int = 24
+    key_generated_at: Optional[datetime] = None
+
+    @property
+    def should_skip(self) -> bool:
+        """Determine if the request should be skipped due to idempotency"""
+        return self.is_duplicate and self.existing_sync_id is not None
+
+
+class CatalogSyncMetrics(BaseModel):
+    """Metrics for catalog sync operations"""
+    triggered_total: int = 0
+    success_total: int = 0
+    failed_total: int = 0
+    rate_limited_total: int = 0
+    legacy_normalized_total: int = 0
+    average_duration_ms: Optional[float] = None
+    active_jobs: int = 0
+    backlog_size: int = 0
+
+    def record_success(self, duration_ms: int):
+        """Record a successful sync operation"""
+        self.success_total += 1
+        if self.average_duration_ms is None:
+            self.average_duration_ms = duration_ms
+        else:
+            # Simple moving average
+            self.average_duration_ms = (self.average_duration_ms + duration_ms) / 2
+
+    def record_failure(self):
+        """Record a failed sync operation"""
+        self.failed_total += 1
+
+    def record_rate_limit(self):
+        """Record a rate-limited sync operation"""
+        self.rate_limited_total += 1
+
+    def record_legacy_normalization(self):
+        """Record a legacy event normalization"""
+        self.legacy_normalized_total += 1

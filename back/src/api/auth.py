@@ -323,13 +323,38 @@ async def get_me(current_user: CurrentUser):
 async def refresh_token():
     """
     Refresh JWT access token.
-    
+
     This is an optional endpoint for token refresh functionality.
     Currently returns a placeholder response.
     """
     return ApiResponse(
         data={"token": "new_token_placeholder"},
         message="Token refreshed successfully"
+    )
+
+
+@router.post(
+    "/logout",
+    response_model=ApiResponse[dict],
+    responses={
+        401: {"model": ApiErrorResponse, "description": "Unauthorized"}
+    },
+    summary="User logout",
+    description="Logout user (optional endpoint for client-side token cleanup)"
+)
+async def logout_user(current_user: CurrentUser):
+    """
+    Logout user.
+
+    This endpoint is primarily for client-side token cleanup and any
+    server-side logout logic. Since we're using stateless JWT tokens,
+    the actual logout logic is handled client-side by removing the token.
+
+    Requires valid JWT token in Authorization header.
+    """
+    return ApiResponse(
+        data={"message": "Logged out successfully"},
+        message="Logout successful"
     )
 
 

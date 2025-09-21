@@ -11,11 +11,14 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from ..models.meta_catalog import (
-    MetaCatalogProduct, 
-    MetaCatalogSyncResult, 
+    MetaCatalogProduct,
+    MetaCatalogSyncResult,
     MetaCatalogConfig,
     MetaCatalogBatchRequest,
-    MetaCatalogBatchResult
+    MetaCatalogBatchResult,
+    MetaCatalogImageUpdate,
+    MetaCatalogBatchImageRequest,
+    MetaCatalogBatchImageResponse
 )
 from ..utils.logger import get_logger
 from ..utils.retry import retryable, RetryConfig
@@ -299,7 +302,64 @@ class MetaCatalogClient:
                 retailer_id=retailer_id,
                 errors=[e.message]
             )
-    
+
+    @retryable(config=RetryConfig(max_attempts=3, exponential_base=2.0))
+    async def unpublish_product(
+        self,
+        catalog_id: str,
+        retailer_id: str,
+        config: MetaCatalogConfig
+    ) -> MetaCatalogSyncResult:
+        """Unpublish product from Meta Commerce Catalog by setting availability to out of stock"""
+        start_time = datetime.now()
+
+        try:
+            logger.info(f"Unpublishing product from Meta catalog: {retailer_id}")
+
+            # Try preferred approach: set availability to out of stock and visibility to hidden
+            unpublish_data = {
+                "retailer_id": retailer_id,
+                "availability": "out of stock",
+                "visibility": "hidden"  # Hide from buyer surfaces
+            }
+
+            async with self.circuit_breaker:
+                response = await self._make_request(
+                    method="POST",
+                    endpoint=f"{catalog_id}/products",
+                    config=config,
+                    data=unpublish_data
+                )
+
+            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+            meta_product_id = response.get("id")
+
+            logger.info(f"Product unpublished successfully: {retailer_id} -> {meta_product_id}")
+
+            return MetaCatalogSyncResult(
+                success=True,
+                retailer_id=retailer_id,
+                meta_product_id=meta_product_id,
+                sync_duration_ms=duration_ms
+            )
+
+        except MetaCatalogRateLimitError as e:
+            logger.warning(f"Rate limit hit for product unpublish: {retailer_id}")
+            return MetaCatalogSyncResult(
+                success=False,
+                retailer_id=retailer_id,
+                errors=[e.message],
+                retry_after=e.retry_after
+            )
+
+        except MetaCatalogError as e:
+            logger.error(f"Failed to unpublish product {retailer_id}: {e.message}")
+            return MetaCatalogSyncResult(
+                success=False,
+                retailer_id=retailer_id,
+                errors=[e.message]
+            )
+
     async def get_product_status(
         self,
         catalog_id: str,
@@ -391,6 +451,173 @@ class MetaCatalogClient:
         product_short = str(product_id).replace('-', '')[:10]
         return f"meta_{merchant_short}_{product_short}"
     
+    @retryable(config=RetryConfig(max_attempts=8, exponential_base=2.0, max_delay=3600))
+    async def update_product_images(
+        self,
+        catalog_id: str,
+        retailer_id: str,
+        image_data: MetaCatalogImageUpdate,
+        config: MetaCatalogConfig
+    ) -> MetaCatalogSyncResult:
+        """Update product images using Meta Graph API batch endpoint"""
+        start_time = datetime.now()
+
+        try:
+            logger.info(f"Updating product images in Meta catalog: {retailer_id}")
+
+            # Validate image URLs before making API call
+            try:
+                await self._validate_image_urls(image_data)
+            except Exception as e:
+                logger.error(f"Image URL validation failed for {retailer_id}: {str(e)}")
+                return MetaCatalogSyncResult(
+                    success=False,
+                    retailer_id=retailer_id,
+                    errors=[f"Image validation failed: {str(e)}"],
+                    idempotency_key="",
+                    rate_limited=False
+                )
+
+            # Create batch request for image update
+            batch_request = MetaCatalogBatchImageRequest.create_image_update_request(
+                retailer_id=retailer_id,
+                image_data=image_data
+            )
+
+            async with self.circuit_breaker:
+                response = await self._make_request(
+                    method="POST",
+                    endpoint=f"{catalog_id}/items_batch",
+                    config=config,
+                    data=batch_request.dict()
+                )
+
+            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+
+            # Parse batch response
+            batch_response = MetaCatalogBatchImageResponse(**response)
+
+            if batch_response.is_success:
+                meta_product_id = None
+                if batch_response.data and len(batch_response.data) > 0:
+                    meta_product_id = batch_response.data[0].get("id")
+
+                logger.info(f"Product images updated successfully: {retailer_id} -> {meta_product_id}")
+
+                return MetaCatalogSyncResult(
+                    success=True,
+                    retailer_id=retailer_id,
+                    meta_product_id=meta_product_id,
+                    duration_ms=duration_ms,
+                    idempotency_key="",
+                    rate_limited=False
+                )
+            else:
+                error_message = "Unknown error"
+                if batch_response.error:
+                    error_message = batch_response.error.get("message", error_message)
+
+                logger.error(f"Failed to update product images {retailer_id}: {error_message}")
+
+                return MetaCatalogSyncResult(
+                    success=False,
+                    retailer_id=retailer_id,
+                    errors=[error_message],
+                    duration_ms=duration_ms,
+                    idempotency_key="",
+                    rate_limited=batch_response.is_rate_limited
+                )
+
+        except MetaCatalogRateLimitError as e:
+            logger.warning(f"Rate limit hit for image update: {retailer_id}")
+            return MetaCatalogSyncResult(
+                success=False,
+                retailer_id=retailer_id,
+                errors=[e.message],
+                retry_after=e.retry_after,
+                rate_limited=True,
+                idempotency_key=""
+            )
+
+        except MetaCatalogError as e:
+            logger.error(f"Failed to update product images {retailer_id}: {e.message}")
+            return MetaCatalogSyncResult(
+                success=False,
+                retailer_id=retailer_id,
+                errors=[e.message],
+                duration_ms=int((datetime.now() - start_time).total_seconds() * 1000),
+                idempotency_key="",
+                rate_limited=False
+            )
+
+    async def _validate_image_urls(self, image_data: MetaCatalogImageUpdate) -> None:
+        """Validate that image URLs are accessible before API call"""
+        async with httpx.AsyncClient(timeout=10) as client:
+            try:
+                # HEAD request to primary image URL
+                response = await client.head(image_data.image_url)
+                if response.status_code != 200:
+                    raise MetaCatalogError(f"Primary image URL not accessible: {response.status_code}")
+
+                # Check additional image URLs if present
+                for url in image_data.additional_image_urls or []:
+                    response = await client.head(url)
+                    if response.status_code != 200:
+                        logger.warning(f"Additional image URL not accessible: {url} ({response.status_code})")
+                        # Don't fail for additional images, just log warning
+
+            except httpx.RequestError as e:
+                raise MetaCatalogError(f"Image URL validation failed: {str(e)}")
+
+    def classify_error(self, error_message: str, error_code: Optional[str] = None) -> bool:
+        """Classify if error is retryable or permanent"""
+        if not error_message:
+            return True  # Unknown errors are retryable
+
+        error_lower = error_message.lower()
+
+        # Permanent errors that should not be retried
+        permanent_patterns = [
+            "invalid retailer id",
+            "catalog not found",
+            "product not found",
+            "invalid image format",
+            "invalid url format",
+            "permission denied",
+            "access token expired",
+            "invalid access token"
+        ]
+
+        for pattern in permanent_patterns:
+            if pattern in error_lower:
+                return False
+
+        # Rate limit and temporary errors are retryable
+        retryable_patterns = [
+            "rate limit",
+            "temporarily unavailable",
+            "timeout",
+            "connection",
+            "network",
+            "internal server error",
+            "service unavailable",
+            "bad gateway",
+            "gateway timeout"
+        ]
+
+        for pattern in retryable_patterns:
+            if pattern in error_lower:
+                return True
+
+        # Rate limit error codes
+        if error_code:
+            rate_limit_codes = ["4", "17", "613", "80004"]
+            if error_code in rate_limit_codes:
+                return True
+
+        # Default to retryable for unknown errors
+        return True
+
     def format_product_for_meta(
         self,
         product_db: "ProductDB",
@@ -398,17 +625,17 @@ class MetaCatalogClient:
     ) -> MetaCatalogProduct:
         """Convert database product to Meta catalog format"""
         from ..models.meta_catalog import ProductDB
-        
+
         # Calculate availability
         availability = "in stock" if product_db.available_qty > 0 else "out of stock"
-        
+
         # Format price with currency
         price_ngn = product_db.price_kobo / 100.0
         price_str = f"{price_ngn:.2f} NGN"
-        
+
         # Generate product URL (could be merchant storefront URL)
         product_url = merchant_config.get("storefront_url", "https://example.com") + f"/products/{product_db.id}"
-        
+
         return MetaCatalogProduct(
             retailer_id=product_db.retailer_id,
             name=product_db.title,
@@ -418,7 +645,8 @@ class MetaCatalogClient:
             availability=availability,
             condition="new",
             price=price_str,
-            brand=merchant_config.get("brand_name"),
+            brand=product_db.brand,  # Always included (satisfies Meta requirement)
+            mpn=product_db.mpn,      # Always included (satisfies Meta requirement)
             category=product_db.category_path,
             inventory=product_db.available_qty if product_db.available_qty > 0 else None
         )

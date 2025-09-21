@@ -24,10 +24,12 @@ from ..models.meta_catalog import (
 from ..models.sqlalchemy_models import Product, Merchant
 from ..integrations.meta_catalog import MetaCatalogClient
 from ..services.media_service import MediaService
+from ..services.meta_integration_service import MetaIntegrationService
 from ..utils.outbox import enqueue_job
 from ..utils.logger import get_logger
 from ..utils.metrics import increment_counter, record_timer
 from ..utils.error_handling import map_exception_to_response, create_error_response
+from ..utils.product_generation import ProductFieldGenerator
 
 logger = get_logger(__name__)
 
@@ -38,7 +40,8 @@ class ProductService:
         self.db = db
         self.media_service = MediaService(db)
         self.meta_client = MetaCatalogClient()
-        self.error_handler = ErrorHandler()
+        self.meta_integration_service = MetaIntegrationService(db)
+        self.field_generator = ProductFieldGenerator(db)
     
     async def create_product(
         self,
@@ -59,14 +62,45 @@ class ProductService:
                     logger.info(f"Returning idempotent response for product creation: {idempotency_key}")
                     return ProductDB.model_validate(existing_response)
             
-            # Check SKU uniqueness within merchant
-            await self._validate_sku_uniqueness(merchant_id, request.sku)
-            
+            # Get merchant for field generation
+            merchant = await self.field_generator.get_merchant(merchant_id)
+
+            # 1. Default brand from merchant if missing
+            brand = self.field_generator.default_brand_from_merchant(merchant.name, request.brand)
+
+            # 2. Generate SKU if missing or validate existing
+            sku = request.sku
+            if not sku or not sku.strip():
+                sku = await self.field_generator.generate_unique_sku(merchant_id, merchant.slug)
+                increment_counter("products_created_with_auto_sku_total", tags={"merchant_id": str(merchant_id)})
+            else:
+                # Validate existing SKU uniqueness
+                await self._validate_sku_uniqueness(merchant_id, sku)
+
+            # 3. Generate MPN if missing
+            mpn = request.mpn
+            if not mpn or not mpn.strip():
+                mpn = self.field_generator.generate_mpn(merchant.slug, sku)
+                increment_counter("products_created_with_auto_mpn_total", tags={"merchant_id": str(merchant_id)})
+
+            # Log auto-generation events
+            if not request.brand:
+                increment_counter("products_created_with_auto_brand_total", tags={"merchant_id": str(merchant_id)})
+                logger.info(
+                    "product_brand_defaulted",
+                    extra={
+                        "event_type": "product_brand_defaulted",
+                        "merchant_id": str(merchant_id),
+                        "brand": brand,
+                        "merchant_name": merchant.name
+                    }
+                )
+
             # Handle image upload if provided
             image_url = None
             if request.image_file_id:
                 image_url = await self.media_service.get_file_url(request.image_file_id)
-            
+
             # Generate stable retailer_id for Meta catalog
             product_id = uuid4()
             retailer_id = self.meta_client.generate_retailer_id(merchant_id, product_id)
@@ -82,7 +116,9 @@ class ProductService:
                 "reserved_qty": 0,
                 "available_qty": request.stock,
                 "image_url": image_url,
-                "sku": request.sku,
+                "sku": sku,
+                "brand": brand,
+                "mpn": mpn,
                 "status": "active",
                 "retailer_id": retailer_id,
                 "category_path": request.category_path,
@@ -169,11 +205,40 @@ class ProductService:
             product = await self._get_product_by_id(product_id, merchant_id)
             if not product:
                 raise ValueError(f"Product not found: {product_id}")
-            
+
+            # Get merchant for field generation if needed
+            merchant = None
+
             # Check SKU uniqueness if updating SKU
             if request.sku and request.sku != product.sku:
                 await self._validate_sku_uniqueness(merchant_id, request.sku)
-            
+
+            # Never overwrite existing brand unless explicitly provided
+            brand = request.brand if request.brand is not None else product.brand
+
+            # Generate MPN if missing and we have SKU
+            mpn = request.mpn
+            sku = request.sku if request.sku is not None else product.sku
+
+            if not mpn or not mpn.strip():
+                if sku:
+                    if not merchant:
+                        merchant = await self.field_generator.get_merchant(merchant_id)
+                    mpn = self.field_generator.generate_mpn(merchant.slug, sku)
+                    increment_counter("products_created_with_auto_mpn_total", tags={"merchant_id": str(merchant_id)})
+                    logger.info(
+                        "product_mpn_generated",
+                        extra={
+                            "event_type": "product_mpn_generated",
+                            "merchant_id": str(merchant_id),
+                            "product_id": str(product_id),
+                            "mpn": mpn,
+                            "sku": sku
+                        }
+                    )
+                else:
+                    mpn = product.mpn
+
             # Handle image upload if provided
             image_url = product.image_url
             if request.image_file_id:
@@ -182,14 +247,18 @@ class ProductService:
             # Prepare update data
             update_data = {}
             update_fields = request.model_dump(exclude_none=True)
-            
+
             for field, value in update_fields.items():
                 if field == "image_file_id":
                     continue  # Handled separately
                 update_data[field] = value
-            
+
             if image_url != product.image_url:
                 update_data["image_url"] = image_url
+
+            # Always include resolved brand and mpn
+            update_data["brand"] = brand
+            update_data["mpn"] = mpn
             
             # Calculate available_qty if stock changed
             if "stock" in update_data:
@@ -230,16 +299,27 @@ class ProductService:
             
             # Queue Meta catalog sync if needed
             needs_sync = (
-                updated_product.meta_catalog_visible and 
+                updated_product.meta_catalog_visible and
                 (product.meta_catalog_visible != updated_product.meta_catalog_visible or
                  any(field in update_data for field in ["title", "description", "price_kobo", "stock", "image_url"]))
             )
-            
+
             if needs_sync:
                 await self._queue_catalog_sync(product_id, "update")
             elif not updated_product.meta_catalog_visible and product.meta_catalog_visible:
                 # Product was made invisible, delete from catalog
                 await self._queue_catalog_sync(product_id, "delete")
+
+            # Handle unpublish on status change (archived/hidden)
+            if "status" in update_data:
+                old_status = product.status
+                new_status = updated_product.status
+
+                # If status changed from active to archived/hidden, trigger unpublish
+                if old_status == "active" and new_status in ["archived", "hidden"]:
+                    await self.enqueue_unpublish_on_status_change(
+                        product_id, merchant_id, old_status, new_status
+                    )
             
             # Emit structured logs
             logger.info(
@@ -484,7 +564,7 @@ class ProductService:
             )
             
             return updated_product
-            
+
         except Exception as e:
             await self.db.rollback()
             logger.error(f"Failed to update inventory: {str(e)}", extra={
@@ -494,7 +574,111 @@ class ProductService:
                 "error": str(e)
             })
             raise
-    
+
+    async def enqueue_manual_catalog_sync(self, product_id: UUID, merchant_id: UUID, requested_by: UUID) -> str:
+        """
+        Manually enqueue Meta catalog sync for a specific product
+
+        Args:
+            product_id: Product UUID
+            merchant_id: Merchant UUID
+            requested_by: User UUID who requested the sync
+
+        Returns:
+            Job ID for tracking
+
+        Raises:
+            ValueError: If product not found or sync already in progress
+        """
+        try:
+            # Get product to check existence and sync status
+            stmt = (
+                select(Product)
+                .where(and_(Product.id == product_id, Product.merchant_id == merchant_id))
+            )
+            result = await self.db.execute(stmt)
+            product = result.fetchone()
+
+            if not product:
+                raise ValueError("Product not found")
+
+            product_obj = ProductDB.model_validate(product)
+
+            # Check if sync is already in progress
+            if product_obj.meta_sync_status == MetaSyncStatus.SYNCING.value:
+                raise ValueError("Meta Catalog sync is already in progress for this product")
+
+            # Update sync status to pending
+            update_stmt = (
+                update(Product)
+                .where(and_(Product.id == product_id, Product.merchant_id == merchant_id))
+                .values(
+                    meta_sync_status=MetaSyncStatus.PENDING.value,
+                    updated_at=datetime.now()
+                )
+            )
+            await self.db.execute(update_stmt)
+
+            # Get merchant info for job payload
+            merchant_stmt = select(Merchant).where(Merchant.id == merchant_id)
+            merchant_result = await self.db.execute(merchant_stmt)
+            merchant = merchant_result.fetchone()
+
+            if not merchant:
+                raise ValueError("Merchant not found")
+
+            # Create job payload
+            timestamp = datetime.now()
+            payload = {
+                "product_id": str(product_id),
+                "merchant_id": str(merchant_id),
+                "retailer_id": product_obj.retailer_id,
+                "action": "manual_sync",
+                "trigger": "manual",
+                "requested_by": str(requested_by),
+                "timestamp": timestamp.isoformat()
+            }
+
+            # Generate idempotency key with timestamp
+            dedupe_key = f"catalog_sync:{merchant_id}:{product_id}:{timestamp.isoformat()}"
+
+            # Enqueue job
+            job_id = await enqueue_job(
+                merchant_id=merchant_id,
+                job_type="catalog_sync",
+                payload=payload,
+                dedupe_key=dedupe_key,
+                max_attempts=5,
+                delay_seconds=0  # Execute immediately for manual sync
+            )
+
+            await self.db.commit()
+
+            logger.info(
+                "manual_catalog_sync_enqueued",
+                extra={
+                    "event_type": "manual_catalog_sync_enqueued",
+                    "merchant_id": str(merchant_id),
+                    "product_id": str(product_id),
+                    "retailer_id": product_obj.retailer_id,
+                    "requested_by": str(requested_by),
+                    "job_id": job_id,
+                    "trigger": "manual"
+                }
+            )
+
+            return job_id
+
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Failed to enqueue manual catalog sync: {str(e)}", extra={
+                "merchant_id": str(merchant_id),
+                "product_id": str(product_id),
+                "requested_by": str(requested_by),
+                "error": str(e)
+            })
+            raise
+
     # Private helper methods
     
     async def _get_product_by_id(self, product_id: UUID, merchant_id: UUID) -> Optional[ProductDB]:
@@ -638,3 +822,145 @@ class ProductService:
         stmt = insert(IdempotencyKeyDB).values(**idempotency_data)
         await self.db.execute(stmt)
         # Note: commit is handled by calling method
+
+    async def load_meta_credentials_for_worker(self, merchant_id: UUID):
+        """Load Meta credentials for sync worker"""
+        return await self.meta_integration_service.load_credentials_for_worker(merchant_id)
+
+    async def enqueue_unpublish_on_status_change(
+        self,
+        product_id: UUID,
+        merchant_id: UUID,
+        old_status: str,
+        new_status: str
+    ) -> None:
+        """Enqueue unpublish job when product status changes to archived/hidden"""
+        try:
+            # Get product details for job payload
+            product = await self._get_product_by_id(product_id, merchant_id)
+            if not product:
+                logger.warning(f"Product not found for unpublish: {product_id}")
+                return
+
+            # Create unpublish job payload
+            job_payload = {
+                "type": "catalog_unpublish",
+                "merchant_id": str(merchant_id),
+                "product_id": str(product_id),
+                "retailer_id": product.retailer_id,
+                "action": "unpublish",
+                "trigger": "status_change",
+                "requested_by": None,
+                "old_status": old_status,
+                "new_status": new_status,
+                "timestamp": datetime.now().isoformat()
+            }
+
+            # Generate idempotency key (no timestamp for deduplication)
+            idempotency_key = f"catalog_unpublish:{merchant_id}:{product_id}:status_change"
+
+            await enqueue_job(
+                job_type="catalog_unpublish",
+                payload=job_payload,
+                idempotency_key=idempotency_key,
+                db=self.db
+            )
+
+            # Log structured event
+            logger.info(
+                "product_unpublish_triggered",
+                extra={
+                    "event": "product_unpublish_triggered",
+                    "merchant_id": str(merchant_id),
+                    "product_id": str(product_id),
+                    "trigger": "status_change",
+                    "old_status": old_status,
+                    "new_status": new_status,
+                    "timestamp": datetime.now().isoformat()
+                }
+            )
+
+            increment_counter(
+                "meta_unpublish_requests_total",
+                tags={"trigger": "status_change", "status": "enqueued"}
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to enqueue unpublish for product {product_id}: {str(e)}")
+            increment_counter(
+                "meta_unpublish_requests_total",
+                tags={"trigger": "status_change", "status": "error"}
+            )
+            raise
+
+    async def enqueue_force_unpublish(
+        self,
+        product_id: UUID,
+        merchant_id: UUID,
+        requested_by: UUID
+    ) -> str:
+        """Enqueue force unpublish job for admin operations"""
+        try:
+            # Get product details
+            product = await self._get_product_by_id(product_id, merchant_id)
+            if not product:
+                raise ValueError(f"Product not found: {product_id}")
+
+            # Check if product is already archived/hidden (already unpublished)
+            if product.status in ["archived", "hidden"]:
+                raise ValueError(f"Product is already unpublished (status: {product.status})")
+
+            # Check if sync is in progress
+            if product.meta_sync_status == "syncing":
+                raise ValueError("Meta Catalog sync is already in progress for this product")
+
+            # Create force unpublish job payload
+            job_payload = {
+                "type": "catalog_unpublish",
+                "merchant_id": str(merchant_id),
+                "product_id": str(product_id),
+                "retailer_id": product.retailer_id,
+                "action": "unpublish",
+                "trigger": "manual",
+                "requested_by": str(requested_by),
+                "timestamp": datetime.now().isoformat()
+            }
+
+            # Generate unique idempotency key with timestamp for manual operations
+            timestamp = int(datetime.now().timestamp())
+            idempotency_key = f"catalog_unpublish:{merchant_id}:{product_id}:manual:{timestamp}"
+
+            await enqueue_job(
+                job_type="catalog_unpublish",
+                payload=job_payload,
+                idempotency_key=idempotency_key,
+                db=self.db
+            )
+
+            # Log structured event
+            logger.info(
+                "product_force_unpublish_triggered",
+                extra={
+                    "event": "product_unpublish_triggered",
+                    "merchant_id": str(merchant_id),
+                    "product_id": str(product_id),
+                    "trigger": "manual",
+                    "requested_by": str(requested_by),
+                    "timestamp": datetime.now().isoformat()
+                }
+            )
+
+            increment_counter(
+                "meta_unpublish_requests_total",
+                tags={"trigger": "manual", "status": "enqueued"}
+            )
+
+            return idempotency_key
+
+        except Exception as e:
+            logger.error(f"Failed to enqueue force unpublish for product {product_id}: {str(e)}")
+            increment_counter(
+                "meta_unpublish_requests_total",
+                tags={"trigger": "manual", "status": "error"}
+            )
+            raise

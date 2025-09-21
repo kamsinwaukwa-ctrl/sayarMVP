@@ -2,7 +2,7 @@
 SQLAlchemy models for Sayar WhatsApp Commerce Platform database schema
 """
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Enum, JSON, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Enum, JSON, UniqueConstraint, BigInteger, DECIMAL
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import uuid
@@ -20,6 +20,17 @@ class Merchant(Base):
     logo_url = Column(String)
     description = Column(String)
     currency = Column(String, default="NGN")
+
+    # WhatsApp Integration fields
+    waba_id_enc = Column(String)
+    phone_number_id_enc = Column(String)
+    app_id_enc = Column(String)
+    system_user_token_enc = Column(String)
+    wa_connection_status = Column(String, default='not_connected')
+    wa_environment = Column(String, default='test')
+    wa_verified_at = Column(DateTime)
+    wa_last_error = Column(String)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -50,6 +61,8 @@ class Product(Base):
     available_qty = Column(Integer)
     image_url = Column(String)
     sku = Column(String)
+    brand = Column(String)
+    mpn = Column(String)
     status = Column(String, default="active")
     retailer_id = Column(String, unique=True, nullable=False)
     category_path = Column(String)
@@ -58,8 +71,58 @@ class Product(Base):
     meta_sync_status = Column(String, default="pending")
     meta_sync_errors = Column(JSON)
     meta_last_synced_at = Column(DateTime)
+    meta_image_sync_version = Column(Integer, default=0)
+    meta_last_image_sync_at = Column(DateTime)
+    primary_image_id = Column(UUID(as_uuid=True), ForeignKey("product_images.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class ProductImage(Base):
+    """Product image SQLAlchemy model"""
+    __tablename__ = "product_images"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=False)
+    merchant_id = Column(UUID(as_uuid=True), ForeignKey("merchants.id"), nullable=False)
+    cloudinary_public_id = Column(String, nullable=False, unique=True)
+    secure_url = Column(String, nullable=False)
+    thumbnail_url = Column(String)
+    width = Column(Integer)
+    height = Column(Integer)
+    format = Column(String)
+    bytes = Column(Integer)
+    is_primary = Column(Boolean, nullable=False, default=False)
+    alt_text = Column(String)
+    upload_status = Column(String, nullable=False, default="uploading")
+    cloudinary_version = Column(BigInteger)
+    # New preset-related columns
+    preset_profile = Column(String, default="standard")
+    variants = Column(JSON, default=dict)
+    optimization_stats = Column(JSON, default=dict)
+    preset_version = Column(Integer, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CloudinaryPresetStats(Base):
+    """Cloudinary preset performance statistics"""
+    __tablename__ = "cloudinary_preset_stats"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    merchant_id = Column(UUID(as_uuid=True), ForeignKey("merchants.id"), nullable=False)
+    preset_id = Column(String, nullable=False)
+    usage_count = Column(Integer, default=0)
+    avg_file_size_kb = Column(Integer)
+    avg_processing_time_ms = Column(Integer)
+    quality_score_avg = Column(DECIMAL(3, 1))
+    last_used_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint('merchant_id', 'preset_id', name='uq_merchant_preset'),
+    )
+
 
 class Customer(Base):
     """Customer SQLAlchemy model"""
@@ -226,3 +289,24 @@ class PaymentProviderConfig(Base):
         UniqueConstraint('merchant_id', 'provider_type', 'environment', name='uq_payment_provider_config_scope'),
         {'extend_existing': True},
     )
+
+class MetaCatalogSyncLog(Base):
+    """Meta catalog synchronization log SQLAlchemy model"""
+    __tablename__ = "meta_catalog_sync_log"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    merchant_id = Column(UUID(as_uuid=True), ForeignKey("merchants.id"), nullable=False)
+    product_id = Column(UUID(as_uuid=True), ForeignKey("products.id"), nullable=False)
+    outbox_job_id = Column(UUID(as_uuid=True), ForeignKey("outbox_events.id"), nullable=True)
+    action = Column(String, nullable=False)
+    retailer_id = Column(String, nullable=False)
+    catalog_id = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="pending")
+    request_payload = Column(JSON)
+    response_data = Column(JSON)
+    error_details = Column(JSON)
+    retry_count = Column(Integer, default=0)
+    next_retry_at = Column(DateTime)
+    idempotency_key = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

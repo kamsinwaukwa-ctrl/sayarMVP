@@ -13,14 +13,26 @@ from enum import Enum
 class ErrorCode(str, Enum):
     """Standard error codes for consistent error classification"""
     VALIDATION_ERROR = "VALIDATION_ERROR"
-    AUTHENTICATION_ERROR = "AUTHENTICATION_ERROR"
-    AUTHORIZATION_ERROR = "AUTHORIZATION_ERROR"
-    NOT_FOUND = "NOT_FOUND"
-    CONFLICT = "CONFLICT"
-    RATE_LIMITED = "RATE_LIMITED"
+    AUTHENTICATION_FAILED = "AUTHENTICATION_FAILED"
+    AUTHORIZATION_FAILED = "AUTHORIZATION_FAILED"
+    MERCHANT_NOT_FOUND = "MERCHANT_NOT_FOUND"
+    DUPLICATE_RESOURCE = "DUPLICATE_RESOURCE"
+    RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED"
     EXTERNAL_SERVICE_ERROR = "EXTERNAL_SERVICE_ERROR"
     INTERNAL_ERROR = "INTERNAL_ERROR"
     SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
+    # WhatsApp specific error codes
+    WHATSAPP_CREDENTIALS_NOT_FOUND = "WHATSAPP_CREDENTIALS_NOT_FOUND"
+    WHATSAPP_VERIFICATION_FAILED = "WHATSAPP_VERIFICATION_FAILED"
+    # Cloudinary specific error codes
+    CLOUDINARY_NOT_CONFIGURED = "CLOUDINARY_NOT_CONFIGURED"
+    CLOUDINARY_HEALTHCHECK_FAILED = "CLOUDINARY_HEALTHCHECK_FAILED"
+    CLOUDINARY_UPLOAD_FAILED = "CLOUDINARY_UPLOAD_FAILED"
+    CLOUDINARY_DELETE_FAILED = "CLOUDINARY_DELETE_FAILED"
+    IMAGE_TOO_LARGE = "IMAGE_TOO_LARGE"
+    UNSUPPORTED_IMAGE_TYPE = "UNSUPPORTED_IMAGE_TYPE"
+    IMAGE_DIMENSIONS_TOO_SMALL = "IMAGE_DIMENSIONS_TOO_SMALL"
+    WEBHOOK_SIGNATURE_INVALID = "WEBHOOK_SIGNATURE_INVALID"
 
 
 class ErrorDetails(BaseModel):
@@ -53,43 +65,42 @@ class ErrorDetails(BaseModel):
     }
 
 
-class APIError(BaseModel):
-    """Structured API error with code, message, and optional details"""
-    code: ErrorCode = Field(..., description="Standardized error code")
-    message: str = Field(..., description="Human-readable error message")
-    details: Optional[ErrorDetails] = Field(None, description="Additional error context")
-    request_id: UUID = Field(..., description="Request correlation ID")
+class APIError(Exception):
+    """Structured API error exception with code, message, and optional details"""
+    def __init__(
+        self,
+        code: ErrorCode,
+        message: str,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        self.code = code
+        self.message = message
+        self.details = details or {}
+        super().__init__(message)
 
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "code": "VALIDATION_ERROR",
-                    "message": "Invalid input data",
-                    "details": {
-                        "field": "email",
-                        "reason": "Invalid email format",
-                        "value": "invalid-email"
-                    },
-                    "request_id": "a42b0b6a-1234-5678-9abc-123456789abc"
-                },
-                {
-                    "code": "AUTHORIZATION_ERROR",
-                    "message": "Forbidden",
-                    "details": {
-                        "reason": "Requires admin role"
-                    },
-                    "request_id": "a42b0b6a-1234-5678-9abc-123456789abc"
-                }
-            ]
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for HTTP responses"""
+        return {
+            "ok": False,
+            "error": {
+                "code": self.code.value,
+                "message": self.message,
+                "details": self.details
+            }
         }
-    }
+
+
+class ErrorInfo(BaseModel):
+    """Error information for API responses"""
+    code: str = Field(..., description="Error code")
+    message: str = Field(..., description="Error message")
+    details: Dict[str, Any] = Field(default_factory=dict, description="Error details")
 
 
 class ErrorResponse(BaseModel):
     """Standard error response envelope for all API errors"""
     ok: bool = Field(False, description="Always false for error responses")
-    error: APIError = Field(..., description="Error information")
+    error: ErrorInfo = Field(..., description="Error information")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Error timestamp")
 
     model_config = {
@@ -97,12 +108,11 @@ class ErrorResponse(BaseModel):
             "example": {
                 "ok": False,
                 "error": {
-                    "code": "AUTHORIZATION_ERROR",
+                    "code": "AUTHORIZATION_FAILED",
                     "message": "Forbidden",
                     "details": {
                         "reason": "Requires admin role"
-                    },
-                    "request_id": "a42b0b6a-1234-5678-9abc-123456789abc"
+                    }
                 },
                 "timestamp": "2025-01-27T10:00:00Z"
             }

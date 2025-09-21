@@ -57,37 +57,44 @@ async def get_current_user(
 ) -> CurrentPrincipal:
     """
     Get current authenticated user and apply RLS claims
-    
+
     Args:
         credentials: HTTP Bearer credentials
         db: Database session
-        
+
     Returns:
         CurrentPrincipal with user information
-        
+
     Raises:
-        AuthenticationError: If authentication fails
+        AuthenticationError: If authentication fails (401)
     """
     try:
+        if not credentials or not credentials.credentials:
+            raise AuthenticationError("Authentication required")
+
         # Decode JWT token
         payload = decode_jwt(credentials.credentials)
-        
+
         # Apply RLS claims to database session
         await apply_rls_claims(db, payload)
-        
+
         # Get user information
         auth_service = AuthService(db)
         user = await auth_service.get_user_by_id(payload["sub"])
-        
+
         if not user:
-            raise AuthenticationError("User not found")
-            
+            raise AuthenticationError("Invalid token")
+
         return user
-        
+
     except JWTError as e:
-        raise AuthenticationError(str(e))
+        raise AuthenticationError("Invalid or expired token")
+    except AuthenticationError:
+        # Re-raise authentication errors as-is (these become 401)
+        raise
     except Exception as e:
-        raise AuthenticationError(f"Authentication failed: {str(e)}")
+        # Catch all other exceptions and convert to 401
+        raise AuthenticationError("Authentication failed")
 
 async def get_current_admin(
     current_user: Annotated[CurrentPrincipal, Depends(get_current_user)]

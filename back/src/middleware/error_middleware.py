@@ -154,7 +154,7 @@ class ErrorMiddleware(BaseHTTPMiddleware):
         status_code = self._get_status_code_from_error_code(error_response.error.code)
         
         # Record metrics
-        record_error(error_response.error.code.value, "middleware")
+        record_error(str(error_response.error.code), "middleware")
         
         # Add debug information if enabled (development only)
         if self.include_debug_info:
@@ -230,11 +230,11 @@ class ErrorMiddleware(BaseHTTPMiddleware):
         """
         status_mapping = {
             ErrorCode.VALIDATION_ERROR: 400,
-            ErrorCode.AUTHENTICATION_ERROR: 401,
-            ErrorCode.AUTHORIZATION_ERROR: 403,
-            ErrorCode.NOT_FOUND: 404,
-            ErrorCode.CONFLICT: 409,
-            ErrorCode.RATE_LIMITED: 429,
+            ErrorCode.AUTHENTICATION_FAILED: 401,
+            ErrorCode.AUTHORIZATION_FAILED: 403,
+            ErrorCode.MERCHANT_NOT_FOUND: 404,
+            ErrorCode.DUPLICATE_RESOURCE: 409,
+            ErrorCode.RATE_LIMIT_EXCEEDED: 429,
             ErrorCode.EXTERNAL_SERVICE_ERROR: 502,
             ErrorCode.SERVICE_UNAVAILABLE: 503,
             ErrorCode.INTERNAL_ERROR: 500,

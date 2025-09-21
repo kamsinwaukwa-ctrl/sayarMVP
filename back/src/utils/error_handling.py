@@ -20,7 +20,7 @@ from asyncpg.exceptions import (
 )
 
 from ..models.errors import (
-    ErrorCode, ErrorDetails, APIError, ErrorResponse,
+    ErrorCode, ErrorDetails, APIError, ErrorResponse, ErrorInfo,
     RetryableError, RateLimitedError, UpstreamServiceError,
     AuthzError, AuthnError
 )
@@ -113,16 +113,18 @@ def create_error_response(
     # Sanitize message
     sanitized_message = sanitize_error_message(message)
     
-    # Create API error
-    api_error = APIError(
-        code=code,
+    # Create error info for response
+    # Convert ErrorDetails object to dict if needed
+    details_dict = details.model_dump() if hasattr(details, 'model_dump') else details
+
+    error_info = ErrorInfo(
+        code=code.value,
         message=sanitized_message,
-        details=details,
-        request_id=request_id
+        details=details_dict or {}
     )
-    
+
     return ErrorResponse(
-        error=api_error,
+        error=error_info,
         timestamp=datetime.now(timezone.utc)
     )
 
@@ -148,15 +150,15 @@ def map_http_exception(
     if status_code == 400:
         code = ErrorCode.VALIDATION_ERROR
     elif status_code == 401:
-        code = ErrorCode.AUTHENTICATION_ERROR
+        code = ErrorCode.AUTHENTICATION_FAILED
     elif status_code == 403:
-        code = ErrorCode.AUTHORIZATION_ERROR
+        code = ErrorCode.AUTHORIZATION_FAILED
     elif status_code == 404:
-        code = ErrorCode.NOT_FOUND
+        code = ErrorCode.MERCHANT_NOT_FOUND
     elif status_code == 409:
-        code = ErrorCode.CONFLICT
+        code = ErrorCode.DUPLICATE_RESOURCE
     elif status_code == 429:
-        code = ErrorCode.RATE_LIMITED
+        code = ErrorCode.RATE_LIMIT_EXCEEDED
     elif status_code >= 500:
         code = ErrorCode.INTERNAL_ERROR
     else:
@@ -339,7 +341,7 @@ def map_custom_exception(
     if isinstance(exc, AuthnError):
         details = ErrorDetails(reason=exc.reason)
         return create_error_response(
-            ErrorCode.AUTHENTICATION_ERROR,
+            ErrorCode.AUTHENTICATION_FAILED,
             "Authentication failed",
             details,
             request_id
@@ -348,7 +350,7 @@ def map_custom_exception(
     elif isinstance(exc, AuthzError):
         details = ErrorDetails(reason=exc.reason)
         return create_error_response(
-            ErrorCode.AUTHORIZATION_ERROR,
+            ErrorCode.AUTHORIZATION_FAILED,
             str(exc),
             details,
             request_id
@@ -361,7 +363,7 @@ def map_custom_exception(
             retry_after=exc.retry_after
         )
         return create_error_response(
-            ErrorCode.RATE_LIMITED,
+            ErrorCode.RATE_LIMIT_EXCEEDED,
             f"Rate limited by {exc.service}",
             details,
             request_id
@@ -390,7 +392,7 @@ def map_custom_exception(
         if exc.status_code >= 500:
             code = ErrorCode.EXTERNAL_SERVICE_ERROR
         elif exc.status_code == 429:
-            code = ErrorCode.RATE_LIMITED
+            code = ErrorCode.RATE_LIMIT_EXCEEDED
         else:
             code = ErrorCode.EXTERNAL_SERVICE_ERROR
         

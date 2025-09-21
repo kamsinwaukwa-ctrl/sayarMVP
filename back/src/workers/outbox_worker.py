@@ -34,6 +34,7 @@ from ..utils.metrics import (
     job_handle_seconds,
 )
 from .job_handlers import get_job_handler
+from .reconciliation_worker import start_reconciliation_worker, stop_reconciliation_worker
 
 logger = logging.getLogger(__name__)
 
@@ -79,9 +80,12 @@ class OutboxWorker:
             replace_existing=True,
         )
         
+        # Start the reconciliation worker with shared scheduler
+        start_reconciliation_worker(self.scheduler)
+
         self.scheduler.start()
         self.is_running = True
-        
+
         log.info(
             "Outbox worker started successfully",
             extra={
@@ -105,7 +109,10 @@ class OutboxWorker:
             # Release leader lock if we have it
             if self.is_leader:
                 await self._release_leader()
-            
+
+            # Stop the reconciliation worker
+            stop_reconciliation_worker()
+
             self.scheduler.shutdown()
             self.is_running = False
             
