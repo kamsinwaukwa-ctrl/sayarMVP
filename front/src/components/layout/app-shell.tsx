@@ -1,21 +1,13 @@
 import * as React from "react"
 import { cn } from "../../lib/utils"
 import { Sidebar, type SidebarSection } from "./sidebar"
-import { Header, type User } from "./header"
+import { Header } from "./header"
 
 interface AppShellProps extends React.HTMLAttributes<HTMLDivElement> {
-  user?: User
   sidebarSections: SidebarSection[]
   children: React.ReactNode
   sidebarCollapsed?: boolean
   onSidebarToggle?: () => void
-  searchEnabled?: boolean
-  onSearch?: (query: string) => void
-  quickActions?: React.ReactNode
-  notifications?: number
-  onProfileClick?: () => void
-  onSettingsClick?: () => void
-  onLogout?: () => void
 }
 
 /**
@@ -25,18 +17,10 @@ interface AppShellProps extends React.HTMLAttributes<HTMLDivElement> {
 const AppShell = React.forwardRef<HTMLDivElement, AppShellProps>(
   ({
     className,
-    user,
     sidebarSections,
     children,
     sidebarCollapsed,
     onSidebarToggle,
-    searchEnabled,
-    onSearch,
-    quickActions,
-    notifications,
-    onProfileClick,
-    onSettingsClick,
-    onLogout,
     ...props
   }, ref) => {
     return (
@@ -55,16 +39,7 @@ const AppShell = React.forwardRef<HTMLDivElement, AppShellProps>(
         {/* Main Content Area */}
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Header */}
-          <Header
-            user={user}
-            searchEnabled={searchEnabled}
-            onSearch={onSearch}
-            quickActions={quickActions}
-            notifications={notifications}
-            onProfileClick={onProfileClick}
-            onSettingsClick={onSettingsClick}
-            onLogout={onLogout}
-          />
+          <Header />
 
           {/* Page Content */}
           <div className="flex-1 overflow-y-auto">

@@ -1,8 +1,8 @@
-import * as React from "react"
+//import * as React from "react"
 import { useController, UseControllerProps, FieldValues, FieldPath } from "react-hook-form"
 import { cn } from "../../lib/utils"
 import { FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "../ui/form"
-import { Select } from "../ui/Select"
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "../ui/Select"
 
 interface SelectOption {
   value: string
@@ -67,24 +67,26 @@ export function SelectField<
       )}
       <FormControl>
         <Select
-          {...field}
-          disabled={disabled}
-          className={cn(invalid && "border-destructive focus-visible:ring-destructive")}
+          value={field.value}
+          onValueChange={field.onChange}
         >
-          {placeholder && (
-            <option value="" disabled>
-              {placeholder}
-            </option>
-          )}
-          {options.map((option) => (
-            <option
-              key={option.value}
-              value={option.value}
-              disabled={option.disabled}
-            >
-              {option.label}
-            </option>
-          ))}
+          <SelectTrigger
+            disabled={disabled}
+            className={cn(invalid && "border-destructive focus-visible:ring-destructive")}
+          >
+            <SelectValue placeholder={placeholder} />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((option) => (
+              <SelectItem
+                key={option.value}
+                value={option.value}
+                disabled={option.disabled}
+              >
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
         </Select>
       </FormControl>
       {description && <FormDescription>{description}</FormDescription>}
