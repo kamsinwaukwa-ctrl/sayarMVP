@@ -17,8 +17,9 @@
   --popover: 0 0% 100%;
   --popover-foreground: 220 9% 9%;
 
-  /* Primary colors (S-Tier SaaS brand color) */
-  --primary: 214 95% 36%;
+  /* Primary colors (Brand) */
+  /* #08104d => hsl(233, 81%, 17%) */
+  --primary: 233 81% 17%;
   --primary-foreground: 0 0% 98%;
 
   /* Secondary colors */
@@ -40,7 +41,7 @@
   /* Border and input */
   --border: 214 32% 91%;
   --input: 214 32% 91%;
-  --ring: 214 95% 36%;
+  --ring: 233 81% 17%;
 
   /* Chart colors for data visualization */
   --chart-1: 12 76% 61%;
@@ -88,7 +89,8 @@
   --popover: 220 9% 9%;
   --popover-foreground: 0 0% 98%;
 
-  --primary: 214 95% 36%;
+  /* #08104d */
+  --primary: 233 81% 17%;
   --primary-foreground: 0 0% 98%;
 
   --secondary: 220 9% 13%;
@@ -105,7 +107,7 @@
 
   --border: 220 9% 13%;
   --input: 220 9% 13%;
-  --ring: 214 95% 36%;
+  --ring: 233 81% 17%;
 
   --chart-1: 220 70% 50%;
   --chart-2: 160 60% 45%;

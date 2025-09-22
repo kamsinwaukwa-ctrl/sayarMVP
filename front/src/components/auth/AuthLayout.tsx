@@ -53,12 +53,7 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({
           <div className="text-center lg:text-left">
             {/* Mobile logo */}
             <div className="lg:hidden flex justify-center mb-6">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <span className="text-xl font-bold text-white">S</span>
-                </div>
-                <span className="text-2xl font-bold text-gray-900">Sayar</span>
-              </div>
+              <img src="/logo.png" alt="Sayar" className="h-12 sm:h-14 md:h-16 w-auto" />
             </div>
 
             
