@@ -151,7 +151,13 @@ class ErrorMiddleware(BaseHTTPMiddleware):
         error_response = map_exception_to_response(exc, request_id)
 
         # Determine HTTP status code from error code
-        status_code = self._get_status_code_from_error_code(error_response.error.code)
+        # Convert string code back to ErrorCode enum for mapping
+        try:
+            error_code_enum = ErrorCode(error_response.error.code)
+            status_code = self._get_status_code_from_error_code(error_code_enum)
+        except ValueError:
+            # Fallback to 500 if unknown error code
+            status_code = 500
 
         # Record metrics
         record_error(str(error_response.error.code), "middleware")
@@ -160,7 +166,11 @@ class ErrorMiddleware(BaseHTTPMiddleware):
         if self.include_debug_info:
             # Add traceback to error details (be careful not to leak sensitive info)
             if error_response.error.details:
-                error_response.error.details.debug_trace = traceback.format_exc()
+                # Check if details is a dict or ErrorDetails object
+                if isinstance(error_response.error.details, dict):
+                    error_response.error.details["debug_trace"] = traceback.format_exc()
+                else:
+                    error_response.error.details.debug_trace = traceback.format_exc()
             else:
                 from ..models.errors import ErrorDetails
 
@@ -169,20 +179,12 @@ class ErrorMiddleware(BaseHTTPMiddleware):
                     debug_trace=traceback.format_exc(),
                 )
 
-        # Create JSON response with custom UUID encoder
+        # Create content for the error response
         content = {
             "ok": False,
             "error": error_response.error.model_dump(),
             "timestamp": error_response.timestamp.isoformat(),
         }
-        response = JSONResponse(
-            content=json.loads(json.dumps(content, cls=UUIDEncoder)),
-            status_code=status_code,
-            headers={
-                self.request_id_header: str(request_id),
-                "Content-Type": "application/json",
-            },
-        )
 
         # Log the error response
         log.info(
@@ -193,12 +195,46 @@ class ErrorMiddleware(BaseHTTPMiddleware):
                 "method": request.method,
                 "path": request.url.path,
                 "status_code": status_code,
-                "error_code": error_response.error.code.value,
+                "error_code": error_response.error.code,
                 "error_message": error_response.error.message,
             },
         )
 
+        # Create JSON response with custom UUID encoder
+        # Manually add CORS headers since middleware runs after CORS
+        headers = {
+            self.request_id_header: str(request_id),
+            "Content-Type": "application/json",
+        }
+
+        # Add CORS headers manually if Origin header is present
+        origin = request.headers.get("origin")
+        if origin and self._is_cors_allowed_origin(origin):
+            headers["access-control-allow-origin"] = origin
+            headers["access-control-allow-credentials"] = "true"
+            headers["vary"] = "Origin"
+
+        response = JSONResponse(
+            content=json.loads(json.dumps(content, cls=UUIDEncoder)),
+            status_code=status_code,
+            headers=headers,
+        )
+
         return response
+
+    def _is_cors_allowed_origin(self, origin: str) -> bool:
+        """Check if origin is allowed for CORS"""
+        allowed_origins = [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:5174",
+            "http://127.0.0.1:5174",
+            "http://localhost:5175",
+            "http://127.0.0.1:5175",
+            "https://app.usesayar.com",
+            "https://usesayar.com",
+        ]
+        return origin in allowed_origins
 
     def _get_client_ip(self, request: Request) -> Optional[str]:
         """Extract client IP address from request"""

@@ -325,78 +325,160 @@ class MetaIntegrationService:
         2. Updates the Meta catalog_id only
         3. Verifies the connection with existing credentials
         """
+        logger.info(f"Starting catalog update for merchant {merchant_id} with catalog_id: {catalog_id}")
+
         try:
-            # First, get WhatsApp credentials (app_id, system_user_token)
+            # Step 1: Validate catalog_id format
+            if not catalog_id or not catalog_id.strip():
+                raise MetaIntegrationError(
+                    "Catalog ID cannot be empty",
+                    "INVALID_CATALOG_ID"
+                )
+
+            catalog_id = catalog_id.strip()
+            if not catalog_id.isdigit():
+                raise MetaIntegrationError(
+                    "Catalog ID must be numeric",
+                    "INVALID_CATALOG_ID"
+                )
+
+            logger.info(f"Catalog ID validation passed for merchant {merchant_id}")
+
+            # Step 2: Get WhatsApp credentials (app_id, system_user_token)
+            logger.info(f"Retrieving WhatsApp credentials for merchant {merchant_id}")
             whatsapp_creds = await self._get_whatsapp_credentials(merchant_id)
             if not whatsapp_creds:
+                logger.warning(f"No WhatsApp credentials found for merchant {merchant_id}")
                 raise MetaIntegrationError(
                     "WhatsApp integration not found. Please complete WhatsApp setup first.",
                     "WHATSAPP_NOT_CONFIGURED",
                 )
 
-            # Check if we have existing Meta integration
+            logger.info(f"WhatsApp credentials retrieved successfully for merchant {merchant_id}")
+
+            # Step 3: Check required credential fields
+            required_fields = ["app_id", "system_user_token"]
+            missing_fields = [field for field in required_fields if not whatsapp_creds.get(field)]
+            if missing_fields:
+                logger.error(f"Missing WhatsApp credential fields for merchant {merchant_id}: {missing_fields}")
+                raise MetaIntegrationError(
+                    f"WhatsApp integration incomplete. Missing: {', '.join(missing_fields)}",
+                    "WHATSAPP_INCOMPLETE"
+                )
+
+            # Step 4: Check if we have existing Meta integration
+            logger.info(f"Checking for existing Meta integration for merchant {merchant_id}")
             existing = await self._get_integration_by_merchant(merchant_id)
+            if existing:
+                logger.info(f"Found existing Meta integration for merchant {merchant_id}, status: {existing.status}")
+            else:
+                logger.info(f"No existing Meta integration found for merchant {merchant_id}")
 
-            # Create full request using WhatsApp credentials + new catalog_id
-            full_request = MetaCredentialsRequest(
-                catalog_id=catalog_id,
-                system_user_token=whatsapp_creds["system_user_token"],
-                app_id=whatsapp_creds["app_id"],
-                waba_id=whatsapp_creds.get("waba_id"),
-            )
+            # Step 5: Create full request using WhatsApp credentials + new catalog_id
+            try:
+                full_request = MetaCredentialsRequest(
+                    catalog_id=catalog_id,
+                    system_user_token=whatsapp_creds["system_user_token"],
+                    app_id=whatsapp_creds["app_id"],
+                    waba_id=whatsapp_creds.get("waba_id"),
+                )
+                logger.info(f"Created full credential request for merchant {merchant_id}")
+            except Exception as e:
+                logger.error(f"Failed to create credential request for merchant {merchant_id}: {str(e)}")
+                raise MetaIntegrationError(
+                    f"Invalid credential format: {str(e)}",
+                    "INVALID_CREDENTIALS"
+                )
 
-            # If catalog_id is the same and credentials unchanged, return early
+            # Step 6: Check for idempotency - if catalog_id is the same and credentials unchanged, return early
             if existing and existing.catalog_id == catalog_id:
-                if await self._credentials_unchanged(existing, full_request):
-                    logger.info(
-                        f"Meta catalog already configured with same credentials for merchant {merchant_id}"
-                    )
-                    return self._build_response_from_db(existing)
+                logger.info(f"Catalog ID unchanged for merchant {merchant_id}, checking if credentials changed")
+                try:
+                    if await self._credentials_unchanged(existing, full_request):
+                        logger.info(
+                            f"Meta catalog already configured with same credentials for merchant {merchant_id}"
+                        )
+                        return self._build_response_from_db(existing)
+                except Exception as e:
+                    logger.warning(f"Error checking credential changes for merchant {merchant_id}: {str(e)}")
+                    # Continue with verification instead of failing
 
-            # Verify the new credentials
-            verification_result = await self._verify_credentials(full_request)
+            # Step 7: Verify the new credentials with Meta API
+            logger.info(f"Starting Meta API verification for merchant {merchant_id}")
+            try:
+                verification_result = await self._verify_credentials(full_request)
+                logger.info(f"Meta API verification completed for merchant {merchant_id}, status: {verification_result.get('status')}")
+            except Exception as e:
+                logger.error(f"Meta API verification failed for merchant {merchant_id}: {str(e)}")
+                raise MetaIntegrationError(
+                    f"Unable to verify credentials with Meta: {str(e)}",
+                    "META_API_ERROR"
+                )
 
             if verification_result["status"] != MetaIntegrationStatus.VERIFIED:
+                error_msg = verification_result.get('error', 'Unknown error')
+                error_code = verification_result.get("error_code", "VERIFICATION_FAILED")
+                logger.error(f"Meta credential verification failed for merchant {merchant_id}: {error_msg}")
                 raise MetaIntegrationError(
-                    f"Credential verification failed: {verification_result.get('error', 'Unknown error')}",
-                    verification_result.get("error_code", "VERIFICATION_FAILED"),
+                    f"Credential verification failed: {error_msg}",
+                    error_code,
                 )
 
-            # Store/update the integration
-            integration_data = {
-                "merchant_id": merchant_id,
-                "catalog_id": catalog_id,
-                "system_user_token_encrypted": encrypt_key(
-                    full_request.system_user_token
-                ),
-                "app_id": full_request.app_id,
-                "waba_id": full_request.waba_id,
-                "status": MetaIntegrationStatus.VERIFIED,
-                "catalog_name": verification_result.get("catalog_name"),
-                "last_verified_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            }
+            # Step 8: Store/update the integration in database
+            logger.info(f"Storing Meta integration data for merchant {merchant_id}")
+            try:
+                # Encrypt the system user token
+                encrypted_token = encrypt_key(full_request.system_user_token)
 
-            if existing:
-                # Update existing
-                stmt = (
-                    update(MetaIntegration)
-                    .where(MetaIntegration.merchant_id == merchant_id)
-                    .values(**integration_data)
-                    .returning(MetaIntegration)
-                )
-            else:
-                # Insert new
-                integration_data["created_at"] = datetime.utcnow()
-                stmt = (
-                    insert(MetaIntegration)
-                    .values(**integration_data)
-                    .returning(MetaIntegration)
-                )
+                integration_data = {
+                    "merchant_id": merchant_id,
+                    "catalog_id": catalog_id,
+                    "system_user_token_encrypted": encrypted_token.encrypted_data,
+                    "app_id": full_request.app_id,
+                    "waba_id": full_request.waba_id,
+                    "status": MetaIntegrationStatus.VERIFIED,
+                    "catalog_name": verification_result.get("catalog_name"),
+                    "last_verified_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow(),
+                    "last_error": None,  # Clear any previous errors
+                    "error_code": None,  # Clear any previous error codes
+                }
 
-            result = await self.db.execute(stmt)
-            integration_row = result.first()
-            await self.db.commit()
+                if existing:
+                    # Update existing record
+                    logger.info(f"Updating existing Meta integration for merchant {merchant_id}")
+                    stmt = (
+                        update(MetaIntegration)
+                        .where(MetaIntegration.merchant_id == merchant_id)
+                        .values(**integration_data)
+                        .returning(MetaIntegration)
+                    )
+                else:
+                    # Insert new record
+                    logger.info(f"Creating new Meta integration for merchant {merchant_id}")
+                    integration_data["created_at"] = datetime.utcnow()
+                    stmt = (
+                        insert(MetaIntegration)
+                        .values(**integration_data)
+                        .returning(MetaIntegration)
+                    )
+
+                result = await self.db.execute(stmt)
+                integration_row = result.first()
+
+                if not integration_row:
+                    raise Exception("Database operation returned no rows")
+
+                await self.db.commit()
+                logger.info(f"Database commit successful for merchant {merchant_id}")
+
+            except Exception as e:
+                logger.error(f"Database operation failed for merchant {merchant_id}: {str(e)}")
+                await self.db.rollback()
+                raise MetaIntegrationError(
+                    f"Failed to save Meta integration: {str(e)}",
+                    "DATABASE_ERROR"
+                )
 
             # Clear cache
             self._clear_cache(str(merchant_id))
@@ -412,16 +494,24 @@ class MetaIntegrationService:
             )
 
         except MetaIntegrationError:
+            # Re-raise MetaIntegrationError as-is (these have specific error codes and messages)
             raise
         except Exception as e:
-            logger.error(f"Error updating catalog for merchant {merchant_id}: {str(e)}")
-            raise MetaIntegrationError(f"Failed to update catalog: {str(e)}")
+            # Catch any unexpected errors and wrap them
+            logger.error(f"Unexpected error updating catalog for merchant {merchant_id}: {str(e)}", exc_info=True)
+            await self.db.rollback()  # Ensure rollback on unexpected errors
+            raise MetaIntegrationError(
+                f"An unexpected error occurred while updating the catalog. Please try again.",
+                "UNEXPECTED_ERROR"
+            )
 
     async def _get_whatsapp_credentials(
         self, merchant_id: UUID
     ) -> Optional[Dict[str, str]]:
         """Get WhatsApp credentials from merchants table"""
         try:
+            logger.debug(f"Retrieving WhatsApp credentials from database for merchant {merchant_id}")
+
             # Import here to avoid circular imports
             from ..models.sqlalchemy_models import Merchant
 
@@ -430,23 +520,58 @@ class MetaIntegrationService:
             merchant = result.scalar_one_or_none()
 
             if not merchant:
+                logger.warning(f"Merchant not found in database: {merchant_id}")
                 return None
 
-            # Check if WhatsApp credentials exist
-            if not merchant.app_id_enc or not merchant.system_user_token_enc:
+            # Check if required WhatsApp credential fields exist
+            if not merchant.app_id_enc:
+                logger.warning(f"Missing app_id_enc for merchant {merchant_id}")
                 return None
+
+            if not merchant.system_user_token_enc:
+                logger.warning(f"Missing system_user_token_enc for merchant {merchant_id}")
+                return None
+
+            # Decrypt credentials safely
+            try:
+                app_id = decrypt_key(merchant.app_id_enc)
+                if not app_id or not app_id.strip():
+                    logger.warning(f"Decrypted app_id is empty for merchant {merchant_id}")
+                    return None
+            except Exception as e:
+                logger.error(f"Failed to decrypt app_id for merchant {merchant_id}: {str(e)}")
+                return None
+
+            try:
+                system_user_token = decrypt_key(merchant.system_user_token_enc)
+                if not system_user_token or not system_user_token.strip():
+                    logger.warning(f"Decrypted system_user_token is empty for merchant {merchant_id}")
+                    return None
+            except Exception as e:
+                logger.error(f"Failed to decrypt system_user_token for merchant {merchant_id}: {str(e)}")
+                return None
+
+            # Handle optional waba_id
+            waba_id = None
+            if merchant.waba_id_enc:
+                try:
+                    waba_id = decrypt_key(merchant.waba_id_enc)
+                except Exception as e:
+                    logger.warning(f"Failed to decrypt waba_id for merchant {merchant_id}: {str(e)}")
+                    # Don't fail for optional field
+
+            logger.debug(f"Successfully retrieved and decrypted WhatsApp credentials for merchant {merchant_id}")
 
             return {
-                "app_id": decrypt_key(merchant.app_id_enc),
-                "system_user_token": decrypt_key(merchant.system_user_token_enc),
-                "waba_id": (
-                    decrypt_key(merchant.waba_id_enc) if merchant.waba_id_enc else None
-                ),
+                "app_id": app_id,
+                "system_user_token": system_user_token,
+                "waba_id": waba_id,
             }
 
         except Exception as e:
             logger.error(
-                f"Error getting WhatsApp credentials for merchant {merchant_id}: {str(e)}"
+                f"Unexpected error getting WhatsApp credentials for merchant {merchant_id}: {str(e)}",
+                exc_info=True
             )
             return None
 

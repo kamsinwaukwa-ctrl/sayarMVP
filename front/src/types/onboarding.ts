@@ -136,6 +136,31 @@ export interface MetaCredentialsData {
   waba_id?: string
 }
 
+export interface MetaCatalogOnlyData {
+  catalog_id: string
+}
+
+export interface MetaCredentialsResponse {
+  success: boolean
+  message: string
+  status: 'pending' | 'verified' | 'invalid' | 'expired'
+  catalog_name?: string
+  verification_timestamp?: string
+}
+
+export interface MetaIntegrationStatusResponse {
+  status: 'pending' | 'verified' | 'invalid' | 'expired'
+  catalog_id?: string
+  catalog_name?: string
+  app_id?: string
+  waba_id?: string
+  last_verified_at?: string
+  error?: string
+  error_code?: string
+  last_error_at?: string
+  message?: string
+}
+
 // Utility Types
 export interface VerificationResult {
   verified: boolean

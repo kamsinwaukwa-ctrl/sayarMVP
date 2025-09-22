@@ -119,14 +119,7 @@ def custom_openapi():
 app.openapi = custom_openapi
 
 # Configure middleware - order matters!
-# 1. Error middleware (outermost - catches all exceptions)
-include_debug = os.getenv("ENV", "development") == "development"
-app.add_middleware(ErrorMiddleware, include_debug_info=include_debug)
-
-# 2. Logging middleware (logs requests/responses)
-app.add_middleware(LoggingMiddleware)
-
-# 3. CORS middleware - no star with credentials, register early
+# 1. CORS middleware (FIRST - must run before any errors to ensure headers are set)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -134,6 +127,8 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "http://localhost:5174",
         "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
         "https://app.usesayar.com",
         "https://usesayar.com",
     ],  # no '*'
@@ -141,6 +136,49 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# 2. Error middleware (catches all exceptions)
+include_debug = os.getenv("ENV", "development") == "development"
+app.add_middleware(ErrorMiddleware, include_debug_info=include_debug)
+
+# 3. Logging middleware (logs requests/responses)
+app.add_middleware(LoggingMiddleware)
+
+# Global exception handler for HTTPException to add CORS headers
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    from fastapi.responses import JSONResponse
+
+    # Create response content
+    content = {
+        "detail": exc.detail
+    }
+
+    # Create response with CORS headers
+    response = JSONResponse(
+        content=content,
+        status_code=exc.status_code,
+    )
+
+    # Add CORS headers manually if Origin header is present
+    origin = request.headers.get("origin")
+    allowed_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+        "https://app.usesayar.com",
+        "https://usesayar.com",
+    ]
+
+    if origin and origin in allowed_origins:
+        response.headers["access-control-allow-origin"] = origin
+        response.headers["access-control-allow-credentials"] = "true"
+        response.headers["vary"] = "Origin"
+
+    return response
 
 # Include observability routers first (no auth required)
 app.include_router(health_router)

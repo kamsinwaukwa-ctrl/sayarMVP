@@ -15,6 +15,9 @@ import {
   PaymentVerificationData,
   WhatsAppVerificationData,
   MetaCredentialsData,
+  MetaCatalogOnlyData,
+  MetaCredentialsResponse,
+  MetaIntegrationStatusResponse,
   MetaSyncDetails,
   MetaSyncTriggerResponse,
   OnboardingProgressData
@@ -85,8 +88,14 @@ export const onboardingApi = {
   getWhatsAppStatus: (): Promise<{ connected: boolean; phone_number?: string }> =>
     http.get("/api/v1/integrations/whatsapp/status"),
 
-  updateMetaCredentials: (data: MetaCredentialsData): Promise<{ ok: boolean }> =>
+  updateMetaCredentials: (data: MetaCredentialsData): Promise<MetaCredentialsResponse> =>
     http.put("/api/v1/integrations/meta/credentials", data),
+
+  updateMetaCatalogId: (data: MetaCatalogOnlyData): Promise<MetaCredentialsResponse> =>
+    http.patch("/api/v1/integrations/meta/catalog", data),
+
+  getMetaIntegrationStatus: (): Promise<MetaIntegrationStatusResponse> =>
+    http.get("/api/v1/integrations/meta/status"),
 
   // Onboarding Progress
   getOnboardingProgress: (): Promise<OnboardingProgressData> =>

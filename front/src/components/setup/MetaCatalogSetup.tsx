@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/use-toast'
 import { API_BASE } from '@/lib/api-config'
+import { onboardingApi } from '@/lib/api/onboarding'
 import {
   Form,
   FormControl,
@@ -174,26 +175,32 @@ export function MetaCatalogSetup({ onComplete, onCancel }: MetaCatalogSetupProps
     },
   })
 
-  const onSubmit = async (_data: MetaCatalogFormData) => {
+  const onSubmit = async (data: MetaCatalogFormData) => {
     setIsSubmitting(true)
     try {
-      // TODO: Implement Meta catalog credentials API call
-      // await metaApi.saveCatalogId(data.catalog_id)
-
-      // Simulate API call for now
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      toast({
-        title: "Meta Catalog connected! 🎉",
-        description: "Your catalog is now synced with Meta for WhatsApp commerce.",
+      const response = await onboardingApi.updateMetaCatalogId({
+        catalog_id: data.catalog_id
       })
 
-      onComplete?.()
-    } catch (error) {
+      if (response.success) {
+        toast({
+          title: "Meta Catalog connected! 🎉",
+          description: response.message || "Your catalog is now synced with Meta for WhatsApp commerce.",
+        })
+        onComplete?.()
+      } else {
+        toast({
+          title: "Connection failed",
+          description: response.message || "Please check your catalog ID and try again.",
+          variant: "destructive",
+        })
+      }
+    } catch (error: any) {
       console.error('Error saving catalog ID:', error)
+      const errorMessage = error?.response?.data?.detail || error?.message || "Please check your catalog ID and try again."
       toast({
         title: "Connection failed",
-        description: "Please check your catalog ID and try again.",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
@@ -214,20 +221,47 @@ export function MetaCatalogSetup({ onComplete, onCancel }: MetaCatalogSetupProps
 
     setIsVerifying(true)
     try {
-      // TODO: Implement verification API call
-      // await metaApi.verifyCatalog(catalogId)
-
-      // Simulate API call for now
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      toast({
-        title: "Verification successful! ✅",
-        description: "Your catalog connection is working.",
+      // First save the catalog ID, then check status
+      const saveResponse = await onboardingApi.updateMetaCatalogId({
+        catalog_id: catalogId
       })
-    } catch (error) {
+
+      if (saveResponse.success) {
+        // Check the integration status to verify connection
+        const statusResponse = await onboardingApi.getMetaIntegrationStatus()
+
+        if (statusResponse.status === 'verified') {
+          toast({
+            title: "Verification successful! ✅",
+            description: statusResponse.catalog_name
+              ? `Connected to catalog: ${statusResponse.catalog_name}`
+              : "Your catalog connection is working.",
+          })
+        } else if (statusResponse.status === 'invalid') {
+          toast({
+            title: "Verification failed",
+            description: statusResponse.error || "Please check your catalog ID and credentials.",
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Verification in progress",
+            description: "Catalog verification is still processing. Check back in a moment.",
+          })
+        }
+      } else {
+        toast({
+          title: "Verification failed",
+          description: saveResponse.message || "Unable to save catalog ID.",
+          variant: "destructive",
+        })
+      }
+    } catch (error: any) {
+      console.error('Error verifying catalog:', error)
+      const errorMessage = error?.response?.data?.detail || error?.message || "Please check your catalog ID."
       toast({
         title: "Verification failed",
-        description: "Please check your catalog ID.",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
