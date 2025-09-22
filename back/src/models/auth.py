@@ -87,6 +87,7 @@ class MerchantResponse(BaseModel):
 
     id: UUID
     name: str
+    slug: Optional[str] = None
     whatsapp_phone_e164: Optional[str] = None
 
     class Config:
@@ -96,6 +97,7 @@ class MerchantResponse(BaseModel):
                 {
                     "id": "660e8400-e29b-41d4-a716-446655440001",
                     "name": "My Store",
+                    "slug": "my-store",
                     "whatsapp_phone_e164": "+2348012345678",
                 },
                 {"id": "660e8400-e29b-41d4-a716-446655440001", "name": "My Store"},
@@ -145,6 +147,7 @@ class RegisterResponse(BaseModel):
                 "merchant": {
                     "id": "660e8400-e29b-41d4-a716-446655440001",
                     "name": "My Store",
+                    "slug": "my-store",
                     "whatsapp_phone_e164": "+2348012345678",
                 },
             }

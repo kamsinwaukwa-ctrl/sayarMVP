@@ -36,6 +36,7 @@ class MerchantOut(BaseModel):
 
     id: str
     name: Optional[str] = None
+    slug: Optional[str] = None
     description: Optional[str] = None
     currency: Optional[str] = None
     logo_url: Optional[str] = None
@@ -90,6 +91,7 @@ async def get_current_merchant(
     merchant_data = MerchantOut(
         id=str(merchant.id),
         name=merchant.name,
+        slug=merchant.slug,
         description=merchant.description,
         currency=merchant.currency,
         logo_url=merchant.logo_url,
@@ -142,6 +144,7 @@ async def update_merchant(
     merchant_data = MerchantOut(
         id=str(updated_merchant.id),
         name=updated_merchant.name,
+        slug=updated_merchant.slug,
         description=updated_merchant.description,
         currency=updated_merchant.currency,
         logo_url=updated_merchant.logo_url,

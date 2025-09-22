@@ -124,10 +124,8 @@ class MetaFeedService:
         This is the recommended approach for public endpoints that need controlled RLS bypass
         """
         try:
-            # First, create the SECURITY DEFINER function if it doesn't exist
-            await self._ensure_feed_function_exists()
-
             # Call the SECURITY DEFINER function that safely bypasses RLS
+            # Note: Function should be created via migrations (017_get_feed_new.sql)
             result = await self.db.execute(
                 text("SELECT * FROM get_merchant_feed_data(:slug)"),
                 {"slug": merchant_slug},
@@ -141,8 +139,23 @@ class MetaFeedService:
             # Parse results - first row contains merchant data, rest are products
             merchant_row = rows[0]
 
-            # Create merchant object
-            merchant = Merchant(
+            # Debug logging to see what data we got
+            logger.info(
+                "merchant_feed_data_fetched",
+                extra={
+                    "merchant_slug": merchant_slug,
+                    "rows_count": len(rows),
+                    "merchant_id": str(merchant_row.merchant_id) if merchant_row.merchant_id else None,
+                    "merchant_name": merchant_row.merchant_name,
+                    "merchant_slug": merchant_row.merchant_slug,
+                    "first_product_id": str(merchant_row.product_id) if merchant_row.product_id else None,
+                },
+            )
+
+            # Create merchant object - use a simple object instead of SQLAlchemy model
+            # to avoid initialization issues with missing fields
+            from types import SimpleNamespace
+            merchant = SimpleNamespace(
                 id=merchant_row.merchant_id,
                 name=merchant_row.merchant_name,
                 slug=merchant_row.merchant_slug,
@@ -152,7 +165,8 @@ class MetaFeedService:
             products = []
             for row in rows:
                 if row.product_id:  # Skip if no product data
-                    product = Product(
+                    # Use SimpleNamespace to avoid SQLAlchemy model initialization issues
+                    product = SimpleNamespace(
                         id=row.product_id,
                         merchant_id=row.merchant_id,
                         title=row.title,
@@ -179,64 +193,6 @@ class MetaFeedService:
             )
             raise
 
-    async def _ensure_feed_function_exists(self):
-        """Create the SECURITY DEFINER function for RLS bypass if it doesn't exist"""
-        function_sql = """
-        CREATE OR REPLACE FUNCTION get_merchant_feed_data(merchant_slug_param TEXT)
-        RETURNS TABLE (
-            merchant_id UUID,
-            merchant_name TEXT,
-            merchant_slug TEXT,
-            product_id UUID,
-            title TEXT,
-            description TEXT,
-            price_kobo INTEGER,
-            stock INTEGER,
-            available_qty INTEGER,
-            image_url TEXT,
-            retailer_id TEXT,
-            category_path TEXT,
-            status TEXT,
-            meta_catalog_visible BOOLEAN,
-            created_at TIMESTAMP,
-            updated_at TIMESTAMP
-        )
-        LANGUAGE plpgsql
-        SECURITY DEFINER
-        AS $$
-        BEGIN
-            -- This function runs with the privileges of the function creator
-            -- allowing it to bypass RLS policies for the specific use case of public feeds
-            
-            RETURN QUERY
-            SELECT 
-                m.id as merchant_id,
-                m.name as merchant_name,
-                m.slug as merchant_slug,
-                p.id as product_id,
-                p.title,
-                p.description,
-                p.price_kobo,
-                p.stock,
-                p.available_qty,
-                p.image_url,
-                p.retailer_id,
-                p.category_path,
-                p.status,
-                p.meta_catalog_visible,
-                p.created_at,
-                p.updated_at
-            FROM merchants m
-            LEFT JOIN products p ON p.merchant_id = m.id 
-                AND p.status = 'active' 
-                AND p.meta_catalog_visible = true
-            WHERE m.slug = merchant_slug_param;
-        END;
-        $$;
-        """
-
-        await self.db.execute(text(function_sql))
-        await self.db.commit()
 
     async def _format_products_for_meta(
         self, products: List[Product], merchant: Merchant

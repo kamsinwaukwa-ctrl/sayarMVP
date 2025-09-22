@@ -9,7 +9,7 @@ CREATE OR REPLACE FUNCTION public.register_merchant_and_admin(
   p_business_name   text,
   p_whatsapp        text DEFAULT NULL
 )
-RETURNS TABLE (out_merchant_id uuid, out_user_id uuid)
+RETURNS TABLE (out_merchant_id uuid, out_user_id uuid, out_slug text)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
@@ -18,6 +18,7 @@ DECLARE
   v_merchant_id uuid := gen_random_uuid();
   v_user_id     uuid := gen_random_uuid();
   v_whatsapp    text := NULLIF(trim(p_whatsapp), '');
+  v_slug        text;
 BEGIN
   -- Basic validation (optional if you validate in app)
   IF p_name IS NULL OR length(trim(p_name)) = 0 THEN
@@ -39,14 +40,17 @@ BEGIN
     RAISE EXCEPTION 'User with this email already exists' USING ERRCODE = '23505';
   END IF;
 
-  INSERT INTO public.merchants (id, name, whatsapp_phone_e164, created_at, updated_at)
-  VALUES (v_merchant_id, trim(p_business_name), v_whatsapp, now(), now());
+  -- Generate unique slug from business name
+  v_slug := public.generate_unique_slug(trim(p_business_name));
+
+  INSERT INTO public.merchants (id, name, slug, whatsapp_phone_e164, created_at, updated_at)
+  VALUES (v_merchant_id, trim(p_business_name), v_slug, v_whatsapp, now(), now());
 
   INSERT INTO public.users (id, merchant_id, name, email, password_hash, role, created_at, updated_at)
   VALUES (v_user_id, v_merchant_id, trim(p_name), lower(trim(p_email)), p_password_hash, 'admin', now(), now());
 
-  -- ✅ Return one row for the caller
-  RETURN QUERY SELECT v_merchant_id, v_user_id;
+  -- ✅ Return one row for the caller including the generated slug
+  RETURN QUERY SELECT v_merchant_id, v_user_id, v_slug;
 END;
 $$;
 

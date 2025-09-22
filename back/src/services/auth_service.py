@@ -83,7 +83,7 @@ class AuthService:
             result = await self.db.execute(
                 text(
                     """
-                    SELECT out_merchant_id, out_user_id
+                    SELECT out_merchant_id, out_user_id, out_slug
                     FROM public.register_merchant_and_admin(
                         :p_name,
                         :p_email,
@@ -106,9 +106,10 @@ class AuthService:
             if not row:
                 raise AuthError("Bootstrap function returned no results")
 
-            # Use the IDs returned by the function
+            # Use the IDs and slug returned by the function
             merchant_id = str(row.out_merchant_id)
             user_id = str(row.out_user_id)
+            merchant_slug = str(row.out_slug)
 
             # Commit the transaction
             await self.db.commit()
@@ -133,6 +134,7 @@ class AuthService:
             merchant_response = MerchantResponse(
                 id=uuid.UUID(merchant_id),
                 name=request.business_name,
+                slug=merchant_slug,
                 whatsapp_phone_e164=request.whatsapp_phone_e164,
             )
 

@@ -9,6 +9,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/use-toast'
+import { API_BASE } from '@/lib/api-config'
 import {
   Form,
   FormControl,
@@ -36,14 +37,29 @@ interface MetaCatalogSetupProps {
 
 // Feed URL Display Component
 function FeedUrlDisplay() {
-  const { merchant } = useAuth()
+  const { merchant, isLoadingMerchant, merchantLoadAttempted } = useAuth()
   const { toast } = useToast()
   const [copied, setCopied] = useState(false)
 
+  // Show loading state while merchant data is being fetched
+  if (isLoadingMerchant || !merchantLoadAttempted) {
+    return (
+      <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <h3 className="font-semibold text-gray-700 mb-2">Loading Feed URL...</h3>
+        <div className="bg-white p-3 rounded border">
+          <div className="animate-pulse bg-gray-200 h-4 rounded"></div>
+        </div>
+        <p className="text-sm text-gray-600 mt-2">
+          Getting your business information...
+        </p>
+      </div>
+    )
+  }
+
   // Generate feed URL from merchant data
   const feedUrl = merchant?.slug
-    ? `https://api.sayar.com/v1/meta/feeds/${merchant.slug}/products.csv`
-    : 'https://api.sayar.com/v1/meta/feeds/your-business/products.csv'
+    ? `${API_BASE}/api/v1/meta/feeds/${merchant.slug}/products.csv`
+    : `${API_BASE}/api/v1/meta/feeds/[your-business-slug]/products.csv`
 
   const handleCopyUrl = async () => {
     try {
@@ -65,6 +81,27 @@ function FeedUrlDisplay() {
 
   const handleTestFeed = () => {
     window.open(feedUrl, '_blank')
+  }
+
+  // Debug: This should rarely happen if slug is always generated at signup
+  if (!merchant?.slug || merchant.slug.length === 0) {
+    return (
+      <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+        <h3 className="font-semibold text-red-900 mb-2">⚠️ Missing Business Slug</h3>
+        <p className="text-sm text-red-800 mb-3">
+          Your business slug is missing from your profile. This should not happen normally.
+        </p>
+        <div className="bg-white p-3 rounded border font-mono text-sm break-all text-gray-400">
+          {feedUrl}
+        </div>
+        <p className="text-xs text-red-700 mt-2">
+          Debug info: merchant.name="{merchant?.name}", merchant.slug="{merchant?.slug}"
+        </p>
+        <p className="text-xs text-red-700">
+          Please contact support if this issue persists.
+        </p>
+      </div>
+    )
   }
 
   return (
