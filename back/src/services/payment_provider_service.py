@@ -98,7 +98,7 @@ class PaymentProviderService:
                 provider_type=PaymentProviderType.PAYSTACK,
                 environment=credentials.environment,
                 verification_status=VerificationStatus.VERIFIED,
-                verified_at=datetime.now(timezone.utc),
+                verified_at=datetime.utcnow(),
                 config_id=config_id,
             )
 
@@ -197,7 +197,7 @@ class PaymentProviderService:
                 provider_type=PaymentProviderType.KORAPAY,
                 environment=credentials.environment,
                 verification_status=VerificationStatus.VERIFIED,
-                verified_at=datetime.now(timezone.utc),
+                verified_at=datetime.utcnow(),
                 config_id=config_id,
             )
 
@@ -270,10 +270,10 @@ class PaymentProviderService:
                         "webhook_secret_encrypted"
                     ),
                     verification_status=verification_status.value,
-                    last_verified_at=datetime.now(timezone.utc),
+                    last_verified_at=datetime.utcnow(),
                     verification_error=None,
                     active=True,
-                    updated_at=datetime.now(timezone.utc),
+                    updated_at=datetime.utcnow(),
                 )
             )
 
@@ -290,7 +290,7 @@ class PaymentProviderService:
                 webhook_secret_encrypted=encrypted_data.get("webhook_secret_encrypted"),
                 environment=environment.value,
                 verification_status=verification_status.value,
-                last_verified_at=datetime.now(timezone.utc),
+                last_verified_at=datetime.utcnow(),
                 active=True,
             )
 

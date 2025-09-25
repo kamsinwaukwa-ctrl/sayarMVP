@@ -961,7 +961,7 @@ class OnboardingProgressResponse(BaseModel):
 
     brand_basics: bool = Field(..., description="Brand basics step completed")
     meta_catalog: bool = Field(..., description="Meta catalog step completed")
-    products: bool = Field(..., description="Products step completed")
+    whatsapp: bool = Field(..., description="WhatsApp integration completed")
     delivery_rates: bool = Field(..., description="Delivery rates step completed")
     payments: bool = Field(..., description="Payment setup completed")
 
@@ -970,9 +970,30 @@ class OnboardingProgressResponse(BaseModel):
             "example": {
                 "brand_basics": True,
                 "meta_catalog": False,
-                "products": True,
+                "whatsapp": False,
                 "delivery_rates": False,
                 "payments": False,
+            }
+        }
+
+
+class MetaIntegrationSummaryResponse(BaseModel):
+    """Safe Meta integration summary response (no sensitive data)"""
+
+    catalog_present: bool = Field(..., description="Whether catalog_id is configured")
+    credentials_present: bool = Field(..., description="Whether app_id and waba_id are configured")
+    verified: bool = Field(..., description="Whether integration is verified")
+    status: str = Field(..., description="Integration status")
+    catalog_name: Optional[str] = Field(None, description="Catalog display name (safe to expose)")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "catalog_present": True,
+                "credentials_present": False,
+                "verified": False,
+                "status": "catalog_saved",
+                "catalog_name": "Acme Main Catalog"
             }
         }
 
@@ -985,6 +1006,9 @@ class UpdateOnboardingProgressRequest(BaseModel):
     )
     meta_catalog: Optional[bool] = Field(
         None, description="Mark meta catalog as completed"
+    )
+    whatsapp: Optional[bool] = Field(
+        None, description="Mark WhatsApp integration as completed"
     )
     products: Optional[bool] = Field(None, description="Mark products as completed")
     delivery_rates: Optional[bool] = Field(

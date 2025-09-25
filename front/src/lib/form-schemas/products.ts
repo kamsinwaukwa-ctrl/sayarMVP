@@ -3,7 +3,10 @@ import { z } from 'zod'
 export const productSchema = z.object({
   title: z.string().min(2, "Product name required"),
   description: z.string().optional(),
-  price_kobo: z.number().min(100, "Minimum price ₦1.00"),
+  price_naira: z.union([z.string(), z.number()])
+    .transform(v => String(v))
+    .refine(v => /^\d+(\.\d{0,2})?$/.test(v.replace(/,/g, "")), "Enter a valid amount (max 2 decimals)")
+    .refine(v => parseFloat(v.replace(/,/g, "")) >= 1.00, "Minimum price ₦1.00"),
   stock: z.number().min(0, "Stock cannot be negative"),
   sku: z.string().regex(/^[A-Za-z0-9-_]{1,64}$/).optional()
     .describe("SKU (optional) — leave blank to auto-generate"),

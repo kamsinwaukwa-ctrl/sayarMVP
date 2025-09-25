@@ -13,6 +13,8 @@ class MetaIntegrationStatus(str, Enum):
     """Meta integration status enumeration"""
 
     PENDING = "pending"
+    CATALOG_SAVED = "catalog_saved"  # Only catalog_id provided (staged onboarding)
+    CREDENTIALS_SAVED = "credentials_saved"  # Only WhatsApp credentials provided (staged onboarding)
     VERIFIED = "verified"
     INVALID = "invalid"
     EXPIRED = "expired"
@@ -74,14 +76,53 @@ class MetaCatalogOnlyRequest(BaseModel):
         return v
 
 
-class MetaCredentialsResponse(BaseModel):
-    """Response model for credential storage/update"""
+class MetaWhatsAppCredentialsRequest(BaseModel):
+    """Request model for storing only WhatsApp credentials (preserves catalog_id)"""
 
-    success: bool
+    app_id: str = Field(..., min_length=1, max_length=255, description="Meta App ID")
+    system_user_token: str = Field(
+        ..., min_length=50, description="Meta system user access token"
+    )
+    waba_id: Optional[str] = Field(
+        None, max_length=255, description="WhatsApp Business Account ID"
+    )
+    phone_number_id: Optional[str] = Field(
+        None, max_length=255, description="WhatsApp Phone Number ID for API calls"
+    )
+    whatsapp_phone_e164: Optional[str] = Field(
+        None, description="WhatsApp phone number in E164 format (e.g., +2348123456789)"
+    )
+
+    @validator("system_user_token")
+    def validate_token_format(cls, v):
+        if not v.startswith(("EAAA", "EAA")):
+            raise ValueError("Invalid Meta access token format")
+        return v
+
+    @validator("app_id")
+    def validate_app_id(cls, v):
+        if not v.isdigit():
+            raise ValueError("App ID must be numeric")
+        return v
+
+    @validator("whatsapp_phone_e164")
+    def validate_phone_format(cls, v):
+        if v and not v.startswith("+"):
+            raise ValueError("Phone number must be in E164 format (start with +)")
+        return v
+
+
+class MetaCredentialsResponse(BaseModel):
+    """Response model for credential storage/update - supports partial onboarding states"""
+
+    success: bool = True
     message: str
-    status: MetaIntegrationStatus
+    status: str  # Allow custom statuses like 'catalog_saved' during staged onboarding
+    catalog_id: Optional[str] = None
     catalog_name: Optional[str] = None
     verification_timestamp: Optional[datetime] = None
+    verification_date: Optional[datetime] = None  # Alias for compatibility
+    merchant_id: Optional[str] = None
 
 
 class MetaVerificationDetails(BaseModel):
@@ -141,14 +182,16 @@ class MetaTokenRotateRequest(BaseModel):
 
 
 class MetaIntegrationDB(BaseModel):
-    """Database model for Meta integrations"""
+    """Database model for Meta integrations - supports staged onboarding with nullable fields"""
 
     id: UUID
     merchant_id: UUID
-    catalog_id: str
-    system_user_token_encrypted: str
-    app_id: str
+    catalog_id: Optional[str]  # Made optional for staged onboarding
+    system_user_token_encrypted: Optional[str]  # Made optional for staged onboarding
+    app_id: Optional[str]  # Made optional for staged onboarding
     waba_id: Optional[str]
+    phone_number_id: Optional[str]  # WhatsApp phone number ID for API calls
+    whatsapp_phone_e164: Optional[str]  # Phone number in E164 format
     status: MetaIntegrationStatus
     catalog_name: Optional[str]
     last_verified_at: Optional[datetime]
@@ -194,10 +237,13 @@ class MetaIntegration(Base):
     merchant_id = Column(UUID(as_uuid=True), ForeignKey("merchants.id"), nullable=False)
 
     # Meta Commerce Catalog credentials (encrypted)
-    catalog_id = Column(String(255), nullable=False)
-    system_user_token_encrypted = Column(Text, nullable=False)
-    app_id = Column(String(255), nullable=False)
+    # Made nullable to support staged onboarding (catalog-only or credentials-only initial saves)
+    catalog_id = Column(String(255), nullable=True)
+    system_user_token_encrypted = Column(Text, nullable=True)
+    app_id = Column(String(255), nullable=True)
     waba_id = Column(String(255))
+    phone_number_id = Column(String(255))  # WhatsApp phone number ID for API calls
+    whatsapp_phone_e164 = Column(Text)  # Phone number in E164 format
 
     # Verification status tracking
     status = Column(String(50), nullable=False, default="pending")

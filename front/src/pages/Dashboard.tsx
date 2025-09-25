@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Alert } from '@/components/ui/Alert'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Badge } from '@/components/ui/badge'
+import { koboToNairaDisplay } from '@/lib/format'
 import {
   Store,
   ShoppingCart,
@@ -50,6 +51,7 @@ const Dashboard = () => {
     onboardingProgress,
     loading: authLoading,
     isLoadingOnboarding,
+    refreshOnboardingProgress,
     logout
   } = useAuth()
   const { toast } = useToast()
@@ -234,7 +236,7 @@ const Dashboard = () => {
                   onComplete={() => {
                     // Refresh merchant info and onboarding progress to update the UI
                     loadMerchantInfo()
-                    // The auth context will automatically refresh onboarding progress
+                    refreshOnboardingProgress()
                     toast({
                       title: "Brand basics completed! 🎉",
                       description: "Your business information has been saved successfully.",
@@ -256,6 +258,7 @@ const Dashboard = () => {
                   actionLabel="Connect"
                   onComplete={() => {
                     loadMerchantInfo()
+                    refreshOnboardingProgress()
                     toast({
                       title: "Meta Catalog connected! 🔗",
                       description: "Your catalog is now synced with Meta for WhatsApp commerce.",
@@ -270,11 +273,14 @@ const Dashboard = () => {
                   title="WhatsApp Integration"
                   description="Connect your WhatsApp Business account for customer orders"
                   icon={<MessageCircle className="w-5 h-5" />}
-                  completed={onboardingProgress.meta_catalog}
+                  completed={onboardingProgress.whatsapp}
+                  disabled={!onboardingProgress.brand_basics}
+                  disabledReason="Complete brand basics first"
                   onAction={() => {}}
                   actionLabel="Connect WhatsApp"
                   onComplete={() => {
                     loadMerchantInfo()
+                    refreshOnboardingProgress()
                     toast({
                       title: "WhatsApp connected! 📱",
                       description: "Your WhatsApp Business account is now ready to receive orders.",
@@ -294,6 +300,7 @@ const Dashboard = () => {
                   actionLabel="Set Rates"
                   onComplete={() => {
                     loadMerchantInfo()
+                    refreshOnboardingProgress()
                     toast({
                       title: "Delivery rates configured! 🚚",
                       description: "Your delivery zones and pricing are now set up.",
@@ -309,12 +316,13 @@ const Dashboard = () => {
                   description="Connect Paystack or Korapay for payment processing"
                   icon={<CreditCard className="w-5 h-5" />}
                   completed={onboardingProgress.payments}
-                  disabled={!onboardingProgress.meta_catalog}
+                  disabled={!onboardingProgress.whatsapp}
                   disabledReason="Complete WhatsApp integration first"
                   onAction={() => {}}
                   actionLabel="Configure"
                   onComplete={() => {
                     loadMerchantInfo()
+                    refreshOnboardingProgress()
                     toast({
                       title: "Payments configured! 💳",
                       description: "Your payment provider is now connected and ready to process payments.",
@@ -377,7 +385,7 @@ const Dashboard = () => {
                     Revenue
                   </Typography>
                   <Typography variant="h3" className="font-bold text-slate-900">
-                    ₦0
+                    {koboToNairaDisplay(0)}
                   </Typography>
                 </div>
                 <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">

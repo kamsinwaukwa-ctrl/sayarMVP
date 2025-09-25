@@ -189,6 +189,7 @@ export interface MetaSyncTriggerResponse {
 export interface OnboardingProgressData {
   brand_basics: boolean
   meta_catalog: boolean
+  whatsapp: boolean
   products: boolean
   delivery_rates: boolean
   payments: boolean

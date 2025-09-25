@@ -115,6 +115,11 @@ class VerificationResult(BaseModel):
     verified_at: Optional[datetime] = None
     config_id: Optional[UUID] = None
 
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
+
 
 class PaymentProviderListResponse(BaseModel):
     """Response model for listing payment providers"""

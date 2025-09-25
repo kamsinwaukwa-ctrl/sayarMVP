@@ -1,6 +1,9 @@
 /**
  * DeliveryRatesSetup - Component for delivery rates configuration
  * Allows merchants to set up shipping zones and delivery pricing
+ *
+ * IMPORTANT: Backend requires ADMIN role for creating delivery rates.
+ * Users with STAFF role will get 403 Forbidden errors.
  */
 
 import { useState } from 'react'
@@ -21,11 +24,17 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/Button'
 import { Alert, AlertDescription } from '@/components/ui/Alert'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { nairaToKobo, koboToNairaDisplay } from '@/lib/format'
+import { onboardingApi } from '@/lib/api/onboarding'
+import type { CreateDeliveryRateRequest } from '@/types/onboarding'
 
 const deliveryRateSchema = z.object({
   name: z.string().min(1, "Delivery zone name is required"),
   areas_text: z.string().min(1, "Please specify delivery areas"),
-  price_kobo: z.number().min(0, "Price must be positive"),
+  price_naira: z.union([z.string(), z.number()])
+    .transform(v => String(v))
+    .refine(v => /^\d+(\.\d{0,2})?$/.test(v.replace(/,/g, "")), "Enter a valid amount (max 2 decimals)")
+    .refine(v => parseFloat(v.replace(/,/g, "")) >= 0, "Price must be positive"),
 })
 
 type DeliveryRateFormData = z.infer<typeof deliveryRateSchema>
@@ -45,7 +54,7 @@ export function DeliveryRatesSetup({ onComplete, onCancel }: DeliveryRatesSetupP
     defaultValues: {
       name: '',
       areas_text: '',
-      price_kobo: 0,
+      price_naira: '',
     },
   })
 
@@ -77,24 +86,69 @@ export function DeliveryRatesSetup({ onComplete, onCancel }: DeliveryRatesSetupP
     }
 
     setIsSubmitting(true)
-    try {
-      // TODO: Implement delivery rates API call
-      // await onboardingApi.createDeliveryRates(deliveryRates)
-      
-      // Simulate API call for now
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      toast({
-        title: "Delivery rates configured! 🚚",
-        description: `Successfully configured ${deliveryRates.length} delivery zones.`,
-      })
+    const createdRates: string[] = []
+    let failedCount = 0
 
-      onComplete?.()
+    try {
+      // Convert Naira prices to kobo for API submission and create each rate
+      for (let i = 0; i < deliveryRates.length; i++) {
+        const rate = deliveryRates[i]
+        try {
+          const apiPayload: CreateDeliveryRateRequest = {
+            name: rate.name,
+            areas_text: rate.areas_text,
+            price_kobo: nairaToKobo(rate.price_naira),
+            description: undefined // Optional field
+          }
+
+          const createdRate = await onboardingApi.createDeliveryRate(apiPayload)
+          createdRates.push(createdRate.name)
+
+          // Show progress for multiple rates
+          if (deliveryRates.length > 1) {
+            toast({
+              title: `Created ${rate.name}`,
+              description: `${i + 1} of ${deliveryRates.length} delivery zones created.`,
+            })
+          }
+        } catch (error) {
+          console.error(`Failed to create delivery rate "${rate.name}":`, error)
+          failedCount++
+
+          // Show specific error for this rate
+          toast({
+            title: `Failed to create ${rate.name}`,
+            description: error instanceof Error ? error.message : "Unknown error occurred.",
+            variant: "destructive",
+          })
+        }
+      }
+
+      // Final summary
+      if (createdRates.length > 0) {
+        toast({
+          title: "Delivery rates configured! 🚚",
+          description: `Successfully created ${createdRates.length} delivery zone(s).${failedCount > 0 ? ` ${failedCount} failed.` : ''}`,
+          variant: failedCount > 0 ? "destructive" : "default",
+        })
+
+        // Only call onComplete if at least one rate was created successfully
+        if (createdRates.length === deliveryRates.length) {
+          onComplete?.()
+        }
+      } else {
+        // All rates failed
+        toast({
+          title: "All delivery rates failed",
+          description: "No delivery rates were created. Please check your connection and try again.",
+          variant: "destructive",
+        })
+      }
     } catch (error) {
-      console.error('Error saving delivery rates:', error)
+      console.error('Unexpected error during delivery rates creation:', error)
       toast({
-        title: "Save failed",
-        description: "Please try again later.",
+        title: "Setup failed",
+        description: "An unexpected error occurred. Please try again later.",
         variant: "destructive",
       })
     } finally {
@@ -136,17 +190,31 @@ export function DeliveryRatesSetup({ onComplete, onCancel }: DeliveryRatesSetupP
 
             <FormField
               control={form.control}
-              name="price_kobo"
+              name="price_naira"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Price (Kobo) *</FormLabel>
+                  <FormLabel>Price (₦) *</FormLabel>
                   <FormControl>
                     <Input
-                      type="number"
-                      placeholder="150000"
+                      type="text"
+                      placeholder="1500.00"
                       className="h-12"
                       {...field}
-                      onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                      onChange={(e) => {
+                        let value = e.target.value.replace(/[^0-9.]/g, '');
+                        // Prevent multiple decimal points
+                        const decimalCount = (value.match(/\./g) || []).length;
+                        if (decimalCount > 1) {
+                          value = value.slice(0, value.lastIndexOf('.'));
+                        }
+                        // Limit to 2 decimal places
+                        const parts = value.split('.');
+                        if (parts[1] && parts[1].length > 2) {
+                          parts[1] = parts[1].slice(0, 2);
+                          value = parts.join('.');
+                        }
+                        field.onChange(value);
+                      }}
                     />
                   </FormControl>
                   <FormMessage />
@@ -188,7 +256,7 @@ export function DeliveryRatesSetup({ onComplete, onCancel }: DeliveryRatesSetupP
             <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-white">
               <div>
                 <div className="font-medium text-gray-900">{rate.name}</div>
-                <div className="text-sm text-gray-600">₦{(rate.price_kobo / 100).toLocaleString()}</div>
+                <div className="text-sm text-gray-600">{koboToNairaDisplay(nairaToKobo(rate.price_naira))}</div>
                 <div className="text-sm text-gray-500">{rate.areas_text}</div>
               </div>
               <Button
@@ -226,7 +294,7 @@ export function DeliveryRatesSetup({ onComplete, onCancel }: DeliveryRatesSetupP
           {isSubmitting ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Saving...
+              Creating delivery zones...
             </>
           ) : (
             `Complete Setup (${deliveryRates.length} zones)`

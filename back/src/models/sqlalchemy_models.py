@@ -36,15 +36,6 @@ class Merchant(Base):
     description = Column(String)
     currency = Column(String, default="NGN")
 
-    # WhatsApp Integration fields
-    waba_id_enc = Column(String)
-    phone_number_id_enc = Column(String)
-    app_id_enc = Column(String)
-    system_user_token_enc = Column(String)
-    wa_connection_status = Column(String, default="not_connected")
-    wa_environment = Column(String, default="test")
-    wa_verified_at = Column(DateTime)
-    wa_last_error = Column(String)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

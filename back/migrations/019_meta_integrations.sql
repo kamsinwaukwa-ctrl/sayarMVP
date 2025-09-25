@@ -8,6 +8,8 @@ CREATE TABLE meta_integrations (
     system_user_token_encrypted TEXT NOT NULL,
     app_id VARCHAR(255) NOT NULL,
     waba_id VARCHAR(255), -- optional for some setups
+    phone_number_id VARCHAR(255), -- WhatsApp phone number ID for API calls
+    whatsapp_phone_e164 TEXT, -- Phone number in E164 format
 
     -- Verification status tracking
     status VARCHAR(50) NOT NULL DEFAULT 'pending'
