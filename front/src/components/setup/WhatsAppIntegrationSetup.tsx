@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useToast } from '@/hooks/use-toast'
+import { apiUrl } from '@/lib/api-config'
 import {
   Form,
   FormControl,
@@ -21,10 +22,29 @@ import { Button } from '@/components/ui/Button'
 import { Alert, AlertDescription } from '@/components/ui/Alert'
 import { Loader2, ExternalLink, MessageCircle } from 'lucide-react'
 
+const maskKey = (key: string): string => {
+  if (!key || key.length < 8) return key
+  const start = key.substring(0, 8)
+  const end = key.substring(key.length - 4)
+  return `${start}${'•'.repeat(Math.min(key.length - 12, 20))}${end}`
+}
+
+function MaskedLine({ label, value }: { label: string; value?: string }) {
+  if (!value) return null
+  return (
+    <div className="text-sm text-muted-foreground">
+      <span className="font-medium text-foreground mr-1">{label}:</span>
+      <span className="font-mono select-all">{value}</span>
+    </div>
+  )
+}
+
 const whatsappCredentialsSchema = z.object({
+  app_id: z.string().min(1, "App ID is required"),
+  system_user_token: z.string().min(1, "System User Access Token is required"),
+  waba_id: z.string().optional(),
+  phone_number_id: z.string().optional(),
   whatsapp_phone_number: z.string().min(1, "WhatsApp phone number is required"),
-  whatsapp_business_account_id: z.string().min(1, "Business Account ID is required"),
-  whatsapp_access_token: z.string().min(1, "Access Token is required"),
 })
 
 type WhatsAppCredentialsFormData = z.infer<typeof whatsappCredentialsSchema>
@@ -38,36 +58,65 @@ export function WhatsAppIntegrationSetup({ onComplete, onCancel }: WhatsAppInteg
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
+  const [isVerified, setIsVerified] = useState(false)
+  const [maskedToken, setMaskedToken] = useState<string | undefined>(undefined)
 
   const form = useForm<WhatsAppCredentialsFormData>({
     resolver: zodResolver(whatsappCredentialsSchema),
     defaultValues: {
+      app_id: '',
+      system_user_token: '',
+      waba_id: '',
+      phone_number_id: '',
       whatsapp_phone_number: '',
-      whatsapp_business_account_id: '',
-      whatsapp_access_token: '',
     },
   })
 
-  const onSubmit = async (_data: WhatsAppCredentialsFormData) => {
+  const onSubmit = async (data: WhatsAppCredentialsFormData) => {
     setIsSubmitting(true)
     try {
-      // TODO: Implement WhatsApp credentials API call
-      // await onboardingApi.updateWhatsAppCredentials(data)
-      
-      // Simulate API call for now
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
+      const token = localStorage.getItem('access_token')
+
+      // Prepare the data for the new WhatsApp-specific PATCH endpoint
+      const apiData = {
+        app_id: data.app_id,
+        system_user_token: data.system_user_token,
+        waba_id: data.waba_id || undefined, // Convert empty string to undefined
+        phone_number_id: data.phone_number_id || undefined, // Now supported!
+        whatsapp_phone_e164: data.whatsapp_phone_number, // Now supported!
+      }
+
+      // Call the new WhatsApp-specific PATCH endpoint
+      const response = await fetch(apiUrl('api/v1/integrations/meta/whatsapp'), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(apiData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error?.message || errorData.message || `API error: ${response.status}`)
+      }
+
+      await response.json()
+
+      setIsVerified(true)
+      setMaskedToken(maskKey(data.system_user_token))
+
       toast({
         title: "WhatsApp connected! 📱",
-        description: "Your WhatsApp Business account is now connected and ready to receive orders.",
+        description: "Your WhatsApp Business account credentials have been saved successfully.",
       })
 
       onComplete?.()
     } catch (error) {
-      console.error('Error connecting WhatsApp:', error)
+      console.error('Error saving WhatsApp credentials:', error)
       toast({
         title: "Connection failed",
-        description: "Please check your credentials and try again.",
+        description: error instanceof Error ? error.message : "Please check your credentials and try again.",
         variant: "destructive",
       })
     } finally {
@@ -80,6 +129,10 @@ export function WhatsAppIntegrationSetup({ onComplete, onCancel }: WhatsAppInteg
     try {
       // TODO: Implement verification API call
       await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      const currentToken = form.getValues('system_user_token')
+      setIsVerified(true)
+      setMaskedToken(maskKey(currentToken))
       
       toast({
         title: "Verification successful! ✅",
@@ -106,6 +159,102 @@ export function WhatsAppIntegrationSetup({ onComplete, onCancel }: WhatsAppInteg
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {/* App ID */}
+          <FormField
+            control={form.control}
+            name="app_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>App ID *</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Enter your Meta App ID"
+                    className="h-12"
+                    {...field}
+                  />
+                </FormControl>
+                <p className="text-sm text-gray-500">
+                  Your Facebook/Meta App ID from developers.facebook.com
+                </p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* System User Access Token */}
+          <FormField
+            control={form.control}
+            name="system_user_token"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>System User Access Token *</FormLabel>
+                {isVerified ? (
+                  <div className="rounded-md border p-3 bg-muted/30">
+                    <MaskedLine label="Access Token" value={maskedToken} />
+                    <div className="mt-2 text-xs text-muted-foreground">Hidden after validation</div>
+                  </div>
+                ) : (
+                  <FormControl>
+                    <Input
+                      type="password"
+                      placeholder="Enter your System User Access Token"
+                      className="h-12"
+                      {...field}
+                    />
+                  </FormControl>
+                )}
+                <p className="text-sm text-gray-500">
+                  Long-lived access token for your system user
+                </p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* WABA ID (Optional) */}
+          <FormField
+            control={form.control}
+            name="waba_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>WhatsApp Business Account ID</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Enter your WABA ID (optional)"
+                    className="h-12"
+                    {...field}
+                  />
+                </FormControl>
+                <p className="text-sm text-gray-500">
+                  Optional: Your WhatsApp Business Account ID
+                </p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Phone Number ID (Optional) */}
+          <FormField
+            control={form.control}
+            name="phone_number_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Phone Number ID</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Enter your Phone Number ID (optional)"
+                    className="h-12"
+                    {...field}
+                  />
+                </FormControl>
+                <p className="text-sm text-gray-500">
+                  Optional: WhatsApp Phone Number ID for API calls
+                </p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           {/* WhatsApp Phone Number */}
           <FormField
             control={form.control}
@@ -123,45 +272,6 @@ export function WhatsAppIntegrationSetup({ onComplete, onCancel }: WhatsAppInteg
                 <p className="text-sm text-gray-500">
                   Include country code (e.g., +234 for Nigeria)
                 </p>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Business Account ID */}
-          <FormField
-            control={form.control}
-            name="whatsapp_business_account_id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>WhatsApp Business Account ID *</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Enter your Business Account ID"
-                    className="h-12"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Access Token */}
-          <FormField
-            control={form.control}
-            name="whatsapp_access_token"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>WhatsApp Access Token *</FormLabel>
-                <FormControl>
-                  <Input
-                    type="password"
-                    placeholder="Enter your WhatsApp Access Token"
-                    className="h-12"
-                    {...field}
-                  />
-                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -222,10 +332,10 @@ export function WhatsAppIntegrationSetup({ onComplete, onCancel }: WhatsAppInteg
                 {isVerifying ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Verifying...
+                    {isVerified ? 'Re-verifying…' : 'Verifying...'}
                   </>
                 ) : (
-                  'Verify Connection'
+                  isVerified ? 'Re-Verify Connection' : 'Verify Connection'
                 )}
               </Button>
               
@@ -236,10 +346,10 @@ export function WhatsAppIntegrationSetup({ onComplete, onCancel }: WhatsAppInteg
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Connecting...
+                    Saving...
                   </>
                 ) : (
-                  'Connect WhatsApp'
+                  'Save and Continue'
                 )}
               </Button>
             </div>

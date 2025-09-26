@@ -165,6 +165,7 @@ function SetupInstructions() {
 
 export function MetaCatalogSetup({ onComplete, onCancel }: MetaCatalogSetupProps) {
   const { toast } = useToast()
+  const { refreshOnboardingProgress } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
 
@@ -187,6 +188,15 @@ export function MetaCatalogSetup({ onComplete, onCancel }: MetaCatalogSetupProps
           title: "Meta Catalog connected! 🎉",
           description: response.message || "Your catalog is now synced with Meta for WhatsApp commerce.",
         })
+
+        // Refresh onboarding progress to update dashboard immediately
+        try {
+          await refreshOnboardingProgress()
+        } catch (error) {
+          console.warn('Failed to refresh onboarding progress:', error)
+          // Don't block completion on progress refresh failure
+        }
+
         onComplete?.()
       } else {
         toast({
@@ -227,6 +237,13 @@ export function MetaCatalogSetup({ onComplete, onCancel }: MetaCatalogSetupProps
       })
 
       if (saveResponse.success) {
+        // Refresh onboarding progress since catalog was saved
+        try {
+          await refreshOnboardingProgress()
+        } catch (error) {
+          console.warn('Failed to refresh onboarding progress after save:', error)
+        }
+
         // Check the integration status to verify connection
         const statusResponse = await onboardingApi.getMetaIntegrationStatus()
 

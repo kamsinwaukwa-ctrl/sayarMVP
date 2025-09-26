@@ -413,7 +413,7 @@ class TestMetaIntegrationAPI:
                 verification_timestamp=datetime.utcnow(),
             )
 
-            response = client.put(
+            response = client.patch(
                 "/api/v1/integrations/meta/credentials",
                 json=payload,
                 headers={"Authorization": f"Bearer {admin_jwt}"},
@@ -435,7 +435,7 @@ class TestMetaIntegrationAPI:
             "app_id": "987654321",
         }
 
-        response = client.put(
+        response = client.patch(
             "/api/v1/integrations/meta/credentials",
             json=payload,
             headers={"Authorization": f"Bearer {staff_jwt}"},
@@ -453,7 +453,7 @@ class TestMetaIntegrationAPI:
             "app_id": "invalid_app",  # Should be numeric
         }
 
-        response = client.put(
+        response = client.patch(
             "/api/v1/integrations/meta/credentials",
             json=payload,
             headers={"Authorization": f"Bearer {admin_jwt}"},

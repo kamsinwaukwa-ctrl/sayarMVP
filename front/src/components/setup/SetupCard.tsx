@@ -89,18 +89,8 @@ export function SetupCard({
 
   const getActionButton = () => {
     if (completed) {
-      return (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleAction}
-          disabled={isLoading}
-          className="text-gray-600"
-        >
-          <ChevronRight className="w-4 h-4 ml-1" />
-          View/Edit
-        </Button>
-      )
+      // Hide edit button for completed cards - users should go to settings to edit
+      return null
     }
 
     if (disabled) {

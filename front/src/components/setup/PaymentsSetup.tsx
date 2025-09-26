@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/hooks/useAuth'
 import {
   Form,
   FormControl,
@@ -27,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/Select'
+import { paymentsApi, PaystackCredentialsRequest, KorapayCredentialsRequest } from '@/lib/api/payments'
 
 const paymentProviderSchema = z.object({
   provider: z.enum(['paystack', 'korapay'], {
@@ -34,6 +36,9 @@ const paymentProviderSchema = z.object({
   }),
   public_key: z.string().min(1, "Public key is required"),
   secret_key: z.string().min(1, "Secret key is required"),
+  environment: z.enum(['test', 'live'], {
+    message: "Please select an environment"
+  }).default('test'),
 })
 
 type PaymentProviderFormData = z.infer<typeof paymentProviderSchema>
@@ -45,8 +50,14 @@ interface PaymentsSetupProps {
 
 export function PaymentsSetup({ onComplete, onCancel }: PaymentsSetupProps) {
   const { toast } = useToast()
+  const { refreshOnboardingProgress } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
+  const [isVerified, setIsVerified] = useState(false)
+  const [maskedCredentials, setMaskedCredentials] = useState<{
+    publicKey?: string
+    secretKey?: string
+  }>({})
 
   const form = useForm<PaymentProviderFormData>({
     resolver: zodResolver(paymentProviderSchema),
@@ -54,6 +65,7 @@ export function PaymentsSetup({ onComplete, onCancel }: PaymentsSetupProps) {
       provider: undefined,
       public_key: '',
       secret_key: '',
+      environment: 'test' as 'test' | 'live',
     },
   })
 
@@ -62,25 +74,53 @@ export function PaymentsSetup({ onComplete, onCancel }: PaymentsSetupProps) {
   const onSubmit = async (data: PaymentProviderFormData) => {
     setIsSubmitting(true)
     try {
-      // TODO: Implement payment provider API call
-      // await onboardingApi.verifyPaymentProvider(data)
-      
-      // Simulate API call for now
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      toast({
-        title: "Payment provider connected! 💳",
-        description: `Successfully connected ${data.provider === 'paystack' ? 'Paystack' : 'Korapay'} for payment processing.`,
-      })
+      let result;
 
-      onComplete?.()
-    } catch (error) {
-      console.error('Error connecting payment provider:', error)
+      if (data.provider === 'paystack') {
+        const paystackData: PaystackCredentialsRequest = {
+          secret_key: data.secret_key,
+          public_key: data.public_key,
+          environment: data.environment
+        };
+        result = await paymentsApi.verifyPaystackCredentials(paystackData);
+      } else {
+        const korapayData: KorapayCredentialsRequest = {
+          public_key: data.public_key,
+          secret_key: data.secret_key,
+          environment: data.environment
+        };
+        result = await paymentsApi.verifyKorapayCredentials(korapayData);
+      }
+
+      if (result.success) {
+        toast({
+          title: "Payment provider connected! 💳",
+          description: `Successfully connected ${data.provider === 'paystack' ? 'Paystack' : 'Korapay'} for payment processing.`,
+        });
+
+        // Refresh onboarding progress
+        try {
+          await refreshOnboardingProgress();
+        } catch (error) {
+          console.warn('Failed to refresh onboarding progress:', error);
+        }
+
+        onComplete?.();
+      } else {
+        toast({
+          title: "Connection failed",
+          description: result.error_message || "Please check your credentials and try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error connecting payment provider:', error);
+      const errorMessage = error?.response?.data?.detail || error?.message || "Please check your credentials and try again.";
       toast({
         title: "Connection failed",
-        description: "Please check your credentials and try again.",
+        description: errorMessage,
         variant: "destructive",
-      })
+      });
     } finally {
       setIsSubmitting(false)
     }
@@ -99,19 +139,44 @@ export function PaymentsSetup({ onComplete, onCancel }: PaymentsSetupProps) {
 
     setIsVerifying(true)
     try {
-      // TODO: Implement verification API call
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      toast({
-        title: "Verification successful! ✅",
-        description: "Your payment provider credentials are valid and ready to process payments.",
-      })
-    } catch (error) {
+      let result;
+
+      if (formData.provider === 'paystack') {
+        const paystackData: PaystackCredentialsRequest = {
+          secret_key: formData.secret_key,
+          public_key: formData.public_key,
+          environment: formData.environment
+        };
+        result = await paymentsApi.verifyPaystackCredentials(paystackData);
+      } else {
+        const korapayData: KorapayCredentialsRequest = {
+          public_key: formData.public_key,
+          secret_key: formData.secret_key,
+          environment: formData.environment
+        };
+        result = await paymentsApi.verifyKorapayCredentials(korapayData);
+      }
+
+      if (result.success) {
+        toast({
+          title: "Verification successful! ✅",
+          description: `Your ${formData.provider === 'paystack' ? 'Paystack' : 'Korapay'} credentials are valid and ready to process payments.`,
+        });
+      } else {
+        toast({
+          title: "Verification failed",
+          description: result.error_message || "Please check your credentials and try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error verifying credentials:', error);
+      const errorMessage = error?.response?.data?.detail || error?.message || "Please check your credentials and try again.";
       toast({
         title: "Verification failed",
-        description: "Please check your credentials and try again.",
+        description: errorMessage,
         variant: "destructive",
-      })
+      });
     } finally {
       setIsVerifying(false)
     }
@@ -232,6 +297,39 @@ export function PaymentsSetup({ onComplete, onCancel }: PaymentsSetupProps) {
                     {...field}
                   />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Environment */}
+          <FormField
+            control={form.control}
+            name="environment"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Environment *</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select environment" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="test">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-orange-400 rounded-full"></span>
+                        Test Environment
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="live">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                        Live Environment
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}

@@ -3,13 +3,13 @@ Merchants API endpoints with OpenAPI documentation
 """
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Header
-from typing import Optional
+from typing import Optional, Annotated
 from uuid import UUID
 import hashlib
 import time
 from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+from sqlalchemy import text, select
 
 from ..models.api import (
     ApiResponse,
@@ -22,6 +22,10 @@ from ..models.auth import CurrentPrincipal
 from ..database.connection import get_db
 from ..dependencies.auth import get_current_user
 from ..services.merchant_service import MerchantService
+from ..services.meta_integration_service import MetaIntegrationService
+from ..services.delivery_rates_service import DeliveryRatesService
+from ..services.payment_provider_service import PaymentProviderService
+from ..models.meta_integrations import MetaIntegrationStatus
 
 router = APIRouter(prefix="/merchants", tags=["Merchants"])
 
@@ -347,12 +351,61 @@ async def get_onboarding_progress(
         and logo.startswith(("http://", "https://"))
     )
 
+    # Calculate meta_catalog completion from meta_integrations table
+    meta_service = MetaIntegrationService(db)
+    meta_integration = await meta_service._get_integration_by_merchant(current_user.merchant_id)
+
+    # Meta catalog is complete if catalog_id is set (regardless of verification status)
+    meta_catalog_complete = bool(meta_integration and meta_integration.catalog_id)
+
+    # Calculate WhatsApp completion from meta_integrations table
+    whatsapp_complete = bool(
+        meta_integration
+        and meta_integration.waba_id
+        and meta_integration.app_id
+        and meta_integration.system_user_token_encrypted
+    )
+
+    # Check if merchant has at least one active delivery rate
+    try:
+        delivery_rates_service = DeliveryRatesService(db)
+        delivery_rates_list = await delivery_rates_service.list_rates(
+            merchant_id=current_user.merchant_id,
+            active_only=True
+        )
+        delivery_rates_complete = len(delivery_rates_list) > 0
+    except Exception as e:
+        # If there's an error checking delivery rates, default to False
+        print(f"Error checking delivery rates completion: {e}")
+        delivery_rates_complete = False
+
+    # Check if merchant has at least one payment provider (regardless of active status for onboarding)
+    try:
+        # For onboarding progress, check if ANY payment provider records exist
+        from ..models.sqlalchemy_models import PaymentProviderConfig
+        stmt = select(PaymentProviderConfig).where(
+            PaymentProviderConfig.merchant_id == current_user.merchant_id
+        )
+        result = await db.execute(stmt)
+        all_payment_providers = result.scalars().all()
+
+        print(f"DEBUG: Found {len(all_payment_providers)} payment provider records for merchant {current_user.merchant_id}")
+        for i, provider in enumerate(all_payment_providers):
+            print(f"DEBUG: Provider {i}: type={provider.provider_type}, status={provider.verification_status}, active={provider.active}")
+
+        # Payment setup is complete if merchant has at least one payment provider record
+        payments_complete = len(all_payment_providers) > 0
+        print(f"DEBUG: payments_complete = {payments_complete}")
+    except Exception as e:
+        print(f"Error checking payment provider completion: {e}")
+        payments_complete = False
+
     progress = OnboardingProgressResponse(
         brand_basics=brand_basics_complete,
-        meta_catalog=False,  # TODO: implement based on actual meta catalog setup
-        products=False,  # TODO: implement based on product count
-        delivery_rates=False,  # TODO: implement based on delivery rates setup
-        payments=False,  # TODO: implement based on payment provider setup
+        meta_catalog=meta_catalog_complete,
+        whatsapp=whatsapp_complete,
+        delivery_rates=delivery_rates_complete,
+        payments=payments_complete,
     )
 
     return ApiResponse(
@@ -373,24 +426,96 @@ async def get_onboarding_progress(
 )
 async def update_onboarding_progress(
     request: UpdateOnboardingProgressRequest,
+    current_user: CurrentPrincipal = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
 ):
     """
     Update current merchant's onboarding progress.
 
-    TEMPORARY: Returns hardcoded progress to fix login issue.
-    TODO: Implement real progress tracking.
+    Note: Currently this endpoint returns actual status rather than accepting updates,
+    as progress is determined by database state, not manual flags.
 
-    - **request**: Progress updates (only specified fields will be updated)
+    - **request**: Progress updates (currently ignored as status is auto-determined)
     - **Idempotency-Key**: Optional header to ensure idempotent operation
     """
-    # Temporary hardcoded response
+    # Return actual progress status (same logic as GET endpoint)
+    # In the future, this could accept manual overrides for specific steps
+
+    # Get merchant service and check brand basics completion
+    merchant_service = MerchantService(db)
+    merchant = await merchant_service.get_merchant_by_id(current_user.merchant_id)
+
+    brand_basics_complete = (
+        merchant
+        and merchant.description
+        and merchant.logo_url
+        and merchant.currency
+    )
+
+    # Check Meta catalog integration status
+    meta_integration_service = MetaIntegrationService(db)
+    meta_integration = await meta_integration_service.get_integration(
+        current_user.merchant_id
+    )
+
+    meta_catalog_complete = (
+        meta_integration
+        and meta_integration.status == MetaIntegrationStatus.ACTIVE
+        and meta_integration.catalog_id
+        and meta_integration.app_id
+        and meta_integration.system_user_token_encrypted
+    )
+
+    whatsapp_complete = (
+        meta_integration
+        and meta_integration.status == MetaIntegrationStatus.ACTIVE
+        and meta_integration.phone_number_id
+        and meta_integration.whatsapp_access_token_encrypted
+        and meta_integration.app_id
+        and meta_integration.system_user_token_encrypted
+    )
+
+    # Check if merchant has at least one active delivery rate
+    try:
+        delivery_rates_service = DeliveryRatesService(db)
+        delivery_rates_list = await delivery_rates_service.list_rates(
+            merchant_id=current_user.merchant_id,
+            active_only=True
+        )
+        delivery_rates_complete = len(delivery_rates_list) > 0
+    except Exception as e:
+        # If there's an error checking delivery rates, default to False
+        print(f"Error checking delivery rates completion: {e}")
+        delivery_rates_complete = False
+
+    # Check if merchant has at least one payment provider (regardless of active status for onboarding)
+    try:
+        # For onboarding progress, check if ANY payment provider records exist
+        from ..models.sqlalchemy_models import PaymentProviderConfig
+        stmt = select(PaymentProviderConfig).where(
+            PaymentProviderConfig.merchant_id == current_user.merchant_id
+        )
+        result = await db.execute(stmt)
+        all_payment_providers = result.scalars().all()
+
+        print(f"DEBUG: Found {len(all_payment_providers)} payment provider records for merchant {current_user.merchant_id}")
+        for i, provider in enumerate(all_payment_providers):
+            print(f"DEBUG: Provider {i}: type={provider.provider_type}, status={provider.verification_status}, active={provider.active}")
+
+        # Payment setup is complete if merchant has at least one payment provider record
+        payments_complete = len(all_payment_providers) > 0
+        print(f"DEBUG: payments_complete = {payments_complete}")
+    except Exception as e:
+        print(f"Error checking payment provider completion: {e}")
+        payments_complete = False
+
     progress = OnboardingProgressResponse(
-        brand_basics=False,
-        meta_catalog=False,
-        products=False,
-        delivery_rates=False,
-        payments=False,
+        brand_basics=brand_basics_complete,
+        meta_catalog=meta_catalog_complete,
+        whatsapp=whatsapp_complete,
+        delivery_rates=delivery_rates_complete,
+        payments=payments_complete,
     )
 
     return ApiResponse(

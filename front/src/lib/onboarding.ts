@@ -108,14 +108,8 @@ export function getFormData(stepId: OnboardingStep): Record<string, unknown> {
   }
 }
 
-// Formatting utilities
-export function formatNaira(kobo: number): string {
-  const naira = kobo / 100
-  return new Intl.NumberFormat('en-NG', {
-    style: 'currency',
-    currency: 'NGN'
-  }).format(naira)
-}
+// Formatting utilities - use standardized version from /lib/format.ts
+export { koboToNairaDisplay as formatNaira } from '@/lib/format'
 
 export function formatDate(isoString: string): string {
   return new Intl.DateTimeFormat('en-NG', {
