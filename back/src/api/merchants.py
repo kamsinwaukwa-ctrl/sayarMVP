@@ -379,25 +379,43 @@ async def get_onboarding_progress(
         print(f"Error checking delivery rates completion: {e}")
         delivery_rates_complete = False
 
-    # Check if merchant has at least one payment provider (regardless of active status for onboarding)
+    # Check if merchant has properly configured payment provider with subaccount
     try:
-        # For onboarding progress, check if ANY payment provider records exist
         from ..models.sqlalchemy_models import PaymentProviderConfig
+        from ..utils.logger import log
+
+        # For payments to be complete, merchant needs at least one active payment provider
+        # with a verified subaccount configuration
         stmt = select(PaymentProviderConfig).where(
-            PaymentProviderConfig.merchant_id == current_user.merchant_id
+            PaymentProviderConfig.merchant_id == current_user.merchant_id,
+            PaymentProviderConfig.active == True,
+            PaymentProviderConfig.verification_status == "verified",
+            PaymentProviderConfig.subaccount_code.isnot(None)
         )
         result = await db.execute(stmt)
-        all_payment_providers = result.scalars().all()
+        verified_providers = result.scalars().all()
 
-        print(f"DEBUG: Found {len(all_payment_providers)} payment provider records for merchant {current_user.merchant_id}")
-        for i, provider in enumerate(all_payment_providers):
-            print(f"DEBUG: Provider {i}: type={provider.provider_type}, status={provider.verification_status}, active={provider.active}")
+        # Payment setup is complete if merchant has at least one verified provider with subaccount
+        payments_complete = len(verified_providers) > 0
 
-        # Payment setup is complete if merchant has at least one payment provider record
-        payments_complete = len(all_payment_providers) > 0
-        print(f"DEBUG: payments_complete = {payments_complete}")
+        log.info(
+            "Onboarding progress payment check",
+            extra={
+                "merchant_id": str(current_user.merchant_id),
+                "verified_providers_count": len(verified_providers),
+                "payments_complete": payments_complete,
+                "event_type": "onboarding_payment_progress_check",
+            },
+        )
     except Exception as e:
-        print(f"Error checking payment provider completion: {e}")
+        log.error(
+            "Error checking payment provider completion",
+            extra={
+                "merchant_id": str(current_user.merchant_id),
+                "error": str(e),
+                "event_type": "onboarding_payment_progress_error",
+            },
+        )
         payments_complete = False
 
     progress = OnboardingProgressResponse(
@@ -489,25 +507,43 @@ async def update_onboarding_progress(
         print(f"Error checking delivery rates completion: {e}")
         delivery_rates_complete = False
 
-    # Check if merchant has at least one payment provider (regardless of active status for onboarding)
+    # Check if merchant has properly configured payment provider with subaccount
     try:
-        # For onboarding progress, check if ANY payment provider records exist
         from ..models.sqlalchemy_models import PaymentProviderConfig
+        from ..utils.logger import log
+
+        # For payments to be complete, merchant needs at least one active payment provider
+        # with a verified subaccount configuration
         stmt = select(PaymentProviderConfig).where(
-            PaymentProviderConfig.merchant_id == current_user.merchant_id
+            PaymentProviderConfig.merchant_id == current_user.merchant_id,
+            PaymentProviderConfig.active == True,
+            PaymentProviderConfig.verification_status == "verified",
+            PaymentProviderConfig.subaccount_code.isnot(None)
         )
         result = await db.execute(stmt)
-        all_payment_providers = result.scalars().all()
+        verified_providers = result.scalars().all()
 
-        print(f"DEBUG: Found {len(all_payment_providers)} payment provider records for merchant {current_user.merchant_id}")
-        for i, provider in enumerate(all_payment_providers):
-            print(f"DEBUG: Provider {i}: type={provider.provider_type}, status={provider.verification_status}, active={provider.active}")
+        # Payment setup is complete if merchant has at least one verified provider with subaccount
+        payments_complete = len(verified_providers) > 0
 
-        # Payment setup is complete if merchant has at least one payment provider record
-        payments_complete = len(all_payment_providers) > 0
-        print(f"DEBUG: payments_complete = {payments_complete}")
+        log.info(
+            "Onboarding progress payment check",
+            extra={
+                "merchant_id": str(current_user.merchant_id),
+                "verified_providers_count": len(verified_providers),
+                "payments_complete": payments_complete,
+                "event_type": "onboarding_payment_progress_check",
+            },
+        )
     except Exception as e:
-        print(f"Error checking payment provider completion: {e}")
+        log.error(
+            "Error checking payment provider completion",
+            extra={
+                "merchant_id": str(current_user.merchant_id),
+                "error": str(e),
+                "event_type": "onboarding_payment_progress_error",
+            },
+        )
         payments_complete = False
 
     progress = OnboardingProgressResponse(

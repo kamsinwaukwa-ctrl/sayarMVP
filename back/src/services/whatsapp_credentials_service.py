@@ -161,53 +161,58 @@ class WhatsAppCredentialsService:
             },
         )
 
-        # Get merchant credentials
+        # Get WhatsApp integration from meta_integrations table
+        from ..models.meta_integrations import MetaIntegration
+
         result = await self.db.execute(
-            select(Merchant).where(Merchant.id == merchant_id)
+            select(MetaIntegration).where(MetaIntegration.merchant_id == merchant_id)
         )
-        merchant = result.scalar_one_or_none()
+        integration = result.scalar_one_or_none()
 
-        if not merchant:
-            raise APIError(
-                code=ErrorCode.MERCHANT_NOT_FOUND, message="Merchant not found"
-            )
-
-        if not merchant.system_user_token_enc:
+        if not integration:
             raise APIError(
                 code=ErrorCode.WHATSAPP_CREDENTIALS_NOT_FOUND,
-                message="WhatsApp credentials not configured",
+                message="WhatsApp integration not configured",
+            )
+
+        if not integration.system_user_token_encrypted:
+            raise APIError(
+                code=ErrorCode.WHATSAPP_CREDENTIALS_NOT_FOUND,
+                message="WhatsApp system user token not configured",
             )
 
         try:
-            # Decrypt credentials
+            # Decrypt system user token
             encryption_service = get_encryption_service()
-            phone_number_id = encryption_service.decrypt_data(
-                merchant.phone_number_id_enc
-            )
             system_user_token = encryption_service.decrypt_data(
-                merchant.system_user_token_enc
+                integration.system_user_token_encrypted
             )
+
+            # Use phone_number_id directly (not encrypted in meta_integrations)
+            phone_number_id = integration.phone_number_id
+
+            if not phone_number_id:
+                raise APIError(
+                    code=ErrorCode.WHATSAPP_CREDENTIALS_NOT_FOUND,
+                    message="Phone number ID not configured",
+                )
 
             # Call Graph API to verify
             verification_result = await self._call_graph_api(
                 phone_number_id, system_user_token
             )
 
-            # Determine connection status based on environment
-            connection_status = (
-                WAConnectionStatus.VERIFIED_TEST
-                if merchant.wa_environment == "test"
-                else WAConnectionStatus.VERIFIED_PROD
-            )
+            # Determine connection status (default to test for now)
+            connection_status = WAConnectionStatus.VERIFIED_TEST
 
-            # Update verification status
+            # Update verification status in meta_integrations table
             await self.db.execute(
-                update(Merchant)
-                .where(Merchant.id == merchant_id)
+                update(MetaIntegration)
+                .where(MetaIntegration.merchant_id == merchant_id)
                 .values(
-                    wa_connection_status=connection_status.value,
-                    wa_verified_at=datetime.utcnow(),
-                    wa_last_error=None,
+                    status="verified",
+                    last_verified_at=datetime.utcnow(),
+                    last_error=None,
                     updated_at=datetime.utcnow(),
                 )
             )
@@ -218,14 +223,13 @@ class WhatsAppCredentialsService:
                 extra={
                     "event": "whatsapp_verification_success",
                     "merchant_id": str(merchant_id),
-                    "environment": merchant.wa_environment,
                     "business_name": verification_result.get("verified_name"),
                 },
             )
 
             return WhatsAppVerifyResponse(
                 connection_status=connection_status,
-                environment=WAEnvironment(merchant.wa_environment),
+                environment=WAEnvironment.TEST,  # Default to test for now
                 phone_number_id=self._mask_phone_number_id(phone_number_id),
                 verified_at=datetime.utcnow(),
                 last_error=None,
@@ -239,13 +243,13 @@ class WhatsAppCredentialsService:
         except Exception as e:
             error_msg = f"Verification failed: {str(e)}"
 
-            # Update error status
+            # Update error status in meta_integrations table
             await self.db.execute(
-                update(Merchant)
-                .where(Merchant.id == merchant_id)
+                update(MetaIntegration)
+                .where(MetaIntegration.merchant_id == merchant_id)
                 .values(
-                    wa_connection_status="not_connected",
-                    wa_last_error=error_msg,
+                    status="invalid",
+                    last_error=error_msg,
                     updated_at=datetime.utcnow(),
                 )
             )
@@ -279,37 +283,83 @@ class WhatsAppCredentialsService:
         Raises:
             APIError: If merchant not found
         """
-        result = await self.db.execute(
-            select(Merchant).where(Merchant.id == merchant_id)
-        )
-        merchant = result.scalar_one_or_none()
+        # Import here to avoid circular imports
+        from ..models.meta_integrations import MetaIntegration
+        from ..models.sqlalchemy_models import WebhookEndpoint
 
-        if not merchant:
-            raise APIError(
-                code=ErrorCode.MERCHANT_NOT_FOUND, message="Merchant not found"
+        result = await self.db.execute(
+            select(MetaIntegration).where(MetaIntegration.merchant_id == merchant_id)
+        )
+        integration = result.scalar_one_or_none()
+
+        # Get webhook configuration if exists
+        webhook_result = await self.db.execute(
+            select(WebhookEndpoint).where(
+                WebhookEndpoint.merchant_id == merchant_id,
+                WebhookEndpoint.provider == "whatsapp",
+                WebhookEndpoint.active == True
+            )
+        )
+        webhook = webhook_result.scalar_one_or_none()
+
+        if not integration:
+            # Return default status if no integration exists
+            webhook_url = None
+            if webhook:
+                # Generate webhook URL even if no integration (webhook might be pre-configured)
+                railway_url = os.getenv("RAILWAY_STATIC_URL", "http://localhost:8000")
+                if not railway_url.startswith("http"):
+                    railway_url = f"https://{railway_url}"
+                webhook_url = f"{railway_url}{webhook.callback_path}"
+
+            return WhatsAppStatusResponse(
+                connection_status=WAConnectionStatus.NOT_CONNECTED,
+                environment=WAEnvironment.TEST,
+                app_id_masked=None,
+                waba_id_masked=None,
+                phone_number_id_masked=None,
+                whatsapp_phone_e164=None,
+                verified_at=None,
+                last_error=None,
+                token_last_updated=None,
+                webhook_url=webhook_url,
+                last_webhook_at=webhook.last_webhook_at if webhook else None,
             )
 
-        # Decrypt phone number ID for masking if available
+        # Mask phone number ID if available (don't decrypt, just mask the stored value)
         phone_number_id_masked = None
-        if merchant.phone_number_id_enc:
-            try:
-                encryption_service = get_encryption_service()
-                phone_number_id = encryption_service.decrypt_data(
-                    merchant.phone_number_id_enc
-                )
-                phone_number_id_masked = self._mask_phone_number_id(phone_number_id)
-            except Exception:
-                # If decryption fails, just return None
-                pass
+        if integration.phone_number_id:
+            phone_number_id_masked = self._mask_phone_number_id(integration.phone_number_id)
+
+        # Determine connection status based on integration status
+        connection_status = WAConnectionStatus.NOT_CONNECTED
+        if integration.status == "verified":
+            connection_status = WAConnectionStatus.VERIFIED_TEST  # Default to test environment
+        elif integration.status == "invalid":
+            connection_status = WAConnectionStatus.NOT_CONNECTED  # Treat invalid as not connected
+
+        # Generate webhook URL if webhook configured
+        webhook_url = None
+        last_webhook_at = None
+        if webhook:
+            railway_url = os.getenv("RAILWAY_STATIC_URL", "http://localhost:8000")
+            if not railway_url.startswith("http"):
+                railway_url = f"https://{railway_url}"
+            webhook_url = f"{railway_url}{webhook.callback_path}"
+            last_webhook_at = webhook.last_webhook_at
 
         return WhatsAppStatusResponse(
-            connection_status=WAConnectionStatus(
-                merchant.wa_connection_status or "not_connected"
-            ),
-            environment=WAEnvironment(merchant.wa_environment or "test"),
-            phone_number_id=phone_number_id_masked,
-            verified_at=merchant.wa_verified_at,
-            last_error=merchant.wa_last_error,
+            connection_status=connection_status,
+            environment=WAEnvironment.TEST,  # Default to test for now
+            app_id_masked=self._mask_app_id(integration.app_id) if integration.app_id else None,
+            waba_id_masked=self._mask_waba_id(integration.waba_id) if integration.waba_id else None,
+            phone_number_id_masked=phone_number_id_masked,
+            whatsapp_phone_e164=integration.whatsapp_phone_e164,
+            verified_at=integration.last_verified_at,
+            last_error=integration.last_error,
+            token_last_updated=integration.updated_at,  # Use updated_at as proxy for token update
+            webhook_url=webhook_url,
+            last_webhook_at=last_webhook_at,
         )
 
     @retryable(config=RetryConfig(max_attempts=3, base_delay=1.0))
@@ -405,3 +455,33 @@ class WhatsAppCredentialsService:
             return "*" * len(phone_number_id)
 
         return "*" * (len(phone_number_id) - 4) + phone_number_id[-4:]
+
+    def _mask_app_id(self, app_id: str) -> str:
+        """
+        Mask app ID for security (show first 6 and last 4 digits)
+
+        Args:
+            app_id: Full app ID
+
+        Returns:
+            Masked app ID (e.g., 684132••••••5988)
+        """
+        if len(app_id) <= 10:
+            return "*" * len(app_id)
+
+        return app_id[:6] + "•" * (len(app_id) - 10) + app_id[-4:]
+
+    def _mask_waba_id(self, waba_id: str) -> str:
+        """
+        Mask WABA ID for security (show first 4 and last 4 digits)
+
+        Args:
+            waba_id: Full WABA ID
+
+        Returns:
+            Masked WABA ID (e.g., 1871••••••8542)
+        """
+        if len(waba_id) <= 8:
+            return "*" * len(waba_id)
+
+        return waba_id[:4] + "•" * (len(waba_id) - 8) + waba_id[-4:]

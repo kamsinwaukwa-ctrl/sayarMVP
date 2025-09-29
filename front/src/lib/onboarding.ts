@@ -70,6 +70,61 @@ export function clearOnboardingProgress() {
   }
 }
 
+// Clear sensitive data when onboarding completes
+export function clearSensitiveOnboardingData() {
+  try {
+    // Clear sensitive credentials from localStorage
+    const sensitiveKeys = [
+      'paystack_credentials',
+      'korapay_credentials',
+      'whatsapp_access_token',
+      'whatsapp_app_secret',
+      'meta_catalog_token',
+      'meta_app_secret',
+      // Remove any temporary credential storage
+      'temp_payment_keys',
+      'temp_whatsapp_keys',
+      'temp_meta_keys'
+    ]
+
+    sensitiveKeys.forEach(key => {
+      localStorage.removeItem(key)
+    })
+
+    // Clear any sensitive form data but keep completion status
+    const formData = JSON.parse(localStorage.getItem(STORAGE_KEYS.ONBOARDING_FORM_DATA) || '{}')
+
+    // Remove sensitive fields from each step's form data
+    Object.keys(formData).forEach(stepId => {
+      if (formData[stepId]) {
+        // Remove payment credentials
+        delete formData[stepId].public_key
+        delete formData[stepId].secret_key
+        delete formData[stepId].paystack_secret_key
+        delete formData[stepId].korapay_secret_key
+
+        // Remove WhatsApp credentials
+        delete formData[stepId].system_user_token
+        delete formData[stepId].access_token
+        delete formData[stepId].app_secret
+
+        // Remove Meta credentials
+        delete formData[stepId].catalog_id
+        delete formData[stepId].app_id
+        delete formData[stepId].app_token
+      }
+    })
+
+    // Save cleaned form data back
+    localStorage.setItem(STORAGE_KEYS.ONBOARDING_FORM_DATA, JSON.stringify(formData))
+
+    console.log('🧹 Sensitive onboarding data cleared successfully')
+    trackOnboardingEvent('SENSITIVE_DATA_CLEARED', {})
+  } catch (error) {
+    console.warn('Failed to clear sensitive onboarding data:', error)
+  }
+}
+
 export function isOnboardingCompleted(): boolean {
   try {
     const { completedSteps } = getOnboardingProgress()

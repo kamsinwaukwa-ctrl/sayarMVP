@@ -17,7 +17,7 @@ from sqlalchemy import (
     DECIMAL,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 Base = declarative_base()
@@ -296,33 +296,44 @@ class FeatureFlag(Base):
 
 
 class PaymentProviderConfig(Base):
-    """Payment provider configuration SQLAlchemy model"""
+    """Payment provider configuration SQLAlchemy model - subaccount metadata only, no API keys"""
 
     __tablename__ = "payment_provider_configs"
 
+    # Core fields
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     merchant_id = Column(UUID(as_uuid=True), ForeignKey("merchants.id"), nullable=False)
     provider_type = Column(String, nullable=False)  # 'paystack' or 'korapay'
-    public_key_encrypted = Column(String, nullable=False)
-    secret_key_encrypted = Column(String, nullable=False)
-    webhook_secret_encrypted = Column(String)  # Optional for some providers
     environment = Column(String, nullable=False, default="test")  # 'test' or 'live'
-    verification_status = Column(
-        String, nullable=False, default="pending"
-    )  # 'pending', 'verified', 'failed'
-    last_verified_at = Column(DateTime)
-    verification_error = Column(String)  # Store error messages
     active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    # Add unique constraint for merchant + provider + environment
+    # Subaccount metadata (cached from provider)
+    subaccount_code = Column(String, unique=True)  # Paystack subaccount code, unique across platform
+    bank_code = Column(String)  # Bank code (e.g., "044" for Access Bank)
+    bank_name = Column(String)  # Bank name for display
+    account_name = Column(String)  # Resolved account holder name
+    account_last4 = Column(String(4))  # Last 4 digits of account number (non-sensitive)
+    percentage_charge = Column(DECIMAL(5, 2))  # Commission percentage (e.g., 2.50)
+    settlement_schedule = Column(Enum('AUTO', 'WEEKLY', 'MONTHLY', 'MANUAL', name='settlement_schedule'), default="AUTO")
+
+    # Verification tracking (from payment provider verification)
+    verification_status = Column(String, nullable=False, default="pending")  # 'verified', 'failed', 'pending'
+    last_verified_at = Column(DateTime)
+    verification_error = Column(String)  # Error message if verification fails
+
+     # Sync tracking (Paystack is source of truth)
+    sync_status = Column(Enum('synced', 'pending', 'failed', name='sync_status'), default='pending')
+    last_synced_with_provider = Column(DateTime)
+    sync_error = Column(String)  # Error message if sync fails
+    
+    # Unique constraint: one row per merchant+provider (removed environment since subaccount_code is unique)
     __table_args__ = (
         UniqueConstraint(
             "merchant_id",
             "provider_type",
-            "environment",
-            name="uq_payment_provider_config_scope",
+            name="uq_payment_provider_config_merchant_provider",
         ),
         {"extend_existing": True},
     )
@@ -351,3 +362,42 @@ class MetaCatalogSyncLog(Base):
     idempotency_key = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class WebhookEndpoint(Base):
+    """Webhook configuration for external providers (WhatsApp, etc.)"""
+
+    __tablename__ = "webhook_endpoints"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    merchant_id = Column(UUID(as_uuid=True), ForeignKey("merchants.id"), nullable=False)
+    provider = Column(String, nullable=False, default="whatsapp")  # TEXT in SQL, String in SQLAlchemy
+
+    # Meta App Configuration
+    app_id = Column(String, nullable=False, unique=True)  # TEXT in SQL
+    app_secret_encrypted = Column(String, nullable=False)  # PGP encrypted
+    verify_token_hash = Column(String, nullable=False)  # bcrypt hash
+
+    # WhatsApp specific fields (optional but useful)
+    phone_number_id = Column(String)
+    waba_id = Column(String)
+    whatsapp_phone_e164 = Column(String)
+
+    # Webhook configuration
+    callback_path = Column(String, nullable=False)  # e.g., /api/webhooks/whatsapp/app/{app_id}
+
+    # Operational fields
+    last_webhook_at = Column(DateTime(timezone=True))
+    signature_fail_count = Column(Integer, default=0, nullable=False)
+
+    # Status and timestamps
+    active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime(timezone=True),
+                        default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc),
+                        nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("merchant_id", "provider", "app_id", name="webhook_endpoints_merchant_provider_app_uidx"),
+    )

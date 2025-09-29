@@ -1,18 +1,18 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 import { Sidebar, type SidebarSection } from "@/components/layout/sidebar"
-import { Header } from "@/components/layout/header"
 
 interface AppShellProps extends React.HTMLAttributes<HTMLDivElement> {
   sidebarSections: SidebarSection[]
   children: React.ReactNode
   sidebarCollapsed?: boolean
   onSidebarToggle?: () => void
+  onLogout?: () => void
 }
 
 /**
- * AppShell component for complete application layout
- * Combines sidebar, header, and content area with responsive behavior
+ * AppShell component for application layout
+ * Provides sidebar navigation and content area
  */
 const AppShell = React.forwardRef<HTMLDivElement, AppShellProps>(
   ({
@@ -21,6 +21,7 @@ const AppShell = React.forwardRef<HTMLDivElement, AppShellProps>(
     children,
     sidebarCollapsed,
     onSidebarToggle,
+    onLogout,
     ...props
   }, ref) => {
     return (
@@ -34,17 +35,12 @@ const AppShell = React.forwardRef<HTMLDivElement, AppShellProps>(
           sections={sidebarSections}
           collapsed={sidebarCollapsed}
           onToggle={onSidebarToggle}
+          onLogout={onLogout}
         />
 
         {/* Main Content Area */}
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Header */}
-          <Header />
-
-          {/* Page Content */}
-          <div className="flex-1 overflow-y-auto">
-            {children}
-          </div>
+        <div className="flex-1 overflow-y-auto">
+          {children}
         </div>
       </div>
     )

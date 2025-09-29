@@ -174,10 +174,21 @@ class MetaIntegrationService:
             if not integration:
                 response = MetaIntegrationStatusResponse.not_configured()
             elif integration.status == MetaIntegrationStatus.INVALID:
-                response = MetaIntegrationStatusResponse.invalid_credentials(
+                user_friendly_error = self._get_user_friendly_error(
+                    integration.last_error or "Invalid credentials",
+                    integration.error_code or "META_AUTH_FAILED"
+                )
+                response = MetaIntegrationStatusResponse(
+                    status=MetaIntegrationStatus.INVALID,
+                    catalog_id=integration.catalog_id,
+                    catalog_name=integration.catalog_name,
+                    app_id=integration.app_id,
+                    waba_id=integration.waba_id,
+                    last_verified_at=integration.last_verified_at,
                     error=integration.last_error or "Invalid credentials",
                     error_code=integration.error_code or "META_AUTH_FAILED",
                     last_error_at=integration.updated_at,
+                    message=user_friendly_error,
                 )
             else:
                 # Build successful response
@@ -209,6 +220,105 @@ class MetaIntegrationService:
                 f"Failed to get integration status for merchant {merchant_id}: {str(e)}"
             )
             raise MetaIntegrationError(f"Failed to get status: {str(e)}")
+
+    async def verify_existing_integration(
+        self, merchant_id: UUID
+    ) -> MetaIntegrationStatusResponse:
+        """Verify existing Meta integration credentials without making changes to stored config"""
+        try:
+            logger.info(f"Verifying existing Meta integration for merchant: {merchant_id}")
+
+            # Get existing integration
+            integration = await self._get_integration_by_merchant(merchant_id)
+            if not integration:
+                raise MetaIntegrationError("No integration found to verify")
+
+            # Check if we have the minimum required data to verify
+            if not integration.catalog_id or not integration.system_user_token_encrypted:
+                raise MetaIntegrationError("Missing required credentials for verification")
+
+            # Decrypt token for verification
+            from ..utils.encryption import decrypt_key
+            decrypted_token = decrypt_key(integration.system_user_token_encrypted)
+
+            # Create temporary credentials request for verification
+            temp_request = MetaCredentialsRequest(
+                catalog_id=integration.catalog_id,
+                system_user_token=decrypted_token,
+                app_id=integration.app_id or "placeholder",
+                waba_id=integration.waba_id,
+            )
+
+            # Verify credentials with Meta API
+            verification_result = await self._verify_credentials(temp_request)
+
+            # Update only verification-related fields in the database
+            from ..models.meta_integrations import MetaIntegration
+            from sqlalchemy import update
+            from datetime import datetime
+
+            stmt = (
+                update(MetaIntegration)
+                .where(MetaIntegration.merchant_id == merchant_id)
+                .values(
+                    status=verification_result["status"],
+                    catalog_name=verification_result.get("catalog_name"),
+                    last_verified_at=verification_result.get("verified_at"),
+                    last_error=verification_result.get("error"),
+                    error_code=verification_result.get("error_code"),
+                    updated_at=datetime.utcnow(),
+                )
+                .returning(MetaIntegration)
+            )
+
+            result = await self.db.execute(stmt)
+            updated_integration = result.scalar_one()
+            await self.db.commit()
+
+            # Clear cache
+            self._clear_cache(str(merchant_id))
+
+            # Build response with all stored data
+            verification_details = None
+            if updated_integration.status == MetaIntegrationStatus.VERIFIED:
+                verification_details = MetaVerificationDetails(
+                    token_valid=True,
+                    catalog_accessible=True,
+                    permissions_valid=True,
+                )
+
+            # Add user-friendly message for invalid status
+            user_friendly_message = None
+            if updated_integration.status == MetaIntegrationStatus.INVALID:
+                user_friendly_message = self._get_user_friendly_error(
+                    updated_integration.last_error,
+                    updated_integration.error_code
+                )
+
+            response = MetaIntegrationStatusResponse(
+                status=updated_integration.status,
+                catalog_id=updated_integration.catalog_id,
+                catalog_name=updated_integration.catalog_name,
+                app_id=updated_integration.app_id,
+                waba_id=updated_integration.waba_id,
+                last_verified_at=updated_integration.last_verified_at,
+                verification_details=verification_details,
+                error=updated_integration.last_error,
+                error_code=updated_integration.error_code,
+                last_error_at=updated_integration.updated_at if updated_integration.last_error else None,
+                message=user_friendly_message,
+            )
+
+            logger.info(f"Verification completed for merchant {merchant_id}, status: {updated_integration.status}")
+            return response
+
+        except MetaIntegrationError:
+            await self.db.rollback()
+            raise
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Failed to verify integration for merchant {merchant_id}: {str(e)}")
+            raise MetaIntegrationError(f"Failed to verify integration: {str(e)}")
 
     async def delete_integration(self, merchant_id: UUID) -> bool:
         """Delete Meta integration for a merchant"""
@@ -808,3 +918,29 @@ class MetaIntegrationService:
         """Clear cached status for merchant"""
         if merchant_id in self._status_cache:
             del self._status_cache[merchant_id]
+
+    def _get_user_friendly_error(self, error: str, error_code: str) -> str:
+        """Convert technical errors to user-friendly messages"""
+        if not error:
+            return "Please re-enter and verify your catalog ID again"
+
+        # Check error codes first (more specific)
+        if error_code:
+            if "META_HTTP_400" in error_code or "META_HTTP_404" in error_code:
+                return "Please re-enter and verify your catalog ID again"
+            elif "META_HTTP_401" in error_code or "AUTH_FAILED" in error_code:
+                return "Please check your access permissions and verify again"
+            elif "NETWORK_ERROR" in error_code:
+                return "Connection issue - please try verifying again"
+
+        # Check error messages (fallback)
+        error_lower = error.lower()
+        if any(keyword in error_lower for keyword in ["400", "404", "not found", "catalog"]):
+            return "Please re-enter and verify your catalog ID again"
+        elif any(keyword in error_lower for keyword in ["401", "unauthorized", "access", "token", "permission"]):
+            return "Please check your access permissions and verify again"
+        elif any(keyword in error_lower for keyword in ["network", "connection", "timeout", "request"]):
+            return "Connection issue - please try verifying again"
+
+        # Default fallback
+        return "Please re-enter and verify your catalog ID again"

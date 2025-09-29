@@ -20,7 +20,7 @@ from ..models.outbox import (
     WorkerHeartbeat,
 )
 from ..utils.logger import log
-from ..database.connection import AsyncSessionLocal
+from ..database.connection import AsyncSessionLocal, WorkerSessionLocal
 
 
 async def enqueue_job(
@@ -135,7 +135,7 @@ async def fetch_due_jobs(
     """
     close_db = False
     if db is None:
-        db = AsyncSessionLocal()
+        db = WorkerSessionLocal()  # Use worker session with connection pooling
         close_db = True
 
     try:
@@ -227,7 +227,7 @@ async def mark_job_done(job_id: UUID, db: Optional[AsyncSession] = None) -> bool
     """
     close_db = False
     if db is None:
-        db = AsyncSessionLocal()
+        db = WorkerSessionLocal()  # Use worker session with connection pooling
         close_db = True
 
     try:
@@ -505,7 +505,7 @@ async def record_heartbeat(
     """
     close_db = False
     if db is None:
-        db = AsyncSessionLocal()
+        db = WorkerSessionLocal()  # Use worker session with connection pooling
         close_db = True
 
     try:
@@ -564,7 +564,7 @@ async def acquire_leader_lock(
     """
     close_db = False
     if db is None:
-        db = AsyncSessionLocal()
+        db = WorkerSessionLocal()  # Use worker session with connection pooling
         close_db = True
 
     try:
@@ -584,6 +584,17 @@ async def acquire_leader_lock(
 
         return bool(acquired)
 
+    except asyncio.CancelledError:
+        # Task was cancelled, don't log as error
+        log.debug(
+            "Leader lock acquisition cancelled",
+            extra={
+                "event_type": "worker_leader_acquire_cancelled",
+                "instance_id": instance_id,
+                "lock_key": lock_key,
+            },
+        )
+        return False
     except Exception as e:
         log.error(
             "Failed to acquire leader lock",
@@ -616,7 +627,7 @@ async def release_leader_lock(
     """
     close_db = False
     if db is None:
-        db = AsyncSessionLocal()
+        db = WorkerSessionLocal()  # Use worker session with connection pooling
         close_db = True
 
     try:

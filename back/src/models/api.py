@@ -684,26 +684,107 @@ class WhatsAppCredentialsRequest(BaseModel):
         }
 
 
+class WhatsAppCredentialsPartialRequest(BaseModel):
+    """Request model for partial WhatsApp credentials updates"""
+
+    waba_id: Optional[str] = Field(
+        None, description="WhatsApp Business Account ID", min_length=15, max_length=17
+    )
+    phone_number_id: Optional[str] = Field(
+        None, description="Phone Number ID from Meta", min_length=15, max_length=17
+    )
+    app_id: Optional[str] = Field(
+        None, description="Facebook App ID", min_length=15, max_length=17
+    )
+    system_user_token: Optional[str] = Field(
+        None, description="System User access token", min_length=100
+    )
+    whatsapp_phone_e164: Optional[str] = Field(
+        None, description="WhatsApp phone number in E164 format"
+    )
+    environment: Optional[WAEnvironment] = Field(
+        None, description="Test or production environment"
+    )
+    validate_after_save: bool = Field(
+        default=True, description="Whether to validate credentials after saving"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "waba_id": "123456789012345",
+                "phone_number_id": "987654321098765",
+                "app_id": "456789123456789",
+                "whatsapp_phone_e164": "+2348123456789",
+                "environment": "test",
+            }
+        }
+
+
+class ValidationResult(BaseModel):
+    """Validation result for WhatsApp credentials"""
+
+    is_valid: bool = Field(description="Whether the credentials are valid")
+    tested_at: datetime = Field(description="When the validation was performed")
+    error_message: Optional[str] = Field(
+        None, description="Error message if validation failed"
+    )
+    error_code: Optional[str] = Field(
+        None, description="Specific error code for troubleshooting"
+    )
+    business_name: Optional[str] = Field(
+        None, description="Verified business name from Meta"
+    )
+    phone_number_display: Optional[str] = Field(
+        None, description="Phone number display name from Meta"
+    )
+
+
 class WhatsAppStatusResponse(BaseModel):
     """Response model for WhatsApp connection status"""
 
     connection_status: WAConnectionStatus
     environment: WAEnvironment
-    phone_number_id: Optional[str] = Field(
+    app_id_masked: Optional[str] = Field(
+        None, description="App ID (first 6 and last 4 digits shown, rest masked)"
+    )
+    waba_id_masked: Optional[str] = Field(
+        None, description="WABA ID (first 4 and last 4 digits shown, rest masked)"
+    )
+    phone_number_id_masked: Optional[str] = Field(
         None, description="Phone number ID (last 4 digits shown, rest masked)"
+    )
+    whatsapp_phone_e164: Optional[str] = Field(
+        None, description="WhatsApp phone number in E164 format"
     )
     verified_at: Optional[datetime] = None
     last_error: Optional[str] = None
+    token_last_updated: Optional[datetime] = Field(
+        None, description="When the system user token was last updated"
+    )
+    validation_result: Optional[ValidationResult] = Field(
+        None, description="Latest validation test results"
+    )
+    webhook_url: Optional[str] = Field(
+        None, description="Webhook URL for receiving WhatsApp events"
+    )
+    last_webhook_at: Optional[datetime] = Field(
+        None, description="When the last webhook was received"
+    )
 
     class Config:
         json_encoders = {datetime: lambda v: v.isoformat()}
         json_schema_extra = {
             "example": {
-                "connection_status": "not_connected",
+                "connection_status": "active",
                 "environment": "test",
-                "phone_number_id": "***********8765",
-                "verified_at": None,
+                "app_id_masked": "684132••••••5988",
+                "waba_id_masked": "1871••••••8542",
+                "phone_number_id_masked": "8233••••••6057",
+                "whatsapp_phone_e164": "+234••••••2488",
+                "verified_at": "2025-09-25T10:30:00Z",
                 "last_error": None,
+                "token_last_updated": "2025-09-24T15:20:00Z",
             }
         }
 

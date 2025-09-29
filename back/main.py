@@ -28,6 +28,8 @@ from src.api.payment_providers import router as payment_providers_router
 from src.api.integrations import router as integrations_router
 from src.api.meta_integrations import router as meta_integrations_router
 from src.api.admin.reconciliation import router as admin_reconciliation_router
+from src.api.admin.webhook_bootstrap import router as admin_webhook_router
+from src.api.webhooks import router as webhooks_router
 
 # Import observability components
 from src.middleware.logging import LoggingMiddleware
@@ -144,6 +146,53 @@ app.add_middleware(ErrorMiddleware, include_debug_info=include_debug)
 # 3. Logging middleware (logs requests/responses)
 app.add_middleware(LoggingMiddleware)
 
+# 4. Connection handling middleware to prevent H11 protocol errors
+from fastapi import Request
+from fastapi.responses import Response
+import asyncio
+
+@app.middleware("http")
+async def connection_handler(request: Request, call_next):
+    """Handle connection drops gracefully to prevent H11 protocol errors"""
+    try:
+        # Add timeout to prevent hanging requests (only for HTTP requests)
+        response = await asyncio.wait_for(call_next(request), timeout=60.0)
+        return response
+    except asyncio.TimeoutError:
+        # Request timed out
+        log.warning(
+            "Request timeout",
+            extra={
+                "event_type": "request_timeout",
+                "path": request.url.path,
+                "method": request.method,
+            }
+        )
+        return Response(status_code=504, content="Request timeout")
+    except (ConnectionResetError, BrokenPipeError) as e:
+        # Client disconnected, log and return empty response
+        log.warning(
+            "Client disconnected during request",
+            extra={
+                "event_type": "client_disconnect",
+                "error_type": type(e).__name__,
+                "path": request.url.path,
+                "method": request.method,
+            }
+        )
+        return Response(status_code=499)  # Client Closed Request
+    except asyncio.CancelledError:
+        # Task was cancelled (likely due to client disconnect)
+        log.debug(
+            "Request cancelled",
+            extra={
+                "event_type": "request_cancelled",
+                "path": request.url.path,
+                "method": request.method,
+            }
+        )
+        return Response(status_code=499)  # Client Closed Request
+
 # Global exception handler for HTTPException to add CORS headers
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
@@ -185,6 +234,7 @@ app.include_router(health_router)
 
 # Include public API routers (no auth required)
 app.include_router(meta_feeds_router, prefix="/api/v1")
+app.include_router(webhooks_router)  # Webhook endpoints (no auth - verified by signature)
 
 # Include authenticated API routers
 app.include_router(auth_router, prefix="/api/v1")
@@ -196,6 +246,7 @@ app.include_router(payment_providers_router, prefix="/api/v1")
 app.include_router(meta_integrations_router, prefix="/api/v1")
 app.include_router(integrations_router)
 app.include_router(admin_reconciliation_router)
+app.include_router(admin_webhook_router)  # Admin webhook bootstrap endpoints
 
 
 @app.get("/")
@@ -287,4 +338,9 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=port,
         reload=os.getenv("ENV", "development") == "development",
+        # Connection handling improvements
+        timeout_keep_alive=30,  # Keep connections alive for 30 seconds
+        timeout_graceful_shutdown=10,  # Graceful shutdown timeout
+        limit_max_requests=1000,  # Restart worker after 1000 requests
+        limit_concurrency=1000,  # Max concurrent connections
     )

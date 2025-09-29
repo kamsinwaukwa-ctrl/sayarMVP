@@ -387,6 +387,75 @@ async def get_integration_status(
         )
 
 
+@router.post(
+    "/verify",
+    response_model=MetaIntegrationStatusResponse,
+    responses={
+        401: {"model": ApiErrorResponse, "description": "Unauthorized"},
+        404: {"model": ApiErrorResponse, "description": "No integration found"},
+        429: {"model": ApiErrorResponse, "description": "Rate limit exceeded"},
+        500: {"model": ApiErrorResponse, "description": "Internal server error"},
+    },
+    summary="Verify existing Meta integration",
+    description="Verify the current stored Meta catalog credentials without making changes",
+)
+async def verify_integration(
+    request: Request,
+    principal=Depends(get_current_user),  # Admin or staff
+    db: AsyncSession = Depends(get_db),
+) -> MetaIntegrationStatusResponse:
+    """
+    Verify existing Meta integration credentials.
+
+    Performs on-demand verification of the currently stored Meta credentials:
+    - Calls Meta Graph API with stored catalog_id and system_user_token
+    - Updates verification status, error fields, and timestamps
+    - Returns updated status response with stored configuration data
+
+    Only verifies when explicitly requested - no automatic verification.
+    """
+    try:
+        # Apply rate limiting
+        await check_meta_status_rate_limit(request, principal.merchant_id)
+
+        service = MetaIntegrationService(db)
+        result = await service.verify_existing_integration(principal.merchant_id)
+
+        safe_increment(
+            "meta_integration_verify_requests_total",
+            component="meta_integrations"
+        )
+
+        return result
+
+    except MetaIntegrationError as e:
+        logger.error(f"Meta integration verification error: {e.message}")
+        safe_increment(
+            "meta_integration_verify_errors_total",
+            component="meta_integrations"
+        )
+
+        if "No integration found" in e.message:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No Meta integration found to verify",
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=e.message
+            )
+    except Exception as e:
+        logger.error(f"Unexpected error verifying Meta integration: {str(e)}")
+        safe_increment(
+            "meta_integration_verify_errors_total",
+            component="meta_integrations"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to verify Meta integration",
+        )
+
+
 @router.get(
     "/summary",
     response_model=MetaIntegrationSummaryResponse,

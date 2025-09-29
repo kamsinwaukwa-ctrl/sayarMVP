@@ -17,6 +17,10 @@ class JobType(str, Enum):
     CATALOG_SYNC = "catalog_sync"
     RELEASE_RESERVATION = "release_reservation"
     PAYMENT_FOLLOWUP = "payment_followup"
+    RECONCILE_SUBACCOUNT = "reconcile_subaccount"
+    PROCESS_WHATSAPP_MESSAGE = "process_whatsapp_message"
+    PROCESS_WHATSAPP_STATUS = "process_whatsapp_status"
+    PROCESS_WHATSAPP_TEMPLATE_UPDATE = "process_whatsapp_template_update"
 
 
 class JobStatus(str, Enum):
