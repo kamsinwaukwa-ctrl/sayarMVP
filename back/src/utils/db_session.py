@@ -30,9 +30,10 @@ class DatabaseSessionHelper:
         if not key:
             raise ValueError("DATABASE_ENCRYPTION_KEY environment variable not configured")
 
-        # Use SET LOCAL to ensure it's only for this transaction
+        # Use set_config() with bind parameters - SET LOCAL doesn't support $1 syntax
+        # The third parameter 'true' makes it local to the current transaction
         await db.execute(
-            text("SET LOCAL app.encryption_key = :key"),
+            text("SELECT set_config('app.encryption_key', :key, true)"),
             {"key": key}
         )
 
@@ -52,8 +53,9 @@ class DatabaseSessionHelper:
             if not base_url.startswith("http"):
                 base_url = f"https://{base_url}"
 
+        # Use set_config() with bind parameters - SET LOCAL doesn't support $1 syntax
         await db.execute(
-            text("SET LOCAL app.base_url = :url"),
+            text("SELECT set_config('app.base_url', :url, true)"),
             {"url": base_url}
         )
 

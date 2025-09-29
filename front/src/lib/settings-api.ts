@@ -342,7 +342,8 @@ export const settingsApi = {
       lastVerifiedAt: status.verified_at,
       token_last_updated: status.token_last_updated,
       messagesCount: 0, // Not available in new structure
-      webhookUrl: '', // Not available in new structure
+      webhookUrl: status.webhook_url || '',
+      lastWebhookAt: status.last_webhook_at,
       validation_result: status.validation_result
     }
   },

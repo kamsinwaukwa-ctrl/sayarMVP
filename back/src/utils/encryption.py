@@ -21,11 +21,11 @@ class EncryptionService:
 
         Args:
             encryption_key: Base64 encoded encryption key. If not provided,
-                          will use ENCRYPTION_KEY environment variable
+                          will use DATABASE_ENCRYPTION_KEY environment variable
         """
-        self.encryption_key = encryption_key or os.getenv("ENCRYPTION_KEY")
+        self.encryption_key = encryption_key or os.getenv("DATABASE_ENCRYPTION_KEY")
         if not self.encryption_key:
-            raise ValueError("ENCRYPTION_KEY environment variable not set")
+            raise ValueError("DATABASE_ENCRYPTION_KEY environment variable not set")
 
         # Derive Fernet key from the provided key
         self.fernet = Fernet(self.encryption_key.encode())
