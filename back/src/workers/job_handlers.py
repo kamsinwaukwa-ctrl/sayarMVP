@@ -698,10 +698,131 @@ async def handle_catalog_unpublish(merchant_id: str, payload: Dict[str, Any]) ->
         raise
 
 
+async def handle_reconcile_subaccount(merchant_id: str, payload: Dict[str, Any]) -> None:
+    """
+    Handle Paystack subaccount reconciliation after failed DB sync.
+
+    Payload should contain:
+    - subaccount_code: The Paystack subaccount code to reconcile
+    """
+    from ..services.payment_provider_service import PaymentProviderService
+    from ..database.connection import get_async_db_session
+    from ..models.sqlalchemy_models import PaymentProviderConfig
+    from ..models.payment_providers import SyncStatus
+    from sqlalchemy import select, update
+    from uuid import UUID
+    from decimal import Decimal
+    import aiohttp
+    import os
+
+    subaccount_code = payload.get("subaccount_code")
+    if not subaccount_code:
+        raise ValueError("subaccount_code required in payload")
+
+    logger.info(
+        "reconcile_subaccount_started",
+        extra={
+            "event_type": "reconcile_subaccount_started",
+            "merchant_id": merchant_id,
+            "subaccount_code": subaccount_code,
+        },
+    )
+
+    async with get_async_db_session() as db:
+        try:
+            # 1. Fetch fresh data from Paystack
+            paystack_secret = os.getenv("PAYSTACK_SECRET_KEY")
+            if not paystack_secret:
+                raise Exception("PAYSTACK_SECRET_KEY not configured")
+
+            url = f"https://api.paystack.co/subaccount/{subaccount_code}"
+            headers = {"Authorization": f"Bearer {paystack_secret}"}
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        paystack_data = data.get("data", {})
+                    else:
+                        error_text = await response.text()
+                        raise Exception(f"Paystack API error {response.status}: {error_text}")
+
+            # 2. Find our config record
+            stmt = select(PaymentProviderConfig).where(
+                PaymentProviderConfig.merchant_id == UUID(merchant_id),
+                PaymentProviderConfig.subaccount_code == subaccount_code,
+                PaymentProviderConfig.active == True
+            )
+            result = await db.execute(stmt)
+            config = result.scalar_one_or_none()
+
+            if not config:
+                raise ValueError(f"PaymentProviderConfig not found for merchant {merchant_id}, subaccount {subaccount_code}")
+
+            # 3. Update our DB with fresh Paystack data
+            update_values = {
+                "bank_code": paystack_data.get("bank_code", config.bank_code),
+                "bank_name": paystack_data.get("settlement_bank", config.bank_name),
+                "account_name": paystack_data.get("account_name", config.account_name),
+                "account_last4": paystack_data.get("account_number", "")[-4:] if paystack_data.get("account_number") else config.account_last4,
+                "percentage_charge": Decimal(str(paystack_data.get("percentage_charge", config.percentage_charge or 0))),
+                "settlement_schedule": paystack_data.get("settlement_schedule", config.settlement_schedule),
+                "sync_status": SyncStatus.SYNCED.value,
+                "last_synced_with_provider": datetime.now(),
+                "sync_error": None,
+                "updated_at": datetime.now(),
+            }
+
+            update_stmt = (
+                update(PaymentProviderConfig)
+                .where(PaymentProviderConfig.id == config.id)
+                .values(**update_values)
+            )
+
+            await db.execute(update_stmt)
+            await db.commit()
+
+            logger.info(
+                "reconcile_subaccount_success",
+                extra={
+                    "event_type": "reconcile_subaccount_success",
+                    "merchant_id": merchant_id,
+                    "subaccount_code": subaccount_code,
+                },
+            )
+
+        except Exception as e:
+            # Mark sync as failed in our DB
+            if config:
+                update_stmt = (
+                    update(PaymentProviderConfig)
+                    .where(PaymentProviderConfig.id == config.id)
+                    .values(
+                        sync_status=SyncStatus.FAILED.value,
+                        sync_error=str(e),
+                        updated_at=datetime.now(),
+                    )
+                )
+                await db.execute(update_stmt)
+                await db.commit()
+
+            logger.error(
+                "reconcile_subaccount_failed",
+                extra={
+                    "event_type": "reconcile_subaccount_failed",
+                    "merchant_id": merchant_id,
+                    "subaccount_code": subaccount_code,
+                    "error": str(e),
+                },
+            )
+            raise
+
+
 # Map job types to their handlers
 JOB_HANDLERS = {
     JobType.WA_SEND: handle_wa_send,
     JobType.CATALOG_SYNC: handle_catalog_sync,
+    JobType.RECONCILE_SUBACCOUNT: handle_reconcile_subaccount,
     "catalog_unpublish": handle_catalog_unpublish,  # String key for catalog unpublish jobs
     "image_cleanup": handle_image_cleanup,  # String key for image cleanup jobs
     # Add other job handlers here

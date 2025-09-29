@@ -17,7 +17,7 @@ export function apiUrl(endpoint: string): string {
  * Get auth token from localStorage
  */
 export function getAuthToken(): string | null {
-  return localStorage.getItem('auth_token')
+  return localStorage.getItem('access_token')
 }
 
 /**

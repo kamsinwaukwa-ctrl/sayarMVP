@@ -131,28 +131,74 @@ class OutboxWorker:
         try:
             # Try to acquire leader lock
             if not self.is_leader:
-                acquired = await acquire_leader_lock(
-                    self.config.lock_key, self.instance_id
-                )
-                if acquired:
-                    self.is_leader = True
-                    log.info(
-                        "Acquired leader lock",
+                try:
+                    acquired = await acquire_leader_lock(
+                        self.config.lock_key, self.instance_id
+                    )
+                    if acquired:
+                        self.is_leader = True
+                        log.info(
+                            "Acquired leader lock",
+                            extra={
+                                "event_type": "worker_leader_acquired",
+                                "instance_id": self.instance_id,
+                                "lock_key": self.config.lock_key,
+                            },
+                        )
+                    else:
+                        # Not the leader, skip processing
+                        return
+                except asyncio.CancelledError:
+                    # Database connection was cancelled, log and continue
+                    log.debug(
+                        "Leader lock acquisition cancelled",
                         extra={
-                            "event_type": "worker_leader_acquired",
+                            "event_type": "worker_lock_cancelled",
                             "instance_id": self.instance_id,
-                            "lock_key": self.config.lock_key,
                         },
                     )
-                else:
-                    # Not the leader, skip processing
+                    return
+                except Exception as e:
+                    # Database error, log and continue
+                    log.warning(
+                        "Failed to acquire leader lock",
+                        extra={
+                            "event_type": "worker_lock_failed",
+                            "instance_id": self.instance_id,
+                            "error": str(e),
+                        },
+                    )
                     return
 
             # Record heartbeat to show we're alive
-            await self._record_heartbeat()
+            try:
+                await self._record_heartbeat()
+            except asyncio.CancelledError:
+                log.debug(
+                    "Heartbeat recording cancelled",
+                    extra={"event_type": "worker_heartbeat_cancelled", "instance_id": self.instance_id},
+                )
+                return
+            except Exception as e:
+                log.warning(
+                    "Failed to record heartbeat",
+                    extra={"event_type": "worker_heartbeat_failed", "instance_id": self.instance_id, "error": str(e)},
+                )
 
             # Process due jobs
-            await self._process_due_jobs()
+            try:
+                await self._process_due_jobs()
+            except asyncio.CancelledError:
+                log.debug(
+                    "Job processing cancelled",
+                    extra={"event_type": "worker_processing_cancelled", "instance_id": self.instance_id},
+                )
+                return
+            except Exception as e:
+                log.warning(
+                    "Failed to process jobs",
+                    extra={"event_type": "worker_processing_failed", "instance_id": self.instance_id, "error": str(e)},
+                )
 
         except Exception as e:
             log.error(

@@ -4,6 +4,7 @@ import Dashboard from '@/pages/Dashboard'
 import Login from '@/pages/Login'
 import Signup from '@/pages/Signup'
 import Logout from '@/pages/Logout'
+import Settings from '@/pages/Settings'
 import ProtectedRoute from '@/components/ProtectedRoute'
 //import UIShowcase from '@/pages/_dev/ui'
 
@@ -19,6 +20,10 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/dashboard" element={<Dashboard />} />
+
+          {/* Settings Routes */}
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings/:tab" element={<Settings />} />
 
         </Route>
 

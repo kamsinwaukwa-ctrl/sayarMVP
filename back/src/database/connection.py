@@ -34,9 +34,29 @@ engine = create_async_engine(
     pool_recycle=3600,
 )
 
+# Create worker engine with connection pooling for background workers
+worker_engine = create_async_engine(
+    DATABASE_URL,
+    echo=os.getenv("DEBUG", "false").lower() == "true",
+    future=True,
+    connect_args={
+        "ssl": "prefer",
+        "statement_cache_size": 0,
+    },
+    pool_size=5,  # Small connection pool for workers
+    max_overflow=10,
+    pool_recycle=3600,
+    pool_pre_ping=True,  # Verify connections before use
+)
+
 # Create async session factory
 AsyncSessionLocal = sessionmaker(
     engine, class_=AsyncSession, expire_on_commit=False, autoflush=False
+)
+
+# Create worker session factory with connection pooling
+WorkerSessionLocal = sessionmaker(
+    worker_engine, class_=AsyncSession, expire_on_commit=False, autoflush=False
 )
 
 # Base class for all models

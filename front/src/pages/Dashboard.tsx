@@ -27,12 +27,10 @@ import {
   TrendingUp,
   Users,
   DollarSign,
-  Home,
-  Settings
 } from 'lucide-react'
-import { Sidebar, type SidebarSection } from '@/components/layout'
 import { useAuth } from '@/hooks/useAuth'
 import { apiClient } from '@/lib/api-client'
+import { clearSensitiveOnboardingData } from '@/lib/onboarding'
 import {
   SetupCard,
   BrandBasicsSetup,
@@ -52,7 +50,6 @@ const Dashboard = () => {
     loading: authLoading,
     isLoadingOnboarding,
     refreshOnboardingProgress,
-    logout
   } = useAuth()
   const { toast } = useToast()
   const [merchantInfo, setMerchantInfo] = useState<MerchantSummary | null>(null)
@@ -94,6 +91,18 @@ const Dashboard = () => {
 
   const isSetupComplete = onboardingProgress && Object.values(onboardingProgress).every(Boolean)
 
+  // Clear sensitive data when onboarding completes
+  useEffect(() => {
+    if (isSetupComplete && !authLoading && !loading) {
+      // Only clear sensitive data once per session to avoid repeated cleanup
+      const hasCleared = sessionStorage.getItem('sensitive_data_cleared')
+      if (!hasCleared) {
+        clearSensitiveOnboardingData()
+        sessionStorage.setItem('sensitive_data_cleared', 'true')
+      }
+    }
+  }, [isSetupComplete, authLoading, loading])
+
   if (authLoading || loading) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -107,25 +116,9 @@ const Dashboard = () => {
     )
   }
 
-  const sidebarSections: SidebarSection[] = [
-    {
-      items: [
-        { label: 'Dashboard', href: '/dashboard', icon: Home, active: true },
-        { label: 'Products', href: '/products', icon: Package },
-        { label: 'Orders', href: '/orders', icon: ShoppingCart },
-        { label: 'Analytics', href: '/analytics', icon: BarChart4 },
-        { label: 'Settings', href: '/settings', icon: Settings },
-      ],
-    },
-  ]
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
-      <div className="flex">
-        {/* Sticky sidebar within row */}
-        <Sidebar sections={sidebarSections} onLogout={logout} />
-        {/* Main Content */}
-        <div className="flex-1 px-4 sm:px-6 lg:px-8 py-8 max-w-7xl mx-auto w-full">
+      <div className="px-4 sm:px-6 lg:px-8 py-8 max-w-7xl mx-auto w-full">
         {error && (
           <Alert variant="destructive" className="mb-8">
             {error}
@@ -559,7 +552,6 @@ const Dashboard = () => {
           </CardContent>
           </Card>
         </div>
-      </div>
     </div>
   )
 }

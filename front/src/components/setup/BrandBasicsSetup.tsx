@@ -17,7 +17,10 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
+import { Separator } from '@/components/ui/separator'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   Select,
   SelectContent,
@@ -25,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/Select'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { ImageUpload } from '@/components/setup/ui/ImageUpload'
 import { brandBasicsSchema, type BrandBasicsFormData } from '@/lib/form-schemas/brand-basics'
 import { onboardingApi } from '@/lib/onboarding-api'
@@ -40,12 +44,23 @@ const currencies: { value: Currency; label: string }[] = [
 interface BrandBasicsSetupProps {
   onComplete?: () => void
   onCancel?: () => void
+  mode?: 'onboarding' | 'settings'
+  readOnly?: boolean
+  showExtended?: boolean
 }
 
-export function BrandBasicsSetup({ onComplete, onCancel }: BrandBasicsSetupProps) {
+export function BrandBasicsSetup({
+  onComplete,
+  onCancel,
+  mode = 'onboarding',
+  readOnly = false,
+  showExtended = false,
+}: BrandBasicsSetupProps) {
   const { merchant, refreshOnboardingProgress } = useAuth()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const [isExtendedOpen, setIsExtendedOpen] = useState(showExtended)
 
   const form = useForm<BrandBasicsFormData>({
     resolver: zodResolver(brandBasicsSchema),
@@ -55,6 +70,16 @@ export function BrandBasicsSetup({ onComplete, onCancel }: BrandBasicsSetupProps
       description: '',
       currency: 'NGN',
       logo_url: '',
+      // Extended fields for settings mode
+      website_url: '',
+      support_email: '',
+      support_phone_e164: '',
+      address_line1: '',
+      address_line2: '',
+      city: '',
+      state_region: '',
+      postal_code: '',
+      country_code: '',
     },
   })
 
@@ -75,11 +100,24 @@ export function BrandBasicsSetup({ onComplete, onCancel }: BrandBasicsSetupProps
         updates.logo_url = merchant.logo_url
       }
 
+      // Load extended fields for settings mode
+      if (mode === 'settings' || showExtended) {
+        if (merchant.website_url) updates.website_url = merchant.website_url
+        if (merchant.support_email) updates.support_email = merchant.support_email
+        if (merchant.support_phone_e164) updates.support_phone_e164 = merchant.support_phone_e164
+        if (merchant.address_line1) updates.address_line1 = merchant.address_line1
+        if (merchant.address_line2) updates.address_line2 = merchant.address_line2
+        if (merchant.city) updates.city = merchant.city
+        if (merchant.state_region) updates.state_region = merchant.state_region
+        if (merchant.postal_code) updates.postal_code = merchant.postal_code
+        if (merchant.country_code) updates.country_code = merchant.country_code
+      }
+
       if (Object.keys(updates).length > 0) {
         form.reset(updates)
       }
     }
-  }, [merchant, form])
+  }, [merchant, form, mode, showExtended])
 
   const onSubmit = async (data: BrandBasicsFormData) => {
     setIsSubmitting(true)
@@ -120,6 +158,7 @@ export function BrandBasicsSetup({ onComplete, onCancel }: BrandBasicsSetupProps
                   onChange={(v) => field.onChange(v ?? '')}
                   onRemove={() => field.onChange('')}
                   placeholder="Upload your business logo"
+                  disabled={readOnly}
                 />
               </FormControl>
               <FormMessage />
@@ -138,6 +177,7 @@ export function BrandBasicsSetup({ onComplete, onCancel }: BrandBasicsSetupProps
                 <Textarea
                   placeholder="Describe what you sell and what makes your business special... (minimum 10 characters)"
                   className="min-h-[100px]"
+                  disabled={readOnly}
                   {...field}
                 />
               </FormControl>
@@ -156,7 +196,7 @@ export function BrandBasicsSetup({ onComplete, onCancel }: BrandBasicsSetupProps
           render={({ field }) => (
             <FormItem>
               <FormLabel>Primary Currency (Choose from the list) *</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
+              <Select onValueChange={field.onChange} value={field.value} disabled={readOnly}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select your currency" />
@@ -174,6 +214,214 @@ export function BrandBasicsSetup({ onComplete, onCancel }: BrandBasicsSetupProps
             </FormItem>
           )}
         />
+
+        {/* Extended Fields for Settings Mode */}
+        {(mode === 'settings' || showExtended) && (
+          <>
+            <Separator className="my-6" />
+
+            <Collapsible open={isExtendedOpen} onOpenChange={setIsExtendedOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-0 font-medium">
+                  Contact & Location Details
+                  {isExtendedOpen ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+
+              <CollapsibleContent className="space-y-6 mt-4">
+                {/* Website URL */}
+                <FormField
+                  control={form.control}
+                  name="website_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Website URL</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="url"
+                          placeholder="https://your-website.com"
+                          disabled={readOnly}
+                          {...field}
+                          value={field.value || ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Support Email */}
+                <FormField
+                  control={form.control}
+                  name="support_email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Support Email</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="email"
+                          placeholder="support@your-business.com"
+                          disabled={readOnly}
+                          {...field}
+                          value={field.value || ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Support Phone */}
+                <FormField
+                  control={form.control}
+                  name="support_phone_e164"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Support Phone</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="tel"
+                          placeholder="+234 801 234 5678"
+                          disabled={readOnly}
+                          {...field}
+                          value={field.value || ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Address Fields */}
+                <div className="space-y-4">
+                  <h4 className="font-medium text-sm">Business Address</h4>
+
+                  <FormField
+                    control={form.control}
+                    name="address_line1"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Address Line 1</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Street address"
+                            disabled={readOnly}
+                            {...field}
+                            value={field.value || ''}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="address_line2"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Address Line 2 (Optional)</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Apartment, suite, etc."
+                            disabled={readOnly}
+                            {...field}
+                            value={field.value || ''}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="city"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>City</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="City"
+                              disabled={readOnly}
+                              {...field}
+                              value={field.value || ''}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="state_region"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>State/Region</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="State or Region"
+                              disabled={readOnly}
+                              {...field}
+                              value={field.value || ''}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="postal_code"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Postal Code</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Postal code"
+                              disabled={readOnly}
+                              {...field}
+                              value={field.value || ''}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="country_code"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Country</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Nigeria"
+                              disabled={readOnly}
+                              {...field}
+                              value={field.value || ''}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </>
+        )}
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-3 pt-4 border-t">
