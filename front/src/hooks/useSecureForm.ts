@@ -4,16 +4,38 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { useForm, UseFormReturn } from 'react-hook-form'
+import { useForm, FieldValues, UseFormHandleSubmit, UseFormGetValues, UseFormReset, UseFormSetValue, UseFormWatch, FormState, Control, UseFormGetFieldState, UseFormSetError, UseFormClearErrors, UseFormTrigger, UseFormUnregister, UseFormRegister, UseFormResetField, UseFormSetFocus, UseFormSubscribe } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { trackSettingsEvent, SETTINGS_EVENTS } from '@/lib/security'
 import { useAuth } from '@/hooks/useAuth'
 
 /**
+ * Explicitly typed form interface for security
+ */
+interface SecureFormReturn<TFormData extends FieldValues> {
+  handleSubmit: UseFormHandleSubmit<TFormData, TFormData>
+  getValues: UseFormGetValues<TFormData>
+  reset: UseFormReset<TFormData>
+  setValue: UseFormSetValue<TFormData>
+  watch: UseFormWatch<TFormData>
+  formState: FormState<TFormData>
+  control: Control<TFormData>
+  getFieldState: UseFormGetFieldState<TFormData>
+  setError: UseFormSetError<TFormData>
+  clearErrors: UseFormClearErrors<TFormData>
+  trigger: UseFormTrigger<TFormData>
+  unregister: UseFormUnregister<TFormData>
+  register: UseFormRegister<TFormData>
+  resetField: UseFormResetField<TFormData>
+  setFocus: UseFormSetFocus<TFormData>
+  subscribe: UseFormSubscribe<TFormData>
+}
+
+/**
  * Secure form hook that never pre-populates sensitive fields
  */
-export function useSecureForm<T extends Record<string, any>>(
+export function useSecureForm<T extends FieldValues>(
   schema: z.ZodSchema<T>,
   options: {
     onSuccess?: () => void
@@ -21,7 +43,7 @@ export function useSecureForm<T extends Record<string, any>>(
     provider?: string
   } = {}
 ): {
-  form: UseFormReturn<T>
+  form: SecureFormReturn<T>
   secureSubmit: (
     onSubmit: (data: T) => Promise<void>
   ) => Promise<void>
@@ -29,12 +51,12 @@ export function useSecureForm<T extends Record<string, any>>(
 } {
   const form = useForm<T>({
     resolver: zodResolver(schema),
-    defaultValues: {} as T, // Never pre-populate with existing credentials
+    defaultValues: undefined, // Never pre-populate with existing credentials
     mode: 'onChange',
   })
 
   const clearForm = () => {
-    form.reset({} as T)
+    form.reset()
   }
 
   const secureSubmit = async (
@@ -73,7 +95,28 @@ export function useSecureForm<T extends Record<string, any>>(
     }
   }
 
-  return { form, secureSubmit, clearForm }
+  return {
+    form: {
+      handleSubmit: form.handleSubmit,
+      getValues: form.getValues,
+      reset: form.reset,
+      setValue: form.setValue,
+      watch: form.watch,
+      formState: form.formState,
+      control: form.control,
+      getFieldState: form.getFieldState,
+      setError: form.setError,
+      clearErrors: form.clearErrors,
+      trigger: form.trigger,
+      unregister: form.unregister,
+      register: form.register,
+      resetField: form.resetField,
+      setFocus: form.setFocus,
+      subscribe: form.subscribe
+    },
+    secureSubmit,
+    clearForm
+  }
 }
 
 /**

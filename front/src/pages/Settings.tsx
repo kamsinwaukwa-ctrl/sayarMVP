@@ -114,7 +114,7 @@ function SettingsTabContent({ tab, role }: SettingsTabContentProps) {
           </div>
         )
       }
-      return <ProfileSettingsTab role={role} />
+      return <ProfileSettingsTab />
 
     default:
       return (

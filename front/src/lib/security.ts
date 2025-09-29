@@ -12,7 +12,7 @@ export { SETTINGS_EVENTS }
  * Mask API keys and credentials for display
  * Never use this for system user tokens (WhatsApp/Meta)
  */
-export function maskKey(key: string, keyType?: 'public' | 'secret'): string {
+export function maskKey(key: string): string {
   if (!key || key.length < 8) return key
 
   // Never mask system user tokens at all (WhatsApp/Meta)
@@ -43,7 +43,7 @@ export function maskIdentifier(identifier: string): string {
 /**
  * Generate masked display for payment provider keys
  */
-export function maskPaymentKey(key: string, provider: 'paystack' | 'korapay'): string {
+export function maskPaymentKey(key: string): string {
   if (!key) return ''
 
   // Preserve provider prefix for context

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Alert } from '@/components/ui/Alert'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@/components/ui/Badge'
 import { koboToNairaDisplay } from '@/lib/format'
 import {
   Store,

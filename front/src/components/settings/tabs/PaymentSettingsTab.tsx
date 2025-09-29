@@ -4,16 +4,14 @@
  */
 
 import { usePaymentSettings } from '@/hooks/settings'
-import { useRole } from '@/hooks/useSecureForm'
 import { PAYMENT_PROVIDERS } from '@/constants/settings'
 import { SettingsSection, SettingsGrid } from '@/components/settings/SettingsLayout'
 import { ProviderConnectionCard, ConnectionTestButton } from '@/components/settings/ConnectionStatus'
-import { PaymentCredentialUpdate, PaystackSubaccountUpdate } from '@/components/settings/SecureCredentialUpdate'
+import { PaystackSubaccountUpdate } from '@/components/settings/SecureCredentialUpdate'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Button } from '@/components/ui/Button'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@/components/ui/Badge'
 import { Alert, AlertDescription } from '@/components/ui/Alert'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import {
   CreditCard,
   Shield,
@@ -43,12 +41,10 @@ export function PaymentSettingsTab({ role }: PaymentSettingsTabProps) {
     )
   }
 
-  const { canUpdateCredentials } = useRole()
   const {
     data: paymentSettings,
     isLoading,
     error,
-    updateCredentials,
     isUpdatingCredentials,
     testConnection,
     isTestingConnection,
@@ -281,103 +277,4 @@ function PaystackConnectionCard({
   )
 }
 
-/**
- * Korapay connection card
- */
-interface KorapayConnectionCardProps {
-  settings: any
-  role: 'admin' | 'staff'
-  onUpdate: () => void
-  onTest: () => void
-  onDisconnect: () => void
-  isTestingConnection: boolean
-  isUpdating: boolean
-  isDisconnecting: boolean
-}
 
-function KorapayConnectionCard({
-  settings,
-  role,
-  onUpdate,
-  onTest,
-  onDisconnect,
-  isTestingConnection,
-  isUpdating,
-  isDisconnecting,
-}: KorapayConnectionCardProps) {
-  const providerInfo = PAYMENT_PROVIDERS.korapay
-
-  return (
-    <ProviderConnectionCard
-      provider="korapay"
-      title={providerInfo.name}
-      description={providerInfo.description}
-      connected={settings?.connected || false}
-      status={settings?.status || 'inactive'}
-      maskedIdentifier={settings?.maskedPublicKey}
-      connectedAt={settings?.connectedAt}
-      lastUsed={settings?.lastUsed}
-      role={role}
-      icon={<CreditCard className="w-5 h-5 text-blue-600" />}
-      actions={
-        <div className="flex flex-wrap gap-2">
-          <ConnectionTestButton
-            provider="korapay"
-            isLoading={isTestingConnection}
-            onTest={onTest}
-          />
-
-          {role === 'admin' ? (
-            <>
-              <PaymentCredentialUpdate
-                provider="korapay"
-                onSuccess={onUpdate}
-                trigger={
-                  <Button variant="outline" size="sm" disabled={isUpdating}>
-                    <Key className="w-4 h-4 mr-2" />
-                    {isUpdating ? 'Updating...' : 'Update Credentials'}
-                  </Button>
-                }
-              />
-
-              {settings?.connected && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={onDisconnect}
-                  disabled={isDisconnecting}
-                >
-                  {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
-                </Button>
-              )}
-            </>
-          ) : (
-            <Badge variant="secondary" className="text-xs">
-              <Lock className="w-3 h-3 mr-1" />
-              Admin Only
-            </Badge>
-          )}
-        </div>
-      }
-    >
-      {settings?.environment && (
-        <div className="flex items-center gap-2">
-          <Badge
-            variant={settings.environment === 'live' ? 'default' : 'secondary'}
-            className={
-              settings.environment === 'live'
-                ? 'bg-green-100 text-green-700'
-                : 'bg-orange-100 text-orange-700'
-            }
-          >
-            {settings.environment === 'live' ? 'Live Environment' : 'Test Environment'}
-          </Badge>
-        </div>
-      )}
-
-      <div className="text-sm text-muted-foreground">
-        <strong>Features:</strong> {providerInfo.features.join(', ')}
-      </div>
-    </ProviderConnectionCard>
-  )
-}

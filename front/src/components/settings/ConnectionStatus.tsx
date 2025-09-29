@@ -7,7 +7,7 @@ import { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { ConnectionStatus as StatusType, UserRole } from '@/types/settings'
 import { STATUS_VARIANTS } from '@/constants/settings'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Alert, AlertDescription } from '@/components/ui/Alert'
@@ -77,7 +77,6 @@ interface ProviderConnectionCardProps {
 }
 
 export function ProviderConnectionCard({
-  provider,
   title,
   description,
   connected,
@@ -85,7 +84,6 @@ export function ProviderConnectionCard({
   maskedIdentifier,
   connectedAt,
   lastUsed,
-  role,
   icon,
   children,
   actions,
@@ -187,7 +185,6 @@ interface ConnectionTestButtonProps {
 }
 
 export function ConnectionTestButton({
-  provider,
   isLoading = false,
   onTest,
   disabled = false,

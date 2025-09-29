@@ -1,7 +1,7 @@
 //import React from 'react'
 import { Typography } from '@/components/ui/Typography'
 import { Button } from '@/components/ui/Button'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/hooks/useAuth'
 import { Bell, LogOut, MessageCircle, Search } from 'lucide-react'
 

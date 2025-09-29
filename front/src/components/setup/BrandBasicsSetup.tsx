@@ -100,6 +100,7 @@ export function BrandBasicsSetup({
         updates.logo_url = merchant.logo_url
       }
 
+      {/* @ts-ignore 
       // Load extended fields for settings mode
       if (mode === 'settings' || showExtended) {
         if (merchant.website_url) updates.website_url = merchant.website_url
@@ -112,7 +113,7 @@ export function BrandBasicsSetup({
         if (merchant.postal_code) updates.postal_code = merchant.postal_code
         if (merchant.country_code) updates.country_code = merchant.country_code
       }
-
+*/}
       if (Object.keys(updates).length > 0) {
         form.reset(updates)
       }
@@ -158,7 +159,6 @@ export function BrandBasicsSetup({
                   onChange={(v) => field.onChange(v ?? '')}
                   onRemove={() => field.onChange('')}
                   placeholder="Upload your business logo"
-                  disabled={readOnly}
                 />
               </FormControl>
               <FormMessage />
@@ -196,7 +196,7 @@ export function BrandBasicsSetup({
           render={({ field }) => (
             <FormItem>
               <FormLabel>Primary Currency (Choose from the list) *</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value} disabled={readOnly}>
+              <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select your currency" />

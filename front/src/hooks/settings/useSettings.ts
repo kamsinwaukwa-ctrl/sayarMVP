@@ -8,17 +8,12 @@ import { useToast } from '@/hooks/use-toast'
 import { settingsApi } from '@/lib/settings-api'
 import { trackSettingsEvent, SETTINGS_EVENTS } from '@/lib/security'
 import {
-  IntegrationSettingsResponse,
-  PaymentSettings,
-  WhatsAppSettings,
-  MetaCatalogSettings,
   BrandSettings,
   ProfileSettings,
   PaymentProvider,
   CredentialUpdateFormData,
   WhatsAppUpdateFormData,
   WhatsAppDetailsUpdateData,
-  WhatsAppTokenReplaceData,
   MetaCatalogUpdateFormData,
 } from '@/types/settings'
 

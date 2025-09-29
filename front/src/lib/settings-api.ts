@@ -77,13 +77,6 @@ async function apiRequest<T>(
   return response.json()
 }
 
-/**
- * Mask sensitive identifiers for secure display
- */
-function maskIdentifier(value: string | null | undefined, prefixLength = 8): string {
-  if (!value || value.length <= prefixLength) return '••••••••'
-  return `${value.substring(0, prefixLength)}••••${value.slice(-4)}`
-}
 
 /**
  * Settings API adapter - maps existing backend endpoints to settings UI expectations
@@ -247,7 +240,7 @@ export const settingsApi = {
   },
 
   async updatePaymentCredentials(
-    provider: PaymentProvider,
+    _provider: PaymentProvider,
     data: CredentialUpdateFormData
   ): Promise<{ success: boolean; message: string; partialSuccess?: boolean }> {
     // Legacy Korapay verification (keep existing flow for now)

@@ -10,7 +10,7 @@ import { BrandBasicsSetup } from '@/components/setup/BrandBasicsSetup'
 import { Button } from '@/components/ui/Button'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Alert, AlertDescription } from '@/components/ui/Alert'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@/components/ui/Badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Separator } from '@/components/ui/separator'
 import { Building, Globe, Mail, Phone, MapPin, Edit, Lock } from 'lucide-react'
@@ -20,7 +20,7 @@ interface BrandSettingsTabProps {
 }
 
 export function BrandSettingsTab({ role }: BrandSettingsTabProps) {
-  const { data: brandSettings, isLoading, error, update, isUpdating } = useBrandSettings()
+  const { data: brandSettings, isLoading, error, isUpdating } = useBrandSettings()
   const [isEditing, setIsEditing] = useState(false)
 
   const canEdit = role === 'admin'

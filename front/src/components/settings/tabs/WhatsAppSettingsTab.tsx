@@ -9,12 +9,11 @@ import { useWhatsAppSettings } from '@/hooks/settings'
 import { SettingsSection } from '@/components/settings/SettingsLayout'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { Badge } from '@/components/ui/Badge'
 import { Alert, AlertDescription } from '@/components/ui/Alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
-import { Label } from '@/components/ui/Label'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/Dialog'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import {
   MessageCircle,
@@ -22,9 +21,6 @@ import {
   AlertTriangle,
   CheckCircle,
   XCircle,
-  Lock,
-  RefreshCw,
-  Activity,
   Edit3,
   Key,
   Eye,
@@ -596,11 +592,13 @@ export function WhatsAppSettingsTab({ role }: WhatsAppSettingsTabProps) {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        navigator.clipboard.writeText(whatsappSettings.webhookUrl)
-                        toast({
-                          title: 'Copied!',
-                          description: 'Webhook URL copied to clipboard'
-                        })
+                        if (whatsappSettings.webhookUrl) {
+                          navigator.clipboard.writeText(whatsappSettings.webhookUrl)
+                          toast({
+                            title: 'Copied!',
+                            description: 'Webhook URL copied to clipboard'
+                          })
+                        }
                       }}
                     >
                       <Copy className="w-4 h-4" />

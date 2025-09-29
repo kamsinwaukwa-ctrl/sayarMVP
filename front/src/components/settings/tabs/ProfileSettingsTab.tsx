@@ -8,7 +8,7 @@ import { useProfileSettings, useTeamMembers } from '@/hooks/settings'
 import { SettingsSection, SettingsGrid } from '@/components/settings/SettingsLayout'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Button } from '@/components/ui/Button'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@/components/ui/Badge'
 import { Alert, AlertDescription } from '@/components/ui/Alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -40,7 +40,6 @@ import {
   Shield,
   User,
   Mail,
-  Phone,
   Globe,
   Plus,
   MoreHorizontal,
@@ -50,16 +49,12 @@ import {
   Edit,
 } from 'lucide-react'
 
-interface ProfileSettingsTabProps {
-  role: 'admin' | 'staff'
-}
 
-export function ProfileSettingsTab({ role }: ProfileSettingsTabProps) {
+export function ProfileSettingsTab() {
   const {
     data: profileSettings,
     isLoading: isLoadingProfile,
     error: profileError,
-    update: updateProfile,
     isUpdating: isUpdatingProfile,
   } = useProfileSettings()
 
@@ -69,7 +64,6 @@ export function ProfileSettingsTab({ role }: ProfileSettingsTabProps) {
     error: teamError,
     invite: inviteTeamMember,
     isInviting,
-    updateMember,
     isUpdatingMember,
     removeMember,
     isRemovingMember,
