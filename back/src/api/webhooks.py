@@ -8,6 +8,7 @@ import hmac
 import hashlib
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
+from uuid import UUID
 
 from fastapi import APIRouter, Request, Response, HTTPException, Depends, Query, Header
 from fastapi.responses import PlainTextResponse
@@ -42,7 +43,13 @@ async def get_webhook_with_merchant(app_id: str, db: AsyncSession) -> Optional[D
         {"app_id": app_id}
     )
     row = result.fetchone()
-    return dict(row._mapping) if row else None
+    if row:
+        webhook_data = dict(row._mapping)
+        # Ensure merchant_id is returned as a UUID object
+        if webhook_data.get("merchant_id") and isinstance(webhook_data["merchant_id"], str):
+            webhook_data["merchant_id"] = UUID(webhook_data["merchant_id"])
+        return webhook_data
+    return None
 
 
 def verify_signature(payload: bytes, signature: str, app_secret: str) -> bool:
@@ -307,7 +314,7 @@ async def handle_webhook_notification(
                 messages = value.get("messages", [])
                 for message in messages:
                     await enqueue_job(
-                        db,
+                        webhook["merchant_id"],  # merchant_id as UUID (already converted)
                         JobType.PROCESS_WHATSAPP_MESSAGE,
                         {
                             "merchant_id": str(webhook["merchant_id"]),
@@ -316,20 +323,22 @@ async def handle_webhook_notification(
                             "message": message,
                             "metadata": value.get("metadata", {}),
                             "contacts": value.get("contacts", []),
-                        }
+                        },
+                        db=db  # database session as keyword argument
                     )
 
             elif field == "message_template_status_update":
                 # Handle template status updates
                 await enqueue_job(
-                    db,
+                    webhook["merchant_id"],  # merchant_id as UUID (already converted)
                     JobType.PROCESS_WHATSAPP_TEMPLATE_UPDATE,
                     {
                         "merchant_id": str(webhook["merchant_id"]),
                         "phone_number_id": webhook["phone_number_id"],
                         "waba_id": waba_id,
                         "template_update": value,
-                    }
+                    },
+                    db=db  # database session as keyword argument
                 )
 
             elif field == "messages_status":
@@ -337,14 +346,15 @@ async def handle_webhook_notification(
                 statuses = value.get("statuses", [])
                 for status_update in statuses:
                     await enqueue_job(
-                        db,
+                        webhook["merchant_id"],  # merchant_id as UUID (already converted)
                         JobType.PROCESS_WHATSAPP_STATUS,
                         {
                             "merchant_id": str(webhook["merchant_id"]),
                             "phone_number_id": webhook["phone_number_id"],
                             "waba_id": waba_id,
                             "status": status_update,
-                        }
+                        },
+                        db=db  # database session as keyword argument
                     )
 
     await db.commit()
