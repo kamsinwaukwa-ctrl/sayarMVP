@@ -101,7 +101,8 @@ async def enqueue_job(
             },
         )
 
-        return UUID(job_id)
+        # Convert asyncpg UUID to Python UUID for consistency
+        return UUID(str(job_id))
 
     except Exception as e:
         await db.rollback()
