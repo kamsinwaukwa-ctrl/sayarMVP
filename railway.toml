@@ -1,5 +1,6 @@
 # Railway Configuration for Sayar WhatsApp Commerce Platform
-# Backend API deployment with custom domain support
+# Web API service - does NOT run the background worker
+# For worker service, see railway.worker.toml
 
 [build]
 builder = "nixpacks"
@@ -17,16 +18,20 @@ restartPolicyType = "on_failure"
 # This will be configured in Railway dashboard
 
 [environments.production]
-variables = { 
+variables = {
   ENV = "production",
   DEBUG = "false",
-  API_HOST = "0.0.0.0"
+  API_HOST = "0.0.0.0",
+  # Disable worker in web service (runs in separate worker service)
+  WORKER_ENABLED = "false"
 }
 
 # Development environment (optional)
 [environments.development]
-variables = { 
+variables = {
   ENV = "development",
   DEBUG = "true",
-  API_HOST = "0.0.0.0"
+  API_HOST = "0.0.0.0",
+  # Disable worker in web service (runs in separate worker service)
+  WORKER_ENABLED = "false"
 }

@@ -54,14 +54,24 @@ async def lifespan(app: FastAPI):
     )
 
     # Start outbox worker if enabled
+    # In split deployment: web service sets WORKER_ENABLED=false, worker service sets it to true
     worker_enabled = os.getenv("WORKER_ENABLED", "true").lower() == "true"
     if worker_enabled:
-        log.info("Starting outbox worker", extra={"event_type": "worker_startup_init"})
+        log.info(
+            "Starting outbox worker (embedded mode)",
+            extra={
+                "event_type": "worker_startup_init",
+                "mode": "embedded_in_web",
+            },
+        )
         await start_worker()
     else:
         log.info(
-            "Outbox worker disabled via environment variable",
-            extra={"event_type": "worker_disabled"},
+            "Outbox worker disabled - running in web-only mode",
+            extra={
+                "event_type": "worker_disabled",
+                "note": "Worker should be running in separate service",
+            },
         )
 
     yield

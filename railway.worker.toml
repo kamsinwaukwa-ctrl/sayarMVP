@@ -1,0 +1,42 @@
+# Railway Configuration for Sayar Background Worker
+# Standalone worker service that processes outbox jobs independently from web service
+# This service should be deployed alongside the main web service (railway.toml)
+
+[build]
+builder = "nixpacks"
+buildCommand = "pip install -r requirements.txt"
+watchPatterns = ["back/**"]
+
+[deploy]
+# Run standalone worker entrypoint (no web server)
+startCommand = "cd back && python worker_entrypoint.py"
+
+# Health check configuration
+# Worker doesn't expose HTTP endpoints, so use command-based health check
+healthcheckPath = ""
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+
+# Worker-specific restart configuration
+# Keep worker running even during web service deploys
+restartPolicyMaxRetries = 10
+
+[environments.production]
+variables = {
+  ENV = "production",
+  DEBUG = "false",
+  WORKER_ENABLED = "true",
+  # Worker processes jobs, doesn't serve HTTP
+  LOG_LEVEL = "INFO",
+  # Worker instance identification
+  WORKER_MODE = "standalone"
+}
+
+[environments.development]
+variables = {
+  ENV = "development",
+  DEBUG = "true",
+  WORKER_ENABLED = "true",
+  LOG_LEVEL = "DEBUG",
+  WORKER_MODE = "standalone"
+}
