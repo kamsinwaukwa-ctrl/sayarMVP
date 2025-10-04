@@ -7,7 +7,7 @@ pydantic[email]==2.8.2  # Updated for Python 3.13 support
 python-dateutil==2.9.0
 
 # Database
-sqlalchemy==2.0.23
+sqlalchemy==2.0.36  # Updated for Python 3.13 support (min 2.0.36 required)
 asyncpg==0.30.0  # Updated for Python 3.13 support
 alembic==1.13.1
 greenlet==3.1.0  # Updated for Python 3.13 support
